@@ -263,6 +263,7 @@ body.view-only .vo-txt{display:inline;}
         <div class="row">
           <input type="text" id="w-q" placeholder="ابحث بالاسم أو الكود أو الرقم القومي" style="flex:1 1 260px;">
           <select id="w-site"><option value="">كل المواقع</option></select>
+          <button class="btn sec" id="w-export" type="button">تصدير إكسيل</button>
         </div>
         <div class="tbl" style="margin-top:10px;"><table><thead><tr><th>الاسم</th><th>الكود</th><th>الموقع</th><th>النوع</th><th>الوظيفة</th><th></th></tr></thead><tbody id="w-list"></tbody></table></div>
         <p class="muted" id="w-count" style="margin-top:6px;"></p>
@@ -1085,6 +1086,28 @@ function renderOverrides() {
       <td><button class="btn sec small" data-undo="${esc(code)}">إلغاء التعديل</button></td></tr>`;
   }).join("") : `<tr><td colspan="6" class="muted">مفيش تعديلات.</td></tr>`;
 }
+// تصدير القايمة اللي ظاهرة (بالبحث والموقع المختارين) — كل العمال مش أول 100 بس
+function workersList() {
+  const q = arNorm($("w-q").value), site = $("w-site").value;
+  let list = WS.base.map(current);
+  if (site) list = list.filter(w => w.site === site);
+  if (q) list = list.filter(w => arNorm(w.name).includes(q) || String(w.code).toLowerCase().includes(q.toLowerCase()) || String(w.nid).includes(q));
+  return list;
+}
+$("w-export")?.addEventListener("click", () => {
+  const site = $("w-site").value;
+  const list = workersList().sort((a, b) => a.site.localeCompare(b.site, "ar") || String(a.job).localeCompare(String(b.job), "ar") || String(a.name).localeCompare(String(b.name), "ar"));
+  if (!list.length) return alert("مفيش عمال في القايمة دي.");
+  const head = ["الاسم", "الكود", "الرقم القومي", "الموقع", "الوظيفة", "النوع", "معدّل يدوي"];
+  // كل الخانات نص — عشان الرقم القومي مايتحولش لرقم علمي في الإكسيل
+  const aoa = [head, ...list.map(w => [String(w.name || ""), String(w.code || ""), String(w.nid || ""), String(w.site || ""), String(w.job || ""), typeLabel(w.type), w.edited ? "أيوه" : ""])];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [{ wch: 34 }, { wch: 10 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, { wch: 10 }, { wch: 10 }];
+  const wb = XLSX.utils.book_new();
+  wb.Workbook = { Views: [{ RTL: true }] };
+  XLSX.utils.book_append_sheet(wb, ws, "العمال");
+  XLSX.writeFile(wb, `بيانات العمال ${site || "كل المواقع"} ${today()}.xlsx`);
+});
 $("w-q")?.addEventListener("input", renderWorkers);
 $("w-site")?.addEventListener("change", renderWorkers);
 $("w-list")?.addEventListener("click", e => {
