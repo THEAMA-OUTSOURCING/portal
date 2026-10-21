@@ -133,12 +133,24 @@ const blankRoom = s => Math.max(0, Math.floor((FREE_MM - contentRows(s) * rowMm(
 export function paginate(jobs, order) {
   const breaks = new Set(order?.breaks || []);
   const isBreak = w => breaks.has(keyOf(w));
+  if (!jobs.length) return [];
+  // 1) الكشف كله صغير (35 سطر أو أقل بالشرايط والخانات الفاضية) ومفيش فواصل يدوية: صفحة واحدة، وكل السطور بنفس المقاس
+  const total = jobs.reduce((a, j) => a + j.names.length + j.blanks, 0) + (jobs.length > 1 ? jobs.length : 0);
+  if (total <= MAX_ROWS && !jobs.some(j => j.names.some(isBreak))) {
+    const rows = [];
+    jobs.forEach(j => {
+      if (jobs.length > 1) rows.push({ band: j.job, need: j.need });
+      j.names.forEach((w, i) => rows.push({ w, n: i + 1 }));
+      for (let i = 0; i < j.blanks; i++) rows.push({ blank: true, n: j.names.length + i + 1 });
+    });
+    return [{ jobs: jobs.map(j => j.job), need: jobs.length === 1 ? jobs[0].need : null, rows, over: false, uniform: true, part: 1, parts: 1 }];
+  }
   const sheets = [];
   const small = [];
   jobs.forEach(j => {
     if (j.names.length + j.blanks < OWN_PAGE_MIN) { small.push(j); return; }
     const pages = chunk(j.names.map((w, i) => ({ w, n: i + 1 })), isBreak)
-      .map(p => ({ jobs: [j.job], need: j.need, rows: p.rows, over: p.over }));
+      .map(p => ({ jobs: [j.job], need: j.need, rows: p.rows, over: p.over, own: true }));
     // الخانات الفاضية بعد آخر اسم، وتصغر عشان تدخل؛ صفحة زيادة بس لو مفيش مكان حتى بأصغر مقاس
     let n = j.names.length, b = j.blanks;
     while (b > 0) {
@@ -147,13 +159,29 @@ export function paginate(jobs, order) {
       const put = Math.min(b, room);
       for (let i = 0; i < put; i++) last.rows.push({ blank: true, n: ++n });
       b -= put;
-      if (b > 0) pages.push({ jobs: [j.job], need: j.need, rows: [], over: false });
+      if (b > 0) pages.push({ jobs: [j.job], need: j.need, rows: [], over: false, own: true });
     }
     pages.forEach((p, i) => sheets.push({ ...p, part: i + 1, parts: pages.length }));
   });
+  const unitsOf = s => s.rows.reduce((a, r) => a + (r.blank ? BLANK_UNIT : 1), 0);
+  // 2) الوظايف الصغيرة: الأول في المساحة الفاضية في آخر صفحة لوظيفة كبيرة، وبعدين في صفحات مشتركة
+  const placeOnOwn = j => {
+    if (j.names.some(isBreak)) return false;
+    const size = 1 + j.names.length + j.blanks * BLANK_UNIT;
+    const host = sheets.find(s => s.own && !s.manualEnd && (s.part === s.parts) && unitsOf(s) + size + (s.jobs.length === 1 ? 1 : 0) <= AUTO_ROWS);
+    if (!host) return false;
+    if (host.jobs.length === 1) host.rows.unshift({ band: host.jobs[0], need: host.need });
+    host.jobs.push(j.job);
+    host.rows.push({ band: j.job, need: j.need });
+    j.names.forEach((w, i) => host.rows.push({ w, n: i + 1 }));
+    for (let i = 0; i < j.blanks; i++) host.rows.push({ blank: true, n: j.names.length + i + 1 });
+    return true;
+  };
+  sheets.forEach(s => { const last = [...s.rows].reverse().find(r => r.w); s.manualEnd = !!(last && isBreak(last.w)); });
   let cur = null, units = 0;
   const open = () => { cur = { jobs: [], part: 1, parts: 1, rows: [], over: false }; units = 0; sheets.push(cur); };
   small.forEach(j => {
+    if (placeOnOwn(j)) return;
     const size = 1 + j.names.length + j.blanks * BLANK_UNIT;
     if (!cur || (cur.rows.length && units + size > AUTO_ROWS)) open();
     cur.jobs.push(j.job); cur.rows.push({ band: j.job, need: j.need }); units += 1;
@@ -203,9 +231,13 @@ export function sheetsHtml({ site, roster, subs, order, plan, month, year }) {
 const needTxt = n => (n != null ? `<span class="scr"> — المطلوب ${n}</span>` : "");
 
 function pageHtml(s, p, total, site, typeTitle, monthName, month, year) {
-  const rh = rowMm(s);
   const content = contentRows(s);
-  const hs = blankHeights(s.rows.filter(r => r.blank).length, BODY_MM - content * rh);
+  const nBlank = s.rows.length - content;
+  // صفحة واحدة للكشف كله: كل السطور (أسماء وخانات) بنفس المقاس. غير كده: الخانات بتصغر لو مفيش مكان
+  const rh = s.uniform ? BODY_MM / Math.max(AUTO_ROWS, s.rows.length) : rowMm(s);
+  const hs = s.uniform ? Array(nBlank).fill(rh) : blankHeights(nBlank, BODY_MM - content * rh);
+  // سطور فاضية من غير رقم لحد 30 سطر (زي الأول) — بس لو الصفحة مش زحمة
+  const fill = Math.max(0, AUTO_ROWS - s.rows.length);
   let rows = "", count = 0, bi = 0;
   for (const it of s.rows) {
     if (it.band) rows += `<tr class="band"><td colspan="6">${esc(it.band)}${needTxt(it.need)}</td></tr>`;
@@ -216,10 +248,11 @@ function pageHtml(s, p, total, site, typeTitle, monthName, month, year) {
       rows += `<tr class="bl" style="--rh:${h.toFixed(2)}mm;--fs:${fs}pt"><td class="n">${it.n}</td><td></td><td></td><td class="sig"></td><td class="sig"></td><td></td></tr>`;
     }
   }
+  for (let i = 0; i < fill; i++) rows += `<tr class="fill"><td class="n"></td><td></td><td></td><td class="sig"></td><td class="sig"></td><td></td></tr>`;
   const jobLabel = s.jobs.length > 1 ? "الوظائف" : "الوظيفة";
-  const part = s.parts > 1 ? ` (${s.part} من ${s.parts})` : "";
+  const part = s.parts > 1 && s.jobs.length === 1 ? ` (${s.part} من ${s.parts})` : "";
   const need = s.jobs.length === 1 && s.need != null ? `<span class="scr"> &nbsp; المطلوب للوظيفة: <b>${s.need}</b></span>` : "";
-  return `<section class="page${content > AUTO_ROWS ? " dense" : ""}" style="--rh:${rh.toFixed(2)}mm">
+  return `<section class="page${(s.uniform ? s.rows.length : content) > AUTO_ROWS ? " dense" : ""}${s.uniform ? " uni" : ""}" style="--rh:${rh.toFixed(2)}mm">
     <div class="head"><div><div class="title">كشف حضور ${esc(site)}${typeTitle}</div>
       <div class="meta">${jobLabel}: <b>${esc(s.jobs.join("، "))}</b>${part}${need}</div><div class="meta">شهر <b>${monthName}</b></div></div>
       <div class="pagebox"><small>صفحة</small><span>${p + 1} / ${total}</span></div></div>
@@ -297,7 +330,7 @@ function fitNames(root) {
 
 // الخانات الفاضية بتاخد المساحة الفاضية الحقيقية تحت الجدول (بتتقاس بعد الرسم)
 function fitBlanks(root) {
-  root.querySelectorAll(".page").forEach(page => {
+  root.querySelectorAll(".page:not(.uni)").forEach(page => {
     const bl = [...page.querySelectorAll("tr.bl")];
     if (!bl.length) return;
     const mm = page.getBoundingClientRect().width / 210;           // px لكل ملّي (حتى لو الصفحة متصغّرة على الموبايل)
