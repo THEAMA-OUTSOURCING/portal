@@ -259,7 +259,7 @@ function pageHtml(s, p, total, site, typeTitle, monthName, month, year) {
     <div class="datebar">التاريخ: <span dir="ltr" class="fixed"><span class="slot"></span> / ${month} / ${year}</span><span style="margin-inline-start:auto">اليوم: <span class="slot" style="width:28mm"></span></span></div>
     <table><colgroup><col style="width:5%"><col style="width:34%"><col style="width:18%"><col style="width:10%"><col style="width:10%"><col style="width:23%"></colgroup>
       <thead><tr><th>م</th><th>الاسم</th><th>الرقم القومي</th><th class="sig">حضور</th><th class="sig">انصراف</th><th>ملاحظات</th></tr></thead><tbody>${rows}</tbody></table>
-    <div class="foot"><div class="counts"><div class="count-box">عدد الصفحة <b>${count}</b></div><div class="count-box">العدد الفعلي <span class="blank"></span></div></div>
+    <div class="foot"><div class="counts"><div class="count-box">العدد الفعلي <span class="blank"></span></div></div>
       <div class="sigs"><div>توقيع المشرف<span></span></div><div>توقيع الأمن<span></span></div><div>توقيع مسئول الإدارة<span></span></div></div>
       <div class="rule">الغائب: خط أفقي واحد مستقيم يعدّي على خانتي الحضور والانصراف مع بعض. الحاضر: ساعته تُكتب في صفه، ممنوع علامات التكرار (،، أو الخط المتعرج). اسم البديل في الملاحظات.</div></div>
   </section>`;
