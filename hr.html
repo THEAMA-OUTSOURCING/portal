@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>اعتماد الحالات - Theama</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'IBM Plex Sans Arabic','Segoe UI',Tahoma,sans-serif;background:#f5f5f0;color:#222;padding:12px;font-size:14px;line-height:1.6;}
+input,button,select,textarea{font-family:inherit;font-size:14px;}
+input,select,textarea{padding:8px 10px;border:1px solid #ddd;border-radius:9px;background:#fff;color:#222;}
+.wrap{max-width:1100px;margin:0 auto;}
+.card{background:#fff;border:1px solid #e5e5e5;border-radius:14px;padding:14px 16px;margin-bottom:12px;}
+h1{font-size:19px;font-weight:600;} h2{font-size:15px;font-weight:600;margin-bottom:8px;}
+.muted{color:#888;font-size:13px;}
+.row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
+label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#777;}
+.btn{padding:8px 16px;font-weight:500;cursor:pointer;background:#c0392b;color:#fff;border:none;border-radius:9px;}
+.btn:disabled{opacity:.5;cursor:not-allowed;} .btn.sec{background:#f5f5f0;color:#444;border:1px solid #ddd;} .btn.ok{background:#3b6d11;} .btn.small{padding:4px 10px;font-size:12px;}
+.msg{padding:9px 12px;border-radius:9px;font-size:13px;margin-top:10px;display:none;}
+.msg.show{display:block;} .msg.ok{background:#eaf3de;color:#3b6d11;} .msg.err{background:#fcebeb;color:#a32d2d;} .msg.info{background:#eef4fb;color:#185fa5;}
+.hidden{display:none !important;}
+.center{max-width:380px;margin:50px auto;}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;}
+.ev{background:#fff;border:1px solid #e5e5e5;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;}
+.ev .ph{height:220px;background:#f0efe9;display:flex;align-items:center;justify-content:center;cursor:zoom-in;}
+.ev .ph img{max-width:100%;max-height:100%;object-fit:contain;}
+.ev .bd{padding:10px 12px;flex:1;}
+.ev .nm{font-weight:600;font-size:15px;}
+.ev dl{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:13px;margin-top:6px;}
+.ev dt{color:#888;} .ev dd{margin:0;}
+.ev .ft{padding:10px 12px;border-top:1px solid #f0efe9;display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+.pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:600;}
+.t-sick{background:#eef4fb;color:#185fa5;} .t-leave{background:#eaf3de;color:#3b6d11;} .t-resign{background:#fcebeb;color:#a32d2d;}
+.s-pending{background:#fff5de;color:#8a5a10;} .s-client_wait{background:#eef4fb;color:#185fa5;} .g{background:#f0efe9;color:#555;} .s-approved{background:#eaf3de;color:#3b6d11;} .s-rejected{background:#f0efe9;color:#666;}
+.warn{background:#fff5de;color:#8a5a10;border-radius:8px;padding:4px 8px;font-size:12px;margin-top:6px;}
+#zoom{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:9;cursor:zoom-out;}
+#zoom img{max-width:96vw;max-height:96vh;}
+</style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#c0392b">
+<link rel="icon" href="icon-192.png">
+</head>
+<body>
+<div class="wrap">
+  <div id="login" class="card center hidden">
+    <h2>اعتماد الحالات</h2>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <input type="email" id="l-email" placeholder="الإيميل" dir="ltr">
+      <input type="password" id="l-pass" placeholder="الباسورد" dir="ltr">
+      <button class="btn" id="l-btn">دخول</button>
+    </div>
+    <div class="msg err" id="l-err"></div>
+  </div>
+  <div id="denied" class="card center hidden"><h2>الصفحة دي للـ HR والأدمن بس</h2><button class="btn sec" id="d-out" style="margin-top:10px;">خروج</button></div>
+
+  <div id="app" class="hidden">
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div><h1>اعتماد الحالات (إجازات / مرضي / استقالات)</h1><div class="muted" id="who"></div></div>
+      <div class="row"><button class="btn sec small" id="logout">خروج</button></div>
+    </div>
+    <nav id="pnav" class="pnav" aria-label="صفحات البوابة"></nav>
+    <div class="card no-view">
+      <h2>رفع إجازات ومرضي من إكسيل (شيبسي / بيبسي / الإمداد / الشرقية)</h2>
+      <p class="muted" style="margin-bottom:8px;">نزّل الشكل، املاه (سطر لكل إجازة أو مرضي)، وارفعه. كل سطر بيدخل هنا «مستني HR تيما». بعد الاعتماد النهائي بيظهر في تقرير الحضور: ج إجازة، خ إجازة بدون أجر، م مرضي. الجمعة مش بتتحسب في عدد الأيام.</p>
+      <div class="row"><button class="btn sec" id="tpl">تنزيل الشكل (Excel)</button><input type="file" id="xf" accept=".xlsx,.xls" style="max-width:320px"><button class="btn" id="xsave" disabled>ارفع</button></div>
+      <div class="msg" id="xmsg"></div>
+    </div>
+    <div class="card no-view">
+      <h2>مرحلة العميل (بيبسي والإمداد / شيبسي)</h2>
+      <p class="muted" style="margin-bottom:8px;">اللي HR تيما وافق عليه لعمال بيبسي والإمداد وشيبسي بيستنى هنا رد العميل. صدّر ملف لكل عميل وابعته، ولما يرجّعه مالي عمود القرار (وتعديل المدة لو فيه)، ارفعه هنا. وتقدر كمان تسجّل قرار العميل يدوي على كل حالة تحت.</p>
+      <div class="row"><button class="btn sec" id="cl-exp-pepsi">تصدير بيبسي والإمداد</button><button class="btn sec" id="cl-exp-chipsy">تصدير شيبسي</button><span class="muted" id="cl-count"></span></div>
+      <div class="row" style="margin-top:8px;"><input type="file" id="cl-file" accept=".xlsx,.xls" style="max-width:320px"><button class="btn" id="cl-save" disabled>احفظ قرارات العميل</button></div>
+      <div class="msg" id="cl-msg" style="white-space:pre-line;"></div>
+    </div>
+    <div class="card">
+      <div class="row">
+        <label class="f">الحالة<select id="f-st"><option value="pending">مستني HR تيما / اتعدل</option><option value="client_wait">مستني رد العميل</option><option value="approved">معتمد</option><option value="rejected">مرفوض</option><option value="">الكل</option></select></label>
+        <label class="f">العميل<select id="f-gr"><option value="">الكل</option><option value="pepsi">بيبسي والإمداد</option><option value="chipsy">شيبسي</option><option value="sharqia">الشرقية</option></select></label>
+        <label class="f">النوع<select id="f-ty"><option value="">الكل</option><option value="sick">مرضي</option><option value="leave">إجازة</option><option value="resign">استقالة</option></select></label>
+        <label class="f">بحث<input id="f-q" placeholder="الاسم أو الكود أو الرقم القومي أو الموقع"></label>
+      </div>
+      <p class="muted" style="margin-top:8px;">الحالات جاية من: طلبات المشرفين في صفحة الحضور، ورفع الإكسيل هنا، وتطبيق الشرقية على Drive (بيتحدث كل ساعة). الشرقية بتتعتمد من HR تيما على طول؛ بيبسي والإمداد وشيبسي بيستنوا رد العميل بعد موافقة تيما، ولحد ما العميل يرد بيظهروا في تقرير الحضور «في انتظار الاعتماد». <span id="sync"></span></p>
+      <div class="msg" id="msg"></div>
+    </div>
+    <div class="grid" id="list"></div>
+  </div>
+</div>
+<div id="zoom" class="hidden"><img id="zoom-img" alt=""></div>
+
+<script type="module">
+import { getFirestore, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { db, auth } from './shared.js';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
+const TY = { sick: "مرضي", leave: "إجازة", resign: "استقالة" };
+const ST = { pending: "مستني HR تيما", client_wait: "مستني رد العميل", approved: "معتمد", rejected: "مرفوض" };
+const SRC = { supervisor: "طلب مشرف", excel_hr: "إكسيل", sharqia_drive: "تطبيق الشرقية" };
+// الرموز الموحدة: ج إجازة، خ إجازة بدون أجر، م مرضي (العارضة القديمة بتتعرض ج)
+const KINDS = { annual: "ج إجازة", casual: "ج إجازة", unpaid: "خ بدون أجر" };
+// ===== العميل: الشرقية بتخلص من HR تيما، وبيبسي والإمداد وشيبسي بيستنوا رد العميل =====
+const anorm = s => String(s ?? "").replace(/[أإآ]/g, "ا").replace(/\s+/g, " ").trim();
+const CHIPSY_SITES = ["قطامية", "ابوصير", "المعادي"];
+const GROUP_AR = { pepsi: "بيبسي والإمداد", chipsy: "شيبسي", sharqia: "الشرقية" };
+function groupOf(e) {
+  const t = anorm([e.company, e.loc, e.site].join(" "));
+  if (e.source === "sharqia_drive" || /شرقي/.test(t)) return "sharqia";
+  if (/شيبس|chipsy|cfi/i.test(t) || CHIPSY_SITES.some(s => t.includes(s))) return "chipsy";
+  return "pepsi";
+}
+const needsClient = e => e.type !== "resign" && groupOf(e) !== "sharqia";
+const placeOf = e => e.site || [e.company, e.loc].filter(Boolean).join(" — ");
+let ALL = [], ALL_LOADED = false, EDIT = null, CEDIT = null, XROWS = [], CROWS = [];
+// المستني واللي اتعدل بعد القرار واللي مستني العميل: بيتسمعلهم على طول (دول اللي الـ HR محتاجهم).
+// المعتمد والمرفوض: بيتحمّلوا بس لما الفلتر يتغيّر لهم — بدل ما الصفحة تقرا كل الحالات من أول يوم بصورها.
+const LIVE_P = new Map(), LIVE_C = new Map(), LIVE_W = new Map(), DECIDED = new Map();
+let LOADED_ST = "pending";
+function rebuild() {
+  const m = new Map(DECIDED);
+  LIVE_C.forEach((v, k) => m.set(k, v)); LIVE_W.forEach((v, k) => m.set(k, v)); LIVE_P.forEach((v, k) => m.set(k, v));
+  ALL = [...m.values()];
+  const w = [...LIVE_W.values()], np = w.filter(e => groupOf(e) === "pepsi").length, nc = w.filter(e => groupOf(e) === "chipsy").length;
+  $("cl-count").textContent = `مستني العميل: بيبسي والإمداد ${np} — شيبسي ${nc}`;
+  render();
+}
+async function loadDecided() {
+  const st = $("f-st").value;
+  if (st === "pending" || st === "client_wait") { DECIDED.clear(); LOADED_ST = st; return rebuild(); }
+  show($("msg"), "info", "بيحمّل...");
+  try {
+    const sn = await getDocs(st ? query(collection(db, "hr_events"), where("status", "==", st)) : collection(db, "hr_events"));
+    DECIDED.clear(); sn.forEach(d => DECIDED.set(d.id, { id: d.id, ...d.data() }));
+    LOADED_ST = st; $("msg").className = "msg"; rebuild();
+  } catch (e) { show($("msg"), "err", "مش قادر أحمّل الحالات: " + e.message); }
+}
+// ===== رفع إكسيل =====
+const HEAD = ["الشركة", "الموقع", "الرقم القومي", "الكود", "الاسم", "النوع (إجازة / بدون أجر / مرضي)", "من", "لحد", "ملاحظات"];
+$("tpl").onclick = () => {
+  const ws = XLSX.utils.aoa_to_sheet([HEAD, ["شيبسي", "قطامية", "29001010101010", "", "مثال — امسح السطر ده", "إجازة", "2026-10-20", "2026-10-22", ""]]);
+  ws["!cols"] = HEAD.map((h, i) => ({ wch: i === 4 ? 30 : i === 5 ? 34 : 16 }));
+  const wb = XLSX.utils.book_new(); wb.Workbook = { Views: [{ RTL: true }] }; XLSX.utils.book_append_sheet(wb, ws, "إجازات ومرضي");
+  XLSX.writeFile(wb, "شكل رفع الإجازات والمرضي.xlsx");
+};
+const pad2 = n => String(n).padStart(2, "0");
+function toISO(v) {
+  if (v instanceof Date && !isNaN(v)) { const u = new Date(Math.round((v.getTime() - v.getTimezoneOffset() * 60000) / 864e5) * 864e5); return u.getUTCFullYear() + "-" + pad2(u.getUTCMonth() + 1) + "-" + pad2(u.getUTCDate()); }
+  const t = String(v ?? "").trim(); let m;
+  if ((m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))) return m[1] + "-" + pad2(m[2]) + "-" + pad2(m[3]);
+  if ((m = t.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/))) return m[3] + "-" + pad2(m[2]) + "-" + pad2(m[1]);   // يوم/شهر/سنة
+  return "";
+}
+// النوع من الإكسيل: بدون أجر = خ، أي إجازة تانية (سنوي / عارضة / إجازة) = ج
+const kindOf = t => /مرض/.test(t) ? ["sick", ""] : /بدون/.test(t) ? ["leave", "unpaid"] : /سنو|عارض|اجاز|إجاز/.test(t) ? ["leave", "annual"] : [null, null];
+function workDays(f, t) { let n = 0; for (let d = new Date(f + "T00:00"); d <= new Date(t + "T00:00"); d.setDate(d.getDate() + 1)) if (d.getDay() !== 5) n++; return n; }
+$("xf").onchange = async () => {
+  XROWS = []; $("xsave").disabled = true;
+  const f = $("xf").files[0]; if (!f) return;
+  try {
+    const wb = XLSX.read(await f.arrayBuffer(), { cellDates: true });
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: "" }).slice(1);
+    const bad = [];
+    rows.forEach((r, i) => {
+      if (!r.some(v => String(v).trim())) return;
+      const nid = String(r[2]).replace(/\D/g, ""), code = String(r[3]).trim(), [type, kind] = kindOf(String(r[5])), from = toISO(r[6]), to = toISO(r[7]) || from;
+      const why = (!nid && !code) ? "مفيش رقم قومي ولا كود" : (nid && nid.length !== 14) ? "الرقم القومي مش 14 رقم" : !type ? "النوع مش مفهوم" : !from ? "تاريخ «من» مش مفهوم" : to < from ? "«لحد» قبل «من»" : "";
+      if (why) return bad.push(`سطر ${i + 2}: ${why}`);
+      XROWS.push({ source: "excel_hr", company: String(r[0]).trim(), loc: String(r[1]).trim(), nid, code, name: String(r[4]).trim(), type, kind, type_ar: TY[type],
+        from, to, days: String(workDays(from, to)), reason: String(r[8]).trim() });
+    });
+    show($("xmsg"), bad.length ? "err" : "ok", `${XROWS.length} سطر سليم` + (bad.length ? ` — و${bad.length} فيهم مشكلة ومش هيترفعوا:\n` + bad.slice(0, 20).join("\n") : ""));
+    $("xsave").disabled = !XROWS.length;
+  } catch (e) { show($("xmsg"), "err", "الملف ماتقراش: " + e.message); }
+};
+$("xsave").onclick = async () => {
+  if (!ALL_LOADED) return show($("xmsg"), "err", "لسه بيحمّل الحالات الموجودة — استنى ثانية وجرّب تاني.");
+  const u = auth.currentUser, today = new Date().toISOString().slice(0, 10); let n = 0, same = 0, upd = 0;
+  $("xsave").disabled = true;
+  // السطر اللي اترفع قبل كده (نفس العامل + نفس «من» + نفس النوع) مش بيتكتب فوقه، عشان قرار الـ HR ميرجعش «مستني».
+  // لو اتغيّر فيه حاجة (زي «لحد»): لو لسه مستني بيتحدّث، ولو اتاخد فيه قرار بيتعلّم «اتعدل بعد القرار — راجعه».
+  const byId = new Map(ALL.map(x => [x.id, x]));
+  // السطور اللي مش في اللي محمّل دلوقتي (ممكن تكون اتعتمدت قبل كده): نتأكد منها واحدة واحدة
+  const idOf = r => `xl__${r.nid || r.code}__${r.from}__${r.type}${r.kind ? "_" + r.kind : ""}`;
+  try {
+    const miss = [...new Set(XROWS.map(idOf))].filter(id => !byId.has(id));
+    (await Promise.all(miss.map(id => getDoc(doc(db, "hr_events", id))))).forEach(sn => { if (sn.exists()) byId.set(sn.id, { id: sn.id, ...sn.data() }); });
+  } catch (e) { $("xsave").disabled = false; return show($("xmsg"), "err", "مش قادر أتأكد من الحالات الموجودة: " + e.message); }
+  const FIELDS = ["company", "loc", "name", "to", "days", "reason"];
+  try {
+    for (const r of XROWS) {
+      const id = idOf(r);
+      const ex = byId.get(id);
+      if (!ex) {
+        await setDoc(doc(db, "hr_events", id), { ...r, entry_date: today, status: "pending", by_email: u.email || "", uploaded_by: u.uid, created_at: serverTimestamp() });
+        byId.set(id, { id, ...r, status: "pending" }); n++;
+        continue;
+      }
+      const diff = {}; FIELDS.forEach(k => { if (String(ex[k] ?? "") !== String(r[k] ?? "")) diff[k] = r[k]; });
+      if (!Object.keys(diff).length) { same++; continue; }
+      await updateDoc(doc(db, "hr_events", id), ex.status === "pending" ? diff : { changed: true, changed_data: diff });
+      upd++;
+    }
+    show($("xmsg"), "ok", `اترفع ${n} سطر جديد — هتلاقيهم تحت «مستني HR تيما».`
+      + (upd ? ` و${upd} سطر اتغيّر عن المترفع قبل كده (اللي اتاخد فيه قرار متعلّم «راجعه»).` : "")
+      + (same ? ` و${same} سطر زي ما هو.` : "")); $("xf").value = ""; XROWS = [];
+  } catch (e) { show($("xmsg"), "err", `اترفع ${n} جديد و${upd} تعديل، ووقف عند خطأ: ` + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules." : e.message)); }
+};
+
+// ===== مرحلة العميل: ملف رايح (تصدير) وراجع (رفع القرارات) =====
+const CL_HEAD = ["رقم الطلب", "الاسم", "الرقم القومي", "الكود", "الوظيفة", "الفرع", "النوع", "من", "لحد", "عدد الأيام",
+  "قرار العميل (موافق / مرفوض)", "من (لو اتعدلت)", "لحد (لو اتعدلت)", "ملاحظة العميل"];
+async function exportClient(g) {
+  const list = [...LIVE_W.values()].filter(e => groupOf(e) === g).sort((a, b) => placeOf(a).localeCompare(placeOf(b)) || String(a.name).localeCompare(String(b.name)) || String(a.from).localeCompare(String(b.from)));
+  if (!list.length) return show($("cl-msg"), "info", `مفيش حالات مستنية رد ${GROUP_AR[g]}.`);
+  const ws = XLSX.utils.aoa_to_sheet([CL_HEAD, ...list.map(e => [e.id, e.name || "", String(e.nid || ""), String(e.code || ""), e.job || "", placeOf(e),
+    TY[e.type] || "", e.from || "", e.to || "", Number(e.days) || "", "", "", "", ""])]);
+  ws["!cols"] = CL_HEAD.map((h, i) => i === 0 ? { hidden: true, wch: 30 } : { wch: i === 1 ? 28 : i === 10 ? 24 : i === 13 ? 26 : 14 });
+  const wb = XLSX.utils.book_new(); wb.Workbook = { Views: [{ RTL: true }] };
+  XLSX.utils.book_append_sheet(wb, ws, "إجازات ومرضي");
+  const today = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `إجازات ومرضي ${GROUP_AR[g]} ${today}.xlsx`);
+  // نعلّم إنها اتبعتت (أول مرة بس) عشان يبان في الكارت إمتى اتبعتت للعميل
+  const notSent = list.filter(e => !e.sent_at);
+  try {
+    for (let i = 0; i < notSent.length; i += 400) {
+      const b = writeBatch(db);
+      notSent.slice(i, i + 400).forEach(e => b.update(doc(db, "hr_events", e.id), { sent_at: serverTimestamp(), sent_email: auth.currentUser.email || "" }));
+      await b.commit();
+    }
+    show($("cl-msg"), "ok", `اتصدّر ${list.length} حالة لـ ${GROUP_AR[g]}` + (notSent.length < list.length ? ` (منهم ${list.length - notSent.length} كانوا اتبعتوا قبل كده).` : "."));
+  } catch (e) { show($("cl-msg"), "err", "الملف اتصدّر، بس ماتعلّمتش إنها اتبعتت: " + e.message); }
+}
+$("cl-exp-pepsi").onclick = () => exportClient("pepsi");
+$("cl-exp-chipsy").onclick = () => exportClient("chipsy");
+// القرار في الملف الراجع: رفض / موافق، ولو العمود فاضي بس فيه تواريخ جديدة يبقى موافق بتعديل المدة
+const decOf = t => /رفض|مرفوض|reject|^no$/i.test(t) ? "rejected" : /موافق|اوافق|أوافق|معتمد|تم|ok|yes|approve/i.test(t) ? "approved" : "";
+$("cl-file").onchange = async () => {
+  CROWS = []; $("cl-save").disabled = true;
+  const f = $("cl-file").files[0]; if (!f) return;
+  try {
+    const wb = XLSX.read(await f.arrayBuffer(), { cellDates: true });
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: "" });
+    const H = (rows[0] || []).map(h => String(h).trim());
+    const col = re => H.findIndex(h => re.test(h));
+    const iId = col(/رقم الطلب/), iDec = col(/قرار/), iF = col(/^من \(/), iT = col(/^لحد \(/), iN = col(/ملاحظ/);
+    if (iId < 0 || iDec < 0) return show($("cl-msg"), "err", "ده مش ملف العميل اللي اتصدّر من هنا (مش لاقي عمود «رقم الطلب» أو «قرار العميل»).");
+    const bad = [], seen = new Set(); let skip = 0;
+    rows.slice(1).forEach((r, i) => {
+      const id = String(r[iId] || "").trim(); if (!id) return;
+      const line = `سطر ${i + 2}`;
+      if (seen.has(id)) return bad.push(`${line}: الحالة متكررة في الملف`); seen.add(id);
+      const ev = LIVE_W.get(id);
+      if (!ev) return bad.push(`${line}: الحالة دي مش مستنية رد العميل (اتسجل قرارها قبل كده أو اترجعت)`);
+      const f2 = iF >= 0 ? toISO(r[iF]) : "", t2 = iT >= 0 ? toISO(r[iT]) : "", note = iN >= 0 ? String(r[iN]).trim() : "";
+      let dec = decOf(String(r[iDec]).trim());
+      if (!dec && (f2 || t2)) dec = "approved";
+      if (!dec) return skip++;   // العميل لسه مارّدش على السطر ده
+      const from = f2 || ev.from, to = t2 || (f2 ? f2 : ev.to);
+      if (dec === "approved" && (!from || to < from)) return bad.push(`${line}: التواريخ بعد التعديل مش مظبوطة`);
+      CROWS.push({ id, ev, dec, from, to, note, moved: dec === "approved" && (from !== ev.from || to !== ev.to) });
+    });
+    const ok = CROWS.filter(x => x.dec === "approved" && !x.moved).length, mv = CROWS.filter(x => x.moved).length, rj = CROWS.filter(x => x.dec === "rejected").length;
+    show($("cl-msg"), bad.length ? "err" : "ok", `العميل: ${ok} موافق — ${mv} موافق بتعديل المدة — ${rj} مرفوض` + (skip ? ` — ${skip} لسه مارّدش عليهم (هيفضلوا مستنيين)` : "")
+      + (bad.length ? `\n${bad.length} سطر مش هيتسجلوا:\n` + bad.slice(0, 20).join("\n") : "") + (CROWS.length ? "\nراجع الأرقام ودوس «احفظ قرارات العميل»." : ""));
+    $("cl-save").disabled = !CROWS.length;
+  } catch (e) { show($("cl-msg"), "err", "الملف ماتقراش: " + e.message); }
+};
+function clientUpd(ev, dec, from, to, note) {
+  const u = auth.currentUser, moved = dec === "approved" && (from !== ev.from || to !== ev.to);
+  const upd = { status: dec, decided_by: u.uid, decided_email: u.email || "", decided_at: serverTimestamp(),
+    client: { decision: moved ? "modified" : dec, from: dec === "approved" ? from : "", to: dec === "approved" ? to : "", note: note || "", by_email: u.email || "" } };
+  if (moved) Object.assign(upd, { from, to, days: String(workDays(from, to)),
+    original: ev.original || { type: ev.type, from: ev.from || "", to: ev.to || "", entry_date: ev.entry_date || "" } });
+  return upd;
+}
+$("cl-save").onclick = async () => {
+  $("cl-save").disabled = true; let n = 0;
+  try {
+    for (const x of CROWS) { await updateDoc(doc(db, "hr_events", x.id), clientUpd(x.ev, x.dec, x.from, x.to, x.note)); n++; }
+    show($("cl-msg"), "ok", `اتسجل قرار العميل على ${n} حالة.`); CROWS = []; $("cl-file").value = "";
+  } catch (e) { show($("cl-msg"), "err", `اتسجل ${n} ووقف عند خطأ: ` + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : e.message)); }
+};
+
+let VIEW = false;   // المشاهد: عرض بس
+$("l-btn").onclick = async () => { try { await signInWithEmailAndPassword(auth, $("l-email").value.trim(), $("l-pass").value); } catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); } };
+$("logout").onclick = () => signOut(auth); $("d-out").onclick = () => signOut(auth);
+onAuthStateChanged(auth, async user => {
+  ["login", "denied", "app"].forEach(i => $(i).classList.add("hidden"));
+  if (!user) return $("login").classList.remove("hidden");
+  let role = null; try { role = (await user.getIdTokenResult()).claims.role || null; } catch (e) {}
+  if (!["admin", "hr", "viewer"].includes(role)) return $("denied").classList.remove("hidden");
+  // المشاهد (viewer): يشوف الحالات وصورها بس — من غير رفع ولا اعتماد ولا تصدير للعميل
+  VIEW = role === "viewer";
+  if (VIEW) { document.querySelectorAll(".no-view").forEach(el => el.classList.add("hidden")); document.querySelector("#app h1").textContent = "الحالات (إجازات / مرضي / استقالات)"; }
+  $("who").textContent = user.email; $("app").classList.remove("hidden");
+  const onErr = err => show($("msg"), "err", "مش قادر أقرا الحالات: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : err.message));
+  const fill = (map, snap) => { map.clear(); snap.forEach(d => map.set(d.id, { id: d.id, ...d.data() })); };
+  onSnapshot(query(collection(db, "hr_events"), where("status", "==", "pending")), snap => { fill(LIVE_P, snap); ALL_LOADED = true; rebuild(); }, onErr);
+  onSnapshot(query(collection(db, "hr_events"), where("changed", "==", true)), snap => { fill(LIVE_C, snap); rebuild(); }, onErr);
+  onSnapshot(query(collection(db, "hr_events"), where("status", "==", "client_wait")), snap => { fill(LIVE_W, snap); rebuild(); }, onErr);
+  try { const s = await getDoc(doc(db, "admin_tasks_status", "sharqia_sync")); const t = s.data()?.last_run?.toDate?.(); if (t) $("sync").textContent = "آخر تحديث للشرقية: " + t.toLocaleString("ar-EG"); } catch (e) {}
+});
+$("f-st").onchange = loadDecided; $("f-ty").onchange = render; $("f-gr").onchange = render; $("f-q").oninput = render;
+
+// إيه اللي اتغيّر في الشيت بعد القرار: القديم ← الجديد
+const CH_LABEL = { from: "من", to: "لحد", days: "الأيام", reason: "السبب", name: "الاسم", loc: "المكان", company: "الشركة", job: "الوظيفة", type: "النوع", kind: "نوع الإجازة", entry_date: "تاريخ التسجيل" };
+function changedHtml(e) {
+  const d = e.changed_data || {};
+  const show1 = (k, v) => k === "type" ? (TY[v] || v) : k === "kind" ? (KINDS[v] || v) : v;
+  const rows = Object.keys(d).filter(k => CH_LABEL[k] && String(d[k] ?? "").length < 120)
+    .map(k => `<li>${CH_LABEL[k]}: <s>${esc(show1(k, e[k]) || "—")}</s> ← <b>${esc(show1(k, d[k]) || "—")}</b></li>`);
+  return rows.length ? `<ul style="margin:4px 18px 0 0;padding:0;">${rows.join("")}</ul>` : "";
+}
+const tsTxt = t => t?.toDate ? t.toDate().toLocaleDateString("ar-EG") : "";
+const CDEC = { approved: "وافق", modified: "وافق وعدّل المدة", rejected: "رفض" };
+const kindSel = e => e.type !== "leave" ? "" : `<select data-kind="${e.id}" style="padding:4px 6px;font-size:12px;"><option value="">نوع الإجازة…</option><option value="annual" ${e.kind === "annual" || e.kind === "casual" ? "selected" : ""}>ج — إجازة (ليه رصيد)</option><option value="unpaid" ${e.kind === "unpaid" ? "selected" : ""}>خ — بدون أجر (ملوش رصيد)</option></select>`;
+function render() {
+  const st = $("f-st").value, ty = $("f-ty").value, gr = $("f-gr").value, q = $("f-q").value.trim();
+  // اللي اتعدل في الشيت بعد القرار بيظهر مع «مستني HR تيما» وفوق خالص، عشان محدش يفوّته
+  const needs = e => e.status === "pending" || !!e.changed;
+  const list = ALL.filter(e => (!st || e.status === st || (st === "pending" && e.changed)) && (!ty || e.type === ty) && (!gr || groupOf(e) === gr)
+      && (!q || [e.name, e.code, e.nid, placeOf(e)].some(x => String(x || "").includes(q))))
+    .sort((a, b) => (b.changed ? 1 : 0) - (a.changed ? 1 : 0) || (needs(a) ? 0 : 1) - (needs(b) ? 0 : 1) || String(b.entry_date).localeCompare(String(a.entry_date)));
+  $("list").innerHTML = list.length ? list.map(e => {
+    const toClient = needsClient(e);
+    return `
+    <div class="ev">
+      <div class="ph" ${e.image ? `data-zoom="${e.id}"` : ""}>${e.image ? `<img src="${esc(e.image)}" alt="">` : `<span class="muted">${e.image_path ? "الصورة اتنقلت لسيرفر الشركة" : e.type === "leave" ? "الإجازة مالهاش صورة" : e.image_missing ? "الصورة مش لاقيها على Drive" : "مفيش صورة"}</span>`}</div>
+      <div class="bd">
+        <div class="row" style="justify-content:space-between;align-items:center;"><span class="nm">${esc(e.name)}</span><span><span class="pill t-${e.type}">${TY[e.type]}${e.kind ? " " + (KINDS[e.kind] || "") : ""}</span> <span class="pill s-${e.status}">${ST[e.status] || e.status}</span></span></div>
+        <div style="margin-top:4px;"><span class="pill g">${GROUP_AR[groupOf(e)]}</span> <span class="muted">${SRC[e.source] || ""}</span></div>
+        <dl>
+          <dt>الكود</dt><dd>${esc(e.code)}${e.nid ? ` — <span dir="ltr">${esc(e.nid)}</span>` : ""}</dd>
+          <dt>المكان</dt><dd>${esc([placeOf(e), e.job].filter(Boolean).join(" — "))}</dd>
+          ${e.type === "resign" ? `<dt>السبب</dt><dd>${esc(e.reason)}</dd><dt>من تاريخ</dt><dd>${esc(e.entry_date)} (يوم التسجيل)</dd>`
+            : `<dt>من</dt><dd>${esc(e.from)} لحد ${esc(e.to)} — ${esc(e.days)} يوم</dd>`}
+          <dt>اتسجل</dt><dd>${esc(e.entry_date)} — ${esc(e.by_email)}</dd>
+          ${e.original && (e.edited || e.client) ? `<dt>الأصل</dt><dd>${esc(TY[e.original.type] || "")} ${esc(e.original.from || e.original.entry_date)}${e.original.to ? " → " + esc(e.original.to) : ""}</dd>` : ""}
+          ${e.hr_ok_email ? `<dt>HR تيما</dt><dd>وافق — ${esc(e.hr_ok_email)} ${esc(tsTxt(e.hr_ok_at))}</dd>` : ""}
+          ${e.status === "client_wait" ? `<dt>العميل</dt><dd>${e.sent_at ? `اتبعتت ${esc(tsTxt(e.sent_at))} — مستني الرد` : "لسه مااتصدّرتش في ملف للعميل"}</dd>` : ""}
+          ${e.client ? `<dt>العميل</dt><dd>${CDEC[e.client.decision] || ""}${e.client.decision === "modified" ? ` (${esc(e.client.from)} → ${esc(e.client.to)})` : ""}${e.client.note ? ` — ${esc(e.client.note)}` : ""}</dd>` : ""}
+          ${e.decided_email && !e.client ? `<dt>القرار</dt><dd>${esc(e.decided_email)}${e.note ? ` — ${esc(e.note)}` : ""}</dd>` : e.note ? `<dt>ملاحظة</dt><dd>${esc(e.note)}</dd>` : ""}
+        </dl>
+        ${e.changed ? `<div class="warn">السطر اتعدل في الشيت بعد القرار — راجعه${changedHtml(e)}<div style="margin-top:4px;">«اعتماد» أو «رفض» بيتطبق على البيانات الجديدة دي.</div></div>` : ""}
+        ${e.deleted_in_sheet ? `<div class="warn">السطر اتمسح من الشيت</div>` : ""}
+      </div>
+      ${EDIT === e.id ? `<div class="ft" style="flex-direction:column;align-items:stretch;background:#fffdf5">
+        <label class="f">النوع<select data-et><option value="sick" ${e.type === "sick" ? "selected" : ""}>مرضي</option><option value="leave" ${e.type === "leave" ? "selected" : ""}>إجازة</option><option value="resign" ${e.type === "resign" ? "selected" : ""}>استقالة</option></select></label>
+        <label class="f">نوع الإجازة (لو إجازة)<select data-ek><option value="annual" ${e.kind !== "unpaid" ? "selected" : ""}>ج — إجازة (ليه رصيد)</option><option value="unpaid" ${e.kind === "unpaid" ? "selected" : ""}>خ — بدون أجر (ملوش رصيد)</option></select></label>
+        <div class="row"><label class="f">من (أو تاريخ الاستقالة)<input type="date" data-ef value="${esc(e.type === "resign" ? e.entry_date : e.from)}"></label>
+        <label class="f">لحد<input type="date" data-eto value="${esc(e.to || "")}"></label></div>
+        <input placeholder="سبب التعديل" data-note="${e.id}">
+        <div class="row"><button class="btn ok small" data-esave="${e.id}">احفظ و${toClient ? "ابعت للعميل" : "اعتمد"}</button><button class="btn sec small" data-ecancel="1">إلغاء</button></div></div>` : ""}
+      ${CEDIT === e.id ? `<div class="ft" style="flex-direction:column;align-items:stretch;background:#f4f8fd">
+        <b style="font-size:13px;">العميل وافق بمدة تانية</b>
+        <div class="row"><label class="f">من<input type="date" data-cf value="${esc(e.from)}"></label><label class="f">لحد<input type="date" data-cto value="${esc(e.to)}"></label></div>
+        <input placeholder="ملاحظة العميل (اختياري)" data-cnote="${e.id}">
+        <div class="row"><button class="btn ok small" data-csave="${e.id}">سجّل</button><button class="btn sec small" data-ccancel="1">إلغاء</button></div></div>` : ""}
+      ${VIEW ? "" : `<div class="ft">${e.status === "pending" || e.changed
+        ? `${kindSel(e)}<input placeholder="ملاحظة (اختياري)" data-note="${e.id}" style="flex:1;min-width:120px;"><button class="btn ok small" data-ap="${e.id}">${toClient && e.type !== "resign" ? "موافقة ← للعميل" : "اعتماد"}</button><button class="btn sec small" data-ed="${e.id}">تعديل</button><button class="btn sec small" data-rj="${e.id}">رفض</button>`
+        : e.status === "client_wait"
+        ? `<input placeholder="ملاحظة العميل (اختياري)" data-note="${e.id}" style="flex:1;min-width:120px;"><button class="btn ok small" data-cok="${e.id}">العميل وافق</button><button class="btn sec small" data-ced="${e.id}">وافق بمدة تانية</button><button class="btn sec small" data-crj="${e.id}">العميل رفض</button><button class="btn sec small" data-back="${e.id}">رجّعها لتيما</button>`
+        : `<button class="btn sec small" data-back="${e.id}">رجّعها مستنية</button>`}</div>`}
+    </div>`; }).join("") : `<div class="card muted">مفيش حالات.</div>`;
+}
+const errTxt = er => er.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : er.message;
+async function save(id, upd, okMsg) {
+  try { await updateDoc(doc(db, "hr_events", id), upd); EDIT = null; CEDIT = null; if (LOADED_ST !== "pending" && LOADED_ST !== "client_wait") await loadDecided(); else render(); show($("msg"), "ok", okMsg || "اتحفظ."); }
+  catch (er) { show($("msg"), "err", "ماتحفظش: " + errTxt(er)); }
+}
+// موافقة HR تيما: الشرقية (والاستقالات) بتتعتمد على طول، والباقي بيروح «مستني رد العميل»
+function hrOk(ev, extra) {
+  const u = auth.currentUser, toClient = needsClient({ ...ev, ...extra });
+  const upd = { ...extra, status: toClient ? "client_wait" : "approved", changed: false,
+    hr_ok_by: u.uid, hr_ok_email: u.email || "", hr_ok_at: serverTimestamp(), client_group: groupOf(ev) };
+  if (!toClient) Object.assign(upd, { decided_by: u.uid, decided_email: u.email || "", decided_at: serverTimestamp() });
+  return [upd, toClient ? "اتوافق عليها واتنقلت لـ «مستني رد العميل»." : "اتعتمدت."];
+}
+$("list").onclick = async e => {
+  const z = e.target.closest("[data-zoom]");
+  if (z) { $("zoom-img").src = ALL.find(x => x.id === z.dataset.zoom).image; return $("zoom").classList.remove("hidden"); }
+  if (VIEW) return;   // المشاهد: تكبير الصورة بس
+  const ds = e.target.dataset;
+  if (ds.ed) { EDIT = ds.ed; CEDIT = null; return render(); }
+  if (ds.ced) { CEDIT = ds.ced; EDIT = null; return render(); }
+  if (ds.ecancel || ds.ccancel) { EDIT = null; CEDIT = null; return render(); }
+  if (ds.esave) {
+    const id = ds.esave, box = e.target.closest(".ft"), ev = ALL.find(x => x.id === id);
+    const type = box.querySelector("[data-et]").value, f = box.querySelector("[data-ef]").value, t = box.querySelector("[data-eto]").value;
+    const note = box.querySelector("[data-note]").value.trim();
+    if (!f || (type !== "resign" && (!t || t < f))) return show($("msg"), "err", "التواريخ مش مظبوطة.");
+    const extra = { type, type_ar: TY[type], edited: true, note: note || "اتعدل من الـ HR",
+      original: ev.original || { type: ev.type, from: ev.from || "", to: ev.to || "", entry_date: ev.entry_date || "" } };
+    if (type === "resign") Object.assign(extra, { entry_date: f, from: "", to: "", days: "", kind: "" });
+    else Object.assign(extra, { from: f, to: t, days: String(workDays(f, t)), kind: type === "leave" ? box.querySelector("[data-ek]").value : "" });
+    if (ev.changed && ev.changed_data) Object.keys(ev.changed_data).forEach(k => { if (!(k in extra)) extra[k] = ev.changed_data[k]; });
+    const [upd, msg] = hrOk(ev, extra);
+    return save(id, upd, "اتعدل — " + msg);
+  }
+  if (ds.csave) {
+    const id = ds.csave, box = e.target.closest(".ft"), ev = ALL.find(x => x.id === id);
+    const f = box.querySelector("[data-cf]").value, t = box.querySelector("[data-cto]").value, note = box.querySelector("[data-cnote]").value.trim();
+    if (!f || !t || t < f) return show($("msg"), "err", "التواريخ مش مظبوطة.");
+    return save(id, clientUpd(ev, "approved", f, t, note), "اتسجل إن العميل وافق بالمدة الجديدة.");
+  }
+  const id = ds.ap || ds.rj || ds.back || ds.cok || ds.crj; if (!id) return;
+  const u = auth.currentUser, note = document.querySelector(`[data-note="${id}"]`)?.value.trim() || "";
+  const ev = ALL.find(x => x.id === id);
+  if (ds.back) return save(id, { status: "pending", decided_by: null, decided_email: null, decided_at: null, hr_ok_by: null, hr_ok_email: null, hr_ok_at: null, client: null }, "رجعت «مستني HR تيما».");
+  if (ds.cok) return save(id, clientUpd(ev, "approved", ev.from, ev.to, note), "اتسجل إن العميل وافق.");
+  if (ds.crj) { if (!note && !confirm("ترفض من غير ملاحظة؟")) return; return save(id, clientUpd(ev, "rejected", "", "", note), "اتسجل إن العميل رفض."); }
+  if (ds.rj) {
+    if (!note && !confirm("ترفض من غير ملاحظة؟")) return;
+    const upd = { status: "rejected", note, decided_by: u.uid, decided_email: u.email || "", decided_at: serverTimestamp(), changed: false };
+    if (ev.changed && ev.changed_data) Object.assign(upd, ev.changed_data);   // القرار على آخر نسخة في الشيت
+    return save(id, upd, "اترفضت.");
+  }
+  // موافقة HR تيما — الإجازة لازم يتحدد نوعها: ج (ليه رصيد) أو خ (ملوش رصيد)
+  const extra = { note };
+  if (ev.changed && ev.changed_data) Object.assign(extra, ev.changed_data);
+  if ((extra.type || ev.type) === "leave") {
+    const k = document.querySelector(`[data-kind="${id}"]`)?.value || "";
+    if (!k) return show($("msg"), "err", `اختار نوع الإجازة لـ ${ev.name}: ج (ليه رصيد) ولا خ (ملوش رصيد).`);
+    extra.kind = k;
+  }
+  const [upd, msg] = hrOk(ev, extra);
+  return save(id, upd, msg);
+};
+$("zoom").onclick = () => $("zoom").classList.add("hidden");
+</script>
+</body>
+</html>

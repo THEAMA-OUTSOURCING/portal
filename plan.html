@@ -1,0 +1,1210 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الاحتياج والأعداد - Theama</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'IBM Plex Sans Arabic','Segoe UI',Tahoma,sans-serif;background:#f5f5f0;color:#222;min-height:100vh;padding:1rem;font-size:14px;line-height:1.6;}
+input,button,select{font-family:inherit;font-size:14px;}
+input[type=text],input[type=password],input[type=email],input[type=number],input[type=date],select{padding:8px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#222;}
+input:focus,select:focus{outline:none;border-color:#c0392b;}
+input[type=file]{width:100%;padding:8px;font-size:13px;border:1px dashed #ccc;border-radius:8px;background:#fafafa;cursor:pointer;}
+button:focus-visible{outline:2px solid #185fa5;outline-offset:2px;}
+.wrap{max-width:1080px;margin:0 auto;}
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+.top h1{font-size:20px;font-weight:600;}
+.top .who{font-size:12px;color:#888;}
+.card{background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:1.1rem 1.25rem;margin-bottom:1rem;}
+.card h2{font-size:15px;font-weight:600;margin-bottom:10px;}
+.muted{color:#888;font-size:13px;}
+.btn{padding:8px 16px;font-weight:500;cursor:pointer;background:#c0392b;color:#fff;border:none;border-radius:8px;}
+.btn:hover{background:#a93226;}
+.btn:disabled{background:#e0a09a;cursor:not-allowed;}
+.btn.sec{background:#f5f5f0;color:#444;border:1px solid #ddd;}
+.btn.sec:hover{background:#ecebe4;}
+.btn.small{padding:4px 10px;font-size:12px;}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px;border-bottom:1px solid #e0ded6;}
+.tab{padding:8px 14px;cursor:pointer;background:none;border:none;border-bottom:2px solid transparent;color:#666;font-weight:500;}
+.tab[aria-selected=true]{color:#c0392b;border-bottom-color:#c0392b;}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.msg{padding:9px 12px;border-radius:8px;font-size:13px;margin:10px 0;display:none;}
+.msg.show{display:block;}
+.msg.ok{background:#eaf3de;color:#3b6d11;}
+.msg.err{background:#fcebeb;color:#a32d2d;}
+.msg.warn{background:#fff8e6;color:#8a5a10;}
+.msg.info{background:#eef4fb;color:#185fa5;}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:#e5e5e5;border:1px solid #e5e5e5;border-radius:12px;overflow:hidden;margin-bottom:1rem;}
+.kpi{background:#fff;padding:12px 14px;}
+.kpi .v{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.2;}
+.kpi .l{color:#888;font-size:12px;}
+.kpi.s .v{color:#b42318;} .kpi.o .v{color:#185fa5;}
+.site{display:grid;grid-template-columns:130px 1fr 80px;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid #f0efe9;cursor:pointer;}
+.site:last-child{border-bottom:0;}
+.site:hover .nm{text-decoration:underline;}
+.bar{position:relative;height:20px;background:#efeee8;border-radius:4px;overflow:hidden;}
+.bar .p{position:absolute;inset-block:0;right:0;border:1px dashed #999;border-radius:4px;}
+.bar .f{position:absolute;inset-block:0;right:0;background:#2b2b2b;border-radius:4px;}
+.bar .x{position:absolute;inset-block:0;background:#185fa5;}
+.bar .t{position:absolute;inset-block:0;left:6px;display:flex;align-items:center;font-size:11px;color:#666;}
+.gap{text-align:left;font-weight:600;direction:ltr;font-variant-numeric:tabular-nums;}
+.c-s{color:#b42318;} .c-o{color:#185fa5;} .c-k{color:#3b6d11;}
+.tbl{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;min-width:520px;}
+th,td{padding:8px 10px;text-align:right;border-bottom:1px solid #f0efe9;font-size:13px;}
+th{color:#888;font-weight:500;}
+td.n,th.n{text-align:center;font-variant-numeric:tabular-nums;}
+.pill{display:inline-block;min-width:42px;text-align:center;padding:1px 8px;border-radius:999px;font-weight:600;direction:ltr;}
+.pill.s{background:#fcebeb;color:#b42318;} .pill.o{background:#e6eefa;color:#185fa5;} .pill.k{background:#eaf3de;color:#3b6d11;}
+.amd{font-size:11px;color:#185fa5;margin-inline-start:6px;}
+.was{color:#999;text-decoration:line-through;font-size:11px;margin-inline-start:4px;}
+.chip{padding:4px 12px;border:1px solid #ddd;background:#fff;border-radius:999px;cursor:pointer;font-size:12px;}
+.chip[aria-pressed=true]{background:#222;color:#fff;border-color:#222;}
+.grid-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end;}
+.grid-form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#888;}
+.grid-form .wide{grid-column:1/-1;}
+.set-tbl input,.set-tbl select{width:100%;padding:5px 8px;font-size:13px;}
+.hidden{display:none !important;}
+/* المشاهد (viewer): كل أزرار وخانات التعديل بتختفي — والـ Rules هي اللي بتمنع الكتابة فعلاً */
+body.view-only .no-view, body.view-only [data-w], body.view-only [data-undo], body.view-only [data-nsave], body.view-only [data-nrej],
+body.view-only [data-ntype], body.view-only [data-left], body.view-only [data-fex], body.view-only [data-blrm]{display:none !important;}
+.vo-txt{display:none;}
+body.view-only .vo-txt{display:inline;}
+.center{max-width:380px;margin:60px auto;}
+</style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#c0392b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="تيما">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<script>if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));</script>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- تسجيل الدخول -->
+  <div id="login" class="card center hidden">
+    <h2>الاحتياج والأعداد</h2>
+    <p class="muted" style="margin-bottom:12px;">الصفحة دي للإدارة بس. ادخل بنفس حساب لوحة الإدارة.</p>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <input type="email" id="l-email" placeholder="الإيميل" autocomplete="username">
+      <input type="password" id="l-pass" placeholder="الباسورد" autocomplete="current-password">
+      <button class="btn" id="l-btn">دخول</button>
+    </div>
+    <div class="msg err" id="l-err"></div>
+  </div>
+
+  <div id="denied" class="card center hidden">
+    <h2>مش متاحة لحسابك</h2>
+    <p class="muted">الصفحة دي لحسابات الإدارة بس.</p>
+    <button class="btn sec" id="d-out" style="margin-top:12px;">خروج</button>
+  </div>
+
+  <!-- الصفحة -->
+  <div id="app" class="hidden">
+    <div class="top">
+      <div>
+        <h1>الاحتياج والأعداد</h1>
+        <div class="who" id="who"></div>
+      </div>
+      <div class="row">
+        <label class="muted" for="month">الشهر</label>
+        <select id="month"></select>
+        
+        <button class="btn sec" id="logout"><i class="ti ti-logout"></i> خروج</button>
+      </div>
+    </div>
+    <nav id="pnav" class="pnav" aria-label="صفحات البوابة"></nav>
+
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="dash" aria-selected="true">الداشبورد</button>
+      <button class="tab" role="tab" data-tab="amend" aria-selected="false">تعديلات الشهر</button>
+      <button class="tab admin-only" role="tab" data-tab="upload" aria-selected="false">رفع شيت الاحتياج</button>
+      <button class="tab admin-only" role="tab" data-tab="counts" aria-selected="false">الأعداد من الرواتب</button>
+      <button class="tab admin-only" role="tab" data-tab="settings" aria-selected="false">الإعدادات</button>
+      <button class="tab admin-only" role="tab" data-tab="accounts" aria-selected="false">الحسابات</button>
+      <button class="tab" role="tab" data-tab="workers" aria-selected="false">بيانات العمال</button>
+    </div>
+
+    <!-- الداشبورد -->
+    <section data-panel="dash">
+      <div class="msg warn" id="dash-warn"></div>
+      <div id="dash-empty" class="card hidden"></div>
+      <div id="dash-body">
+        <div class="row" style="margin-bottom:12px;">
+          <label class="muted" for="asof">الأعداد السارية يوم</label>
+          <input type="date" id="asof">
+          <span class="muted" id="src-note"></span>
+        </div>
+        <div class="kpis" id="kpis"></div>
+        <div class="card"><h2>كل موقع: الموجود من المطلوب</h2><div id="sites"></div>
+          <p class="muted" style="margin-top:8px;">دوس على أي موقع عشان تشوف وظايفه تحت.</p></div>
+        <div class="card">
+          <h2>التفاصيل حسب الوظيفة</h2>
+          <div class="row" style="margin-bottom:8px;">
+            <button class="chip" data-f="all" aria-pressed="true">الكل</button>
+            <button class="chip" data-f="s" aria-pressed="false">نقص</button>
+            <button class="chip" data-f="o" aria-pressed="false">زيادة</button>
+            <button class="chip" data-f="k" aria-pressed="false">مطابق</button>
+            <select id="site-sel"><option value="">كل المواقع</option></select>
+          </div>
+          <div class="tbl"><table><thead><tr><th>الموقع</th><th>الوظيفة</th><th class="n">المطلوب</th><th class="n">الموجود</th><th class="n">الفرق</th><th class="n">يوميات وبدايل</th></tr></thead><tbody id="detail"></tbody></table></div>
+        </div>
+        <div class="card">
+          <h2>التغيير عن الشهر اللي فات <span class="muted" id="prev-label"></span></h2>
+          <div class="row" style="margin-bottom:8px;"><button class="chip" id="chg-only" aria-pressed="true">التغييرات بس</button></div>
+          <div class="tbl"><table><thead><tr><th>الموقع في شيت العميل</th><th>الوظيفة</th><th class="n">اللي فات</th><th class="n">الحالي</th><th class="n">الفرق</th></tr></thead><tbody id="months"></tbody></table></div>
+        </div>
+        <div class="card" id="unplanned-card"><h2>موجودين ومالهمش مكان في شيت العميل</h2><div id="unplanned" class="muted"></div></div>
+      </div>
+    </section>
+
+    <!-- التعديلات -->
+    <section data-panel="amend" class="hidden">
+      <div class="card admin-only">
+        <h2>تعديل عدد في نص الشهر</h2>
+        <p class="muted" style="margin-bottom:10px;">التعديل بيتسجل في سجل ثابت ومش بيتمسح. لو فيه غلط، اعمل تعديل جديد بالرقم الصح واكتب في السبب "تصحيح".</p>
+        <div class="grid-form">
+          <label class="wide">الموقع والوظيفة (زي شيت العميل)<select id="a-key"></select></label>
+          <label>العدد الجديد<input type="number" id="a-to" min="0" step="1"></label>
+          <label>ساري من يوم<input type="date" id="a-date"></label>
+          <label class="wide">السبب أو المرجع<input type="text" id="a-reason" placeholder="مثلاً: إيميل من العميل يوم 12"></label>
+          <div><button class="btn" id="a-save">حفظ التعديل</button></div>
+        </div>
+        <div class="msg" id="a-msg"></div>
+      </div>
+      <div class="card">
+        <h2>سجل تعديلات الشهر</h2>
+        <div class="tbl"><table><thead><tr><th>الموقع</th><th>الوظيفة</th><th class="n">في الشيت</th><th class="n">العدد الجديد</th><th>ساري من</th><th>السبب</th><th>بواسطة</th></tr></thead><tbody id="a-list"></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- رفع الشيت -->
+    <section data-panel="upload" class="hidden">
+      <div class="card">
+        <h2>رفع شيت الاحتياج الشهري</h2>
+        <p class="muted" style="margin-bottom:10px;">نفس ملف الإكسيل اللي بييجي من العميل. هتشوف المقارنة قبل الحفظ.</p>
+        <input type="file" id="u-file" accept=".xlsx,.xls">
+        <div class="row hidden" id="u-opts" style="margin-top:10px;">
+          <label class="muted" for="u-sheet">الشيت</label><select id="u-sheet"></select>
+          <label class="muted" for="u-month">لشهر</label><input type="month" id="u-month">
+          <button class="btn sec" id="u-read">اقرا الشيت</button>
+        </div>
+        <div class="msg" id="u-msg"></div>
+      </div>
+      <div class="card hidden" id="u-preview">
+        <h2>مراجعة قبل الحفظ</h2>
+        <div id="u-summary" style="margin-bottom:10px;"></div>
+        <div class="msg warn" id="u-warn"></div>
+        <div class="tbl"><table><thead><tr><th>الموقع في شيت العميل</th><th>الوظيفة</th><th class="n">آخر رقم ساري</th><th class="n">الشيت الجديد</th><th class="n">الفرق</th></tr></thead><tbody id="u-table"></tbody></table></div>
+        <div class="row" style="margin-top:12px;"><button class="btn" id="u-save">حفظ الشيت</button><button class="btn sec" id="u-cancel">إلغاء</button></div>
+      </div>
+    </section>
+
+    <!-- الأعداد من الرواتب -->
+    <section data-panel="counts" class="hidden">
+      <div class="card">
+        <h2>تحديث الأعداد من شيت الرواتب</h2>
+        <p class="muted" style="margin-bottom:10px;">دوس هنا مرة بعد كل رفع لشيت الرواتب. بيقرا الرواتب المرفوعة مرة واحدة ويحفظ ملخص بالأعداد لكل موقع ووظيفة ونوع، والداشبورد بيقرا الملخص ده بس.</p>
+        <div id="c-status" class="muted" style="margin-bottom:10px;"></div>
+        <button class="btn" id="c-run">تحديث الأعداد للشهر المختار</button>
+        <div class="msg" id="c-msg"></div>
+      </div>
+    </section>
+
+    <!-- بيانات العمال -->
+    <section data-panel="workers" class="hidden">
+      <div class="card">
+        <h2>البلاك ليست (ممنوع تشغيلهم تاني)</h2>
+        <p class="muted" style="margin-bottom:8px;">أي رقم قومي هنا، المشرف مش هيقدر يضيفه للكشف ولا كبديل، وبيوصل تنبيه للإدارة. السبب مبيظهرش للمشرفين.</p>
+        <div class="row" id="bl-form">
+          <input id="bl-nid" placeholder="الرقم القومي" dir="ltr" style="width:170px">
+          <input id="bl-name" placeholder="الاسم" style="width:220px">
+          <select id="bl-reason"><option>سرقة</option><option>مخدرات</option><option>اعتداء / مشاجرة</option><option>تزوير</option><option>أخرى</option></select>
+          <input id="bl-note" placeholder="ملاحظة" style="width:200px">
+          <button class="btn" id="bl-add">إضافة</button>
+        </div>
+        <div class="msg" id="bl-msg"></div>
+        <div class="tbl"><table><thead><tr><th>الاسم</th><th>الرقم القومي</th><th>السبب</th><th>بواسطة</th><th></th></tr></thead><tbody id="bl-list"></tbody></table></div>
+      </div>
+      <div class="card no-view">
+        <h2>رفع تعديلات كتير من إكسيل</h2>
+        <p class="muted" style="margin-bottom:8px;">شيت فيه عمود <b>الكود</b>، ومعاه عمود أو أكتر من: <b>النوع</b> (أساسي / موسمي / يومية / مشي)، <b>الوظيفة</b>، <b>الموقع</b>، <b>ساري من</b>، <b>ملاحظة</b>. ولعامل جديد مالوش كود: سيب الكود فاضي واكتب <b>الاسم</b> و<b>الرقم القومي</b> و<b>الموقع</b> و<b>النوع</b> و<b>الوظيفة</b> (هيتضاف من غير بطاقة، والمشرف يرفعها بعدين). هتشوف المقارنة قبل الحفظ.</p>
+        <input type="file" id="w-file" accept=".xlsx,.xls">
+        <div class="msg" id="w-up-msg"></div>
+        <div class="hidden" id="w-preview">
+          <div class="tbl" style="margin-top:10px;"><table><thead><tr><th>الكود</th><th>الاسم</th><th>دلوقتي</th><th>الجديد</th><th></th></tr></thead><tbody id="w-prev-list"></tbody></table></div>
+          <div class="row" style="margin-top:10px;"><button class="btn" id="w-apply">حفظ التعديلات</button><button class="btn sec" id="w-discard">إلغاء</button></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>التعديلات اللي لسه مش في شيت الرواتب</h2>
+        <div class="tbl"><table><thead><tr><th>الاسم</th><th>الكود</th><th>التعديل</th><th>ساري من</th><th>بواسطة</th><th></th></tr></thead><tbody id="w-ovr"></tbody></table></div>
+      </div>
+      <div class="card">
+        <h2>أسماء المشرفين شالوها من الكشف</h2>
+        <p class="muted" style="margin-bottom:8px;">دي اتشالت من الكشف المطبوع بس. لو العامل مشي فعلاً، سجّله "مشي" عشان يتشال من السجلات لحد شيت الرواتب الجاي.</p>
+        <div class="tbl"><table><thead><tr><th>الاسم</th><th>الكود</th><th>الموقع</th><th>السبب</th><th>بواسطة</th><th></th></tr></thead><tbody id="w-rem"></tbody></table></div>
+      </div>
+      <div class="card">
+        <h2>عمال جداد اتضافوا من المواقع (بالبطاقة)</h2>
+        <p class="muted" style="margin-bottom:8px;">حدد النوع للي اتضاف للكشف. لحد ما تحدده، بيظهر في الكشف "جديد". والبدلاء الجداد بيفضلوا في قايمة بدلاء موقعهم.</p>
+        <div class="tbl"><table><thead><tr><th>الاسم</th><th>الرقم القومي</th><th>الموقع</th><th>الوظيفة</th><th>اتضاف كـ</th><th>أول يوم</th><th>الفيش</th><th>النوع</th><th></th></tr></thead><tbody id="w-new"></tbody></table></div>
+      </div>
+      <div class="card">
+        <h2>بيانات العمال في مواقع الحضور</h2>
+        <p class="muted" style="margin-bottom:10px;">أي تعديل هنا بيسري على كشف الموقع خلال ثواني، من غير ما تستنى شيت الرواتب. ولما شيت الرواتب الجديد يبقى فيه نفس التعديل، التعديل اليدوي بيتشال لوحده.</p>
+        <div class="row">
+          <input type="text" id="w-q" placeholder="ابحث بالاسم أو الكود أو الرقم القومي" style="flex:1 1 260px;">
+          <select id="w-site"><option value="">كل المواقع</option></select>
+        </div>
+        <div class="tbl" style="margin-top:10px;"><table><thead><tr><th>الاسم</th><th>الكود</th><th>الموقع</th><th>النوع</th><th>الوظيفة</th><th></th></tr></thead><tbody id="w-list"></tbody></table></div>
+        <p class="muted" id="w-count" style="margin-top:6px;"></p>
+      </div>
+      <div class="card hidden" id="w-form">
+        <h2 id="w-title"></h2>
+        <div class="grid-form">
+          <label>النوع<select id="w-type"><option value="اساسي">أساسي</option><option value="موسمي">موسمي</option><option value="يومية">يومية</option><option value="مشي">مشي</option></select></label>
+          <label>الوظيفة<input type="text" id="w-job" list="w-jobs"></label>
+          <label>الموقع<select id="w-site2"></select></label>
+          <label>ساري من<input type="date" id="w-from"></label>
+          <label class="wide">ملاحظة (اختياري)<input type="text" id="w-note"></label>
+          <div class="row"><button class="btn" id="w-save">حفظ التعديل</button><button class="btn sec" id="w-cancel">إلغاء</button></div>
+        </div>
+        <datalist id="w-jobs"></datalist>
+        <div class="msg" id="w-msg"></div>
+      </div>
+    </section>
+
+    <!-- الحسابات -->
+    <section data-panel="accounts" class="hidden">
+      <div class="msg warn" id="ac-server"></div>
+      <div class="card">
+        <h2>حسابات المواقع والإدارة</h2>
+        <p class="muted" style="margin-bottom:10px;">الحسابات اللي في التصميم. دوس "إنشاء" للي لسه مااتعملش، والسيرفر هيعمله بباسورد مؤقت يظهرلك مرة واحدة.</p>
+        <div class="tbl"><table><thead><tr><th>الإيميل</th><th>الحساب</th><th>الدور</th><th>المواقع</th><th>الحالة</th><th></th></tr></thead><tbody id="ac-plan"></tbody></table></div>
+      </div>
+      <div class="card">
+        <h2>حساب جديد أو تعديل حساب</h2>
+        <div class="grid-form">
+          <label>الإيميل<input type="email" id="ac-email" placeholder="name@theama-egy.com" dir="ltr"></label>
+          <label>الدور<select id="ac-role"><option value="supervisor">مشرف / إقليمي</option><option value="hr">HR</option><option value="accountant">محاسب</option><option value="viewer">مشاهد (عرض بس)</option></select></label>
+          <label class="wide">المواقع (للمشرف بس — من غير مواقع = الحساب المشترك)<span id="ac-sites" class="row" style="gap:12px;color:#222;"></span></label>
+          <label class="row" style="flex-direction:row;gap:6px;color:#222;"><input type="checkbox" id="ac-disabled"> الحساب متوقف</label>
+          <div><button class="btn" id="ac-save">حفظ</button></div>
+        </div>
+        <div class="msg" id="ac-msg"></div>
+        <div id="ac-secret" class="hidden" style="margin-top:10px;padding:12px;border:1px dashed #c0392b;border-radius:8px;">
+          <div class="muted">الباسورد المؤقت (اتمسح من السيستم بعد 10 دقايق، انسخه وابعته لصاحب الحساب):</div>
+          <div class="row" style="margin-top:6px;"><code id="ac-secret-val" style="font-size:20px;letter-spacing:1px;direction:ltr;"></code><button class="btn sec small" id="ac-copy">نسخ</button></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>كل الحسابات الموجودة</h2>
+        <div class="tbl"><table><thead><tr><th>الإيميل</th><th>الدور</th><th>المواقع</th><th>الحالة</th><th></th></tr></thead><tbody id="ac-list"></tbody></table></div>
+        <p class="muted" id="ac-updated" style="margin-top:8px;"></p>
+      </div>
+    </section>
+
+    <!-- الإعدادات -->
+    <section data-panel="settings" class="hidden">
+      <div class="msg warn" id="s-empty"></div>
+      <div class="card">
+        <h2>المواقع: شيت العميل ← شيت الرواتب</h2>
+        <div class="tbl set-tbl"><table><thead><tr><th>Work Location</th><th>موقع العمل في الرواتب</th><th></th></tr></thead><tbody id="s-loc"></tbody></table></div>
+        <button class="btn sec small" data-add="loc" style="margin-top:8px;">+ موقع</button>
+      </div>
+      <div class="card">
+        <h2>الوظايف: شيت العميل ← شيت الرواتب</h2>
+        <div class="tbl set-tbl"><table><thead><tr><th>Position</th><th>الوظيفة في الرواتب</th><th></th></tr></thead><tbody id="s-pos"></tbody></table></div>
+        <button class="btn sec small" data-add="pos" style="margin-top:8px;">+ وظيفة</button>
+      </div>
+      <div class="card">
+        <h2>استثناءات الموقع</h2>
+        <p class="muted" style="margin-bottom:8px;">لو وظيفة معينة في موقع معين بتروح لموقع تاني في الرواتب. مثلاً LD&amp;T في مصنع العامرية ← العامرية امداد.</p>
+        <div class="tbl set-tbl"><table><thead><tr><th>Work Location</th><th>Position</th><th>موقع العمل في الرواتب</th><th></th></tr></thead><tbody id="s-ovr"></tbody></table></div>
+        <button class="btn sec small" data-add="ovr" style="margin-top:8px;">+ استثناء</button>
+      </div>
+      <div class="card">
+        <h2>التوزيع الداخلي</h2>
+        <p class="muted" style="margin-bottom:8px;">لما سطر واحد في شيت العميل بيتقسم على أكتر من موقع عندنا. اكتب الأجزاء كده: <b>اكتوبر امداد:58، مدينة نصر امداد:35</b>. لو مجموعهم مختلف عن العدد الساري، الداشبورد هينبّهك.</p>
+        <div class="tbl set-tbl"><table><thead><tr><th>Work Location</th><th>Position</th><th>التوزيع</th><th></th></tr></thead><tbody id="s-split"></tbody></table></div>
+        <button class="btn sec small" data-add="split" style="margin-top:8px;">+ توزيع</button>
+      </div>
+      <div class="row"><button class="btn" id="s-save">حفظ الإعدادات</button><button class="btn sec" id="s-default">تحميل الإعدادات المبدئية</button></div>
+      <div class="msg" id="s-msg"></div>
+    </section>
+  </div>
+</div>
+
+<script type="module">
+import { getFirestore, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { db, auth, ATT_SITES, SUP_SITES } from './shared.js';
+
+
+// ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====
+const DEFAULT_SETTINGS = {
+  locMap: {
+    "Agamy DC Bev-EGY": "فرع العجمى", "Amreya DC Bev-EGY": "فرع العامرية", "Amreya Plant Bev-EGY": "مصنع العامرية",
+    "Damanhor DC Bev-EGY": "دمنهور", "Kafr Eldawar DC Bev-EGY": "كفر الدوار", "Mansoura DC Bev-EGY": "المنصورة",
+    "Tanta DC Bev-EGY": "فرع طنطا", "Tanta Plant Bev-EGY": "طنطا مصنع", "Nasr City Plant Bev-EGY": "مدينة نصر امداد",
+    "October Plant Bev-EGY": "اكتوبر امداد"
+  },
+  posMap: {
+    "helper": "مساعد بيع", "loading labor": "عامل تحميل ليلي", "loading driver": "سائق تحميل ليلي",
+    "forklift driver": "سائق ونش", "labor": "عامل", "ld&t deployment helper": "مساعد امداد",
+    "ld&t coordinator": "منسق ساحة امداد", "purchasing driver": "سائق مشتريات", "deployment driver": "سائق شحن امداد",
+    "merchandiser": "مروج"
+  },
+  overrides: [
+    { loc: "Amreya Plant Bev-EGY", pos: "ld&t deployment helper", site: "العامرية امداد" },
+    { loc: "Amreya Plant Bev-EGY", pos: "ld&t coordinator", site: "العامرية امداد" },
+    { loc: "Tanta Plant Bev-EGY", pos: "ld&t deployment helper", site: "طنطا امداد" },
+    { loc: "Tanta Plant Bev-EGY", pos: "ld&t coordinator", site: "طنطا امداد" }
+  ],
+  splits: [
+    { loc: "October Plant Bev-EGY", pos: "ld&t deployment helper", parts: [{ site: "اكتوبر امداد", count: 58 }, { site: "مدينة نصر امداد", count: 35 }] }
+  ]
+};
+// الأنواع اللي بتتحسب في "الموجود"؛ الباقي (يومية، بديل راحات...) بيتعرض كتغطية
+const COUNTED_TYPES = ["اساسي", "أساسي", "موسمي"];
+const EXCLUDED_JOB = /مشرف|اقليمي|إقليمي/;
+
+// ===== مساعدات =====
+const $ = id => document.getElementById(id);
+const norm = s => String(s ?? "").replace(/\s+/g, " ").trim();
+const nkey = s => norm(s).toLowerCase();
+const short = loc => norm(loc).replace(/\s*Bev-EGY$/i, "");
+const fmt = n => Number(n || 0).toLocaleString("ar-EG");
+const sign = n => (n > 0 ? "+" : n < 0 ? "−" : "") + fmt(Math.abs(n));
+const cls = d => d < 0 ? "s" : d > 0 ? "o" : "k";
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const ckey = (loc, pos) => norm(loc) + "|" + nkey(pos);
+function show(el, type, text) { el.className = "msg show " + type; el.textContent = text; }
+function hide(el) { el.className = "msg"; el.textContent = ""; }
+function monthLabel(m) { const [y, mm] = m.split("-").map(Number); return new Date(y, mm - 1, 1).toLocaleDateString("ar-EG", { month: "long", year: "numeric" }); }
+function monthEnd(m) { const [y, mm] = m.split("-").map(Number); return m + "-" + String(new Date(y, mm, 0).getDate()).padStart(2, "0"); }
+function thisMonth() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
+function today() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+
+// ===== الحالة =====
+const S = { month: thisMonth(), plans: {}, settings: null, amends: [], prevAmends: [], summary: null, summaryMonth: null };
+
+// ===== الدخول =====
+$("l-btn").addEventListener("click", async () => {
+  hide($("l-err"));
+  try { await signInWithEmailAndPassword(auth, $("l-email").value.trim(), $("l-pass").value); }
+  catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); }
+});
+$("l-pass").addEventListener("keydown", e => { if (e.key === "Enter") $("l-btn").click(); });
+$("logout").addEventListener("click", () => signOut(auth));
+$("d-out").addEventListener("click", () => signOut(auth));
+
+onAuthStateChanged(auth, async user => {
+  ["login", "denied", "app"].forEach(id => $(id).classList.add("hidden"));
+  if (!user) { $("login").classList.remove("hidden"); return; }
+  let role = null;
+  try { role = (await user.getIdTokenResult()).claims.role || null; } catch (e) {}
+  if (!["admin", "hr", "accountant", "viewer"].includes(role)) { $("denied").classList.remove("hidden"); return; }
+  S.role = role;
+  document.body.classList.toggle("view-only", role === "viewer");
+  document.querySelectorAll(".admin-only").forEach(el => el.classList.toggle("hidden", role !== "admin"));
+  $("who").textContent = (user.email || "") + " — " + ({ admin: "أدمن", hr: "HR", accountant: "محاسب", viewer: "مشاهد (عرض بس)" }[role]);
+  $("app").classList.remove("hidden");
+  await loadAll();
+  if (role === "admin") { await loadAdminConfig(); initAccounts(); }
+  initWorkers();
+  initBlacklist();
+});
+
+// ===== التبويبات =====
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach(x => x.setAttribute("aria-selected", x === t));
+  document.querySelectorAll("[data-panel]").forEach(p => p.classList.toggle("hidden", p.dataset.panel !== t.dataset.tab));
+}));
+
+// ===== التحميل =====
+async function loadAll() {
+  const [plansSnap, setSnap] = await Promise.all([getDocs(collection(db, "plans")), getDoc(doc(db, "plan_settings", "mapping"))]);
+  S.plans = {}; plansSnap.forEach(d => S.plans[d.id] = d.data());
+  S.settings = setSnap.exists() ? setSnap.data() : null;
+  const months = Object.keys(S.plans).sort().reverse();
+  if (!months.includes(S.month) && months.length) S.month = months[0];
+  const sel = $("month");
+  const opts = [...new Set([S.month, thisMonth(), ...months])].sort().reverse();
+  sel.innerHTML = opts.map(m => `<option value="${m}">${monthLabel(m)}${S.plans[m] ? "" : " (مفيش شيت)"}</option>`).join("");
+  sel.value = S.month;
+  renderSettings();
+  await loadMonth();
+}
+$("month").addEventListener("change", async e => { S.month = e.target.value; await loadMonth(); });
+
+function prevMonthKey(m) { return Object.keys(S.plans).filter(x => x < m).sort().pop() || null; }
+
+async function loadAmends(m) {
+  if (!m) return [];
+  const snap = await getDocs(query(collection(db, "plan_amendments"), where("month", "==", m)));
+  const list = []; snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+  return list.sort((a, b) => a.effective_date.localeCompare(b.effective_date) || ((a.created_at?.seconds || 0) - (b.created_at?.seconds || 0)));
+}
+
+async function loadMonth() {
+  const m = S.month, pm = prevMonthKey(m);
+  const [am, pam, sumSnap] = await Promise.all([loadAmends(m), loadAmends(pm), getDoc(doc(db, "headcount_summary", m))]);
+  S.amends = am; S.prevAmends = pam;
+  S.summary = null; S.summaryMonth = null;
+  if (sumSnap.exists()) { S.summary = sumSnap.data(); S.summaryMonth = m; }
+  else {
+    const all = await getDocs(collection(db, "headcount_summary"));
+    let best = null; all.forEach(d => { if (d.id <= m && (!best || d.id > best.id)) best = { id: d.id, data: d.data() }; });
+    if (best) { S.summary = best.data; S.summaryMonth = best.id; }
+  }
+  const asof = $("asof");
+  asof.min = m + "-01"; asof.max = monthEnd(m);
+  asof.value = (today() >= asof.min && today() <= asof.max) ? today() : asof.max;
+  $("a-date").min = asof.min; $("a-date").max = asof.max; $("a-date").value = asof.value;
+  renderDash(); renderAmends(); renderCountsStatus();
+}
+
+// ===== الحساب =====
+// العدد الساري لكل سطر في شيت العميل (بعد التعديلات) في يوم معين
+function clientPlan(m, amends, day) {
+  const plan = S.plans[m]; if (!plan) return null;
+  const map = new Map();
+  plan.rows.forEach(r => {
+    const k = ckey(r.loc, r.pos);
+    const e = map.get(k) || { loc: norm(r.loc), pos: norm(r.pos), base: 0 };
+    e.base += Number(r.hc) || 0; map.set(k, e);
+  });
+  map.forEach((e, k) => {
+    const hits = amends.filter(a => ckey(a.loc, a.pos) === k && a.effective_date <= day);
+    e.value = hits.length ? hits[hits.length - 1].to : e.base;
+    e.amended = amends.some(a => ckey(a.loc, a.pos) === k);
+  });
+  return map;
+}
+
+// تحويل سطور العميل لمواقع ووظايف الرواتب
+function toInternal(cmap) {
+  const st = S.settings || { locMap: {}, posMap: {}, overrides: [], splits: [] };
+  const targets = new Map(), warnings = [], unmapped = [];
+  const add = (site, job, n, base, amended) => {
+    const k = site + "|" + job;
+    const t = targets.get(k) || { site, job, plan: 0, base: 0, amended: false };
+    t.plan += n; t.base += base; t.amended = t.amended || amended; targets.set(k, t);
+  };
+  cmap.forEach(e => {
+    const job = st.posMap[nkey(e.pos)];
+    const split = (st.splits || []).find(s => ckey(s.loc, s.pos) === ckey(e.loc, e.pos));
+    if (!job) { unmapped.push(`${short(e.loc)} — ${e.pos}`); return; }
+    if (split && split.parts?.length) {
+      const sum = split.parts.reduce((a, p) => a + Number(p.count || 0), 0);
+      if (sum !== e.value) warnings.push(`${short(e.loc)} ${e.pos}: العدد الساري ${e.value} والتوزيع الداخلي مجموعه ${sum}. الفرق اتحسب على "${split.parts[0].site}"، حدّث التوزيع من الإعدادات.`);
+      split.parts.forEach((p, i) => {
+        const n = Number(p.count || 0) + (i === 0 ? e.value - sum : 0);
+        const b = Number(p.count || 0) + (i === 0 ? e.base - sum : 0);
+        add(norm(p.site), job, n, b, e.amended);
+      });
+      return;
+    }
+    const ov = (st.overrides || []).find(o => ckey(o.loc, o.pos) === ckey(e.loc, e.pos));
+    const site = ov ? norm(ov.site) : st.locMap[norm(e.loc)];
+    if (!site) { unmapped.push(`${short(e.loc)} — ${e.pos}`); return; }
+    add(site, job, e.value, e.base, e.amended);
+  });
+  return { targets, warnings, unmapped };
+}
+
+function actualMap() {
+  const act = new Map();
+  (S.summary?.counts || []).forEach(c => {
+    if (EXCLUDED_JOB.test(c.job)) return;
+    const k = c.site + "|" + c.job;
+    const e = act.get(k) || { site: c.site, job: c.job, actual: 0, cover: 0 };
+    if (COUNTED_TYPES.includes(c.type)) e.actual += c.n; else e.cover += c.n;
+    act.set(k, e);
+  });
+  return act;
+}
+
+// ===== الداشبورد =====
+let F = "all", chgOnly = true, DASH = [];
+function renderDash() {
+  const m = S.month, warn = $("dash-warn"); hide(warn);
+  if (!S.plans[m]) {
+    $("dash-body").classList.add("hidden"); $("dash-empty").classList.remove("hidden");
+    $("dash-empty").innerHTML = `<h2>مفيش شيت احتياج لشهر ${monthLabel(m)}</h2><p class="muted">ارفعه من تبويب "رفع شيت الاحتياج".</p>`;
+    return;
+  }
+  $("dash-body").classList.remove("hidden"); $("dash-empty").classList.add("hidden");
+  const day = $("asof").value;
+  const cmap = clientPlan(m, S.amends, day);
+  const { targets, warnings, unmapped } = toInternal(cmap);
+  const act = actualMap();
+  const sites = new Set([...targets.values()].map(t => t.site));
+  const keys = new Set([...targets.keys(), ...[...act.keys()].filter(k => sites.has(k.split("|")[0]))]);
+  DASH = [...keys].map(k => {
+    const t = targets.get(k), a = act.get(k);
+    return { site: (t || a).site, job: (t || a).job, plan: t?.plan || 0, base: t?.base || 0, amended: !!t?.amended, actual: a?.actual || 0, cover: a?.cover || 0 };
+  });
+  const msgs = [];
+  if (!S.settings) msgs.push("الإعدادات (المطابقة) لسه متحفظتش. افتح تبويب الإعدادات ودوس \"تحميل الإعدادات المبدئية\" ثم \"حفظ\".");
+  if (!S.summary) msgs.push("مفيش أعداد من الرواتب لسه. افتح تبويب \"الأعداد من الرواتب\" ودوس تحديث.");
+  if (unmapped.length) msgs.push("سطور في شيت العميل مش متطابقة مع الرواتب: " + unmapped.join("، ") + ". ضيفها في الإعدادات.");
+  msgs.push(...warnings);
+  if (msgs.length) show(warn, "warn", msgs.join("\n"));
+  warn.style.whiteSpace = "pre-line";
+  $("src-note").textContent = S.summary ? `الموجود من رواتب: ${S.summary.period || S.summaryMonth}${S.summaryMonth !== m ? " (آخر ملخص متاح)" : ""}` : "";
+
+  const planned = DASH.filter(r => r.plan > 0);
+  const plan = planned.reduce((a, r) => a + r.plan, 0), acts = planned.reduce((a, r) => a + r.actual, 0);
+  const sh = planned.reduce((a, r) => a + Math.max(0, r.plan - r.actual), 0), ov = planned.reduce((a, r) => a + Math.max(0, r.actual - r.plan), 0);
+  const pm = prevMonthKey(m);
+  const prevTotal = pm ? [...clientPlan(pm, S.prevAmends, monthEnd(pm)).values()].reduce((a, e) => a + e.value, 0) : null;
+  const curTotal = [...cmap.values()].reduce((a, e) => a + e.value, 0);
+  $("kpis").innerHTML = `
+    <div class="kpi"><div class="v">${fmt(curTotal)}</div><div class="l">المطلوب الساري (شيت العميل)</div></div>
+    <div class="kpi"><div class="v">${fmt(acts)}</div><div class="l">الموجود في الوظايف المطلوبة</div></div>
+    <div class="kpi s"><div class="v">${fmt(sh)}</div><div class="l">أماكن ناقصة</div></div>
+    <div class="kpi o"><div class="v">${fmt(ov)}</div><div class="l">زيادة عن المطلوب</div></div>
+    <div class="kpi"><div class="v" style="direction:ltr;text-align:right">${prevTotal === null ? "—" : sign(curTotal - prevTotal)}</div><div class="l">التغيير عن ${pm ? monthLabel(pm) : "الشهر اللي فات"}</div></div>`;
+
+  const by = {};
+  planned.forEach(r => { by[r.site] ??= { plan: 0, actual: 0 }; by[r.site].plan += r.plan; by[r.site].actual += r.actual; });
+  const list = Object.entries(by).sort((a, b) => (a[1].actual - a[1].plan) - (b[1].actual - b[1].plan));
+  const max = Math.max(1, ...list.map(([, v]) => Math.max(v.plan, v.actual)));
+  $("sites").innerHTML = list.map(([s, v]) => {
+    const d = v.actual - v.plan, pw = v.plan / max * 100, fw = Math.min(v.actual, v.plan) / max * 100, xw = d > 0 ? d / max * 100 : 0;
+    return `<div class="site" tabindex="0" role="button" data-site="${esc(s)}"><div class="nm">${esc(s)}</div>
+      <div class="bar"><div class="p" style="width:${pw}%"></div><div class="f" style="width:${fw}%"></div>${xw ? `<div class="x" style="right:${pw}%;width:${xw}%"></div>` : ""}<div class="t">${fmt(v.actual)} من ${fmt(v.plan)}</div></div>
+      <div class="gap c-${cls(d)}">${d === 0 ? "مطابق" : sign(d)}</div></div>`;
+  }).join("");
+  const sel = $("site-sel"), cur = sel.value;
+  sel.innerHTML = `<option value="">كل المواقع</option>` + list.map(([s]) => `<option>${esc(s)}</option>`).join("");
+  if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+  renderDetail();
+
+  const un = DASH.filter(r => r.plan === 0 && r.actual > 0);
+  $("unplanned-card").classList.toggle("hidden", !un.length);
+  $("unplanned").textContent = un.map(r => `${r.job} ${r.site} (${fmt(r.actual)})`).join("، ");
+
+  // المقارنة بالشهر اللي فات
+  $("prev-label").textContent = pm ? `(${monthLabel(pm)} ← ${monthLabel(m)})` : "(مفيش شهر سابق)";
+  const pmap = pm ? clientPlan(pm, S.prevAmends, monthEnd(pm)) : new Map();
+  const ks = new Set([...cmap.keys(), ...pmap.keys()]);
+  const rows = [...ks].map(k => { const c = cmap.get(k), p = pmap.get(k); const e = c || p; return { loc: short(e.loc), pos: e.pos, prev: p?.value || 0, cur: c?.value || 0 }; })
+    .filter(r => !chgOnly || r.prev !== r.cur).sort((a, b) => a.loc.localeCompare(b.loc, "ar"));
+  $("months").innerHTML = rows.length ? rows.map(r => { const d = r.cur - r.prev;
+    return `<tr><td>${esc(r.loc)}</td><td>${esc(r.pos)}</td><td class="n">${fmt(r.prev)}</td><td class="n">${fmt(r.cur)}</td><td class="n">${d ? `<span class="pill ${d < 0 ? "s" : "o"}">${sign(d)}</span>` : "—"}</td></tr>`; }).join("")
+    : `<tr><td colspan="5" class="muted">${pm ? "مفيش تغيير." : "مفيش شهر سابق للمقارنة."}</td></tr>`;
+}
+function renderDetail() {
+  const site = $("site-sel").value;
+  const rows = DASH.filter(r => r.plan > 0 && (!site || r.site === site) && (F === "all" || cls(r.actual - r.plan) === F))
+    .sort((a, b) => (a.actual - a.plan) - (b.actual - b.plan));
+  $("detail").innerHTML = rows.length ? rows.map(r => { const d = r.actual - r.plan;
+    return `<tr><td>${esc(r.site)}</td><td>${esc(r.job)}${r.amended ? `<span class="amd">معدّل</span>` : ""}</td>
+      <td class="n">${fmt(r.plan)}${r.plan !== r.base ? `<span class="was">${fmt(r.base)}</span>` : ""}</td><td class="n">${fmt(r.actual)}</td>
+      <td class="n"><span class="pill ${cls(d)}">${d === 0 ? "مطابق" : sign(d)}</span></td><td class="n">${r.cover ? fmt(r.cover) : "—"}</td></tr>`; }).join("")
+    : `<tr><td colspan="6" class="muted">مفيش وظايف بالفلتر ده.</td></tr>`;
+}
+$("asof").addEventListener("change", renderDash);
+$("site-sel").addEventListener("change", renderDetail);
+document.querySelectorAll(".chip[data-f]").forEach(b => b.addEventListener("click", () => {
+  F = b.dataset.f; document.querySelectorAll(".chip[data-f]").forEach(x => x.setAttribute("aria-pressed", x === b)); renderDetail();
+}));
+$("chg-only").addEventListener("click", e => { chgOnly = !chgOnly; e.currentTarget.setAttribute("aria-pressed", chgOnly); e.currentTarget.textContent = chgOnly ? "التغييرات بس" : "كل السطور"; renderDash(); });
+$("sites").addEventListener("click", e => { const s = e.target.closest(".site"); if (!s) return; $("site-sel").value = s.dataset.site; renderDetail(); $("detail").scrollIntoView({ behavior: "smooth", block: "center" }); });
+$("sites").addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.classList.contains("site")) { e.preventDefault(); e.target.click(); } });
+
+// ===== التعديلات =====
+function renderAmends() {
+  const m = S.month, plan = S.plans[m];
+  const cmap = plan ? clientPlan(m, S.amends, $("asof").value || monthEnd(m)) : new Map();
+  $("a-key").innerHTML = [...cmap.entries()].sort((a, b) => short(a[1].loc).localeCompare(short(b[1].loc))).map(([k, e]) =>
+    `<option value="${esc(k)}">${esc(short(e.loc))} — ${esc(e.pos)} (الساري: ${e.value})</option>`).join("");
+  $("a-save").disabled = !plan;
+  const full = plan ? clientPlan(m, [], monthEnd(m)) : new Map();
+  $("a-list").innerHTML = S.amends.length ? S.amends.map(a => {
+    const b = full.get(ckey(a.loc, a.pos));
+    return `<tr><td>${esc(short(a.loc))}</td><td>${esc(a.pos)}</td><td class="n">${b ? fmt(b.base) : "—"}</td><td class="n"><b>${fmt(a.to)}</b></td>
+      <td style="direction:ltr;text-align:right">${esc(a.effective_date)}</td><td>${esc(a.reason)}</td><td class="muted">${esc(a.created_email || "")}</td></tr>`; }).join("")
+    : `<tr><td colspan="7" class="muted">مفيش تعديلات الشهر ده.</td></tr>`;
+}
+$("a-save").addEventListener("click", async () => {
+  const msg = $("a-msg"); hide(msg);
+  const k = $("a-key").value, to = parseInt($("a-to").value, 10), date = $("a-date").value, reason = $("a-reason").value.trim();
+  if (!k) return show(msg, "err", "اختار الموقع والوظيفة.");
+  if (!Number.isInteger(to) || to < 0) return show(msg, "err", "اكتب العدد الجديد.");
+  if (!date || !date.startsWith(S.month)) return show(msg, "err", "التاريخ لازم يكون جوه الشهر المختار.");
+  if (!reason) return show(msg, "err", "اكتب السبب أو المرجع، عشان يبان في السجل بعدين.");
+  const e = clientPlan(S.month, S.amends, monthEnd(S.month)).get(k);
+  if (!confirm(`${short(e.loc)} — ${e.pos}\nمن ${e.value} إلى ${to}، ساري من ${date}.\nالتعديل مش هيتمسح بعد الحفظ. متأكد؟`)) return;
+  $("a-save").disabled = true;
+  try {
+    await addDoc(collection(db, "plan_amendments"), {
+      month: S.month, loc: e.loc, pos: e.pos, to, effective_date: date, reason,
+      created_by: auth.currentUser.uid, created_email: auth.currentUser.email || "", created_at: serverTimestamp()
+    });
+    $("a-to").value = ""; $("a-reason").value = "";
+    S.amends = await loadAmends(S.month);
+    renderAmends(); renderDash();
+    show(msg, "ok", "اتحفظ التعديل.");
+  } catch (err) { show(msg, "err", "ماتحفظش: " + err.message); }
+  $("a-save").disabled = false;
+});
+
+// ===== رفع الشيت =====
+let WB = null, PENDING = null;
+$("u-file").addEventListener("change", async e => {
+  hide($("u-msg")); $("u-preview").classList.add("hidden"); PENDING = null;
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    WB = XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: "array", cellDates: true });
+    $("u-sheet").innerHTML = WB.SheetNames.map(n => `<option>${esc(n)}</option>`).join("");
+    $("u-opts").classList.remove("hidden");
+    guessMonth();
+  } catch (err) { show($("u-msg"), "err", "مش قادر أقرا الملف: " + err.message); }
+});
+$("u-sheet").addEventListener("change", guessMonth);
+function sheetRows(name) {
+  const aoa = XLSX.utils.sheet_to_json(WB.Sheets[name], { header: 1, defval: "", raw: true });
+  const hi = aoa.findIndex(r => r.some(c => nkey(c) === "work location") && r.some(c => nkey(c) === "position"));
+  if (hi < 0) throw new Error("مش لاقي عناوين الأعمدة (Work Location و Position و Planned HC).");
+  const H = aoa[hi].map(nkey), col = n => H.findIndex(h => h === n);
+  const iL = col("work location"), iP = col("position"), iH = H.findIndex(h => h.startsWith("planned hc")), iM = col("month"),
+        iB = col("business category"), iPL = col("production line"), iC = col("cost category");
+  if (iH < 0) throw new Error("مش لاقي عمود Planned HC.");
+  const rows = []; let month = null;
+  for (let i = hi + 1; i < aoa.length; i++) {
+    const r = aoa[i], loc = norm(r[iL]), pos = norm(r[iP]), hc = Number(r[iH]);
+    if (!loc || !pos || !Number.isFinite(hc) || nkey(loc) === "work location") continue;
+    rows.push({ bc: norm(r[iB]), pl: norm(r[iPL]), loc, cc: norm(r[iC]), pos, hc });
+    const mv = r[iM];
+    if (!month && mv instanceof Date) month = mv.getFullYear() + "-" + String(mv.getMonth() + 1).padStart(2, "0");
+  }
+  return { rows, month };
+}
+function guessMonth() {
+  try { const { month } = sheetRows($("u-sheet").value); if (month) $("u-month").value = month; } catch (e) {}
+}
+$("u-read").addEventListener("click", () => {
+  hide($("u-msg")); hide($("u-warn"));
+  try {
+    const { rows } = sheetRows($("u-sheet").value);
+    const m = $("u-month").value;
+    if (!m) return show($("u-msg"), "err", "اختار الشهر.");
+    if (!rows.length) return show($("u-msg"), "err", "الشيت مفيهوش سطور أعداد.");
+    PENDING = { month: m, rows, file_name: $("u-file").files[0].name, sheet_name: $("u-sheet").value };
+    renderPreview();
+  } catch (err) { show($("u-msg"), "err", err.message); }
+});
+async function renderPreview() {
+  const m = PENDING.month, pm = Object.keys(S.plans).filter(x => x < m).sort().pop() || null;
+  const pam = pm ? await loadAmends(pm) : [];
+  const prev = pm ? clientPlan(pm, pam, monthEnd(pm)) : new Map();
+  const cur = new Map();
+  PENDING.rows.forEach(r => { const k = ckey(r.loc, r.pos); const e = cur.get(k) || { loc: r.loc, pos: r.pos, value: 0 }; e.value += r.hc; cur.set(k, e); });
+  const total = [...cur.values()].reduce((a, e) => a + e.value, 0);
+  const ptotal = [...prev.values()].reduce((a, e) => a + e.value, 0);
+  $("u-summary").innerHTML = `<b>${monthLabel(m)}</b>: ${fmt(PENDING.rows.length)} سطر، الإجمالي <b>${fmt(total)}</b>` +
+    (pm ? ` — آخر رقم ساري في ${monthLabel(pm)}: ${fmt(ptotal)} (<span class="c-${cls(total - ptotal)}">${sign(total - ptotal)}</span>)` : " — مفيش شهر سابق للمقارنة") +
+    (S.plans[m] ? `<br><span class="c-s">فيه شيت محفوظ لنفس الشهر، والحفظ هيستبدله. تعديلات الشهر هتفضل سارية.</span>` : "");
+  const warns = [];
+  pam.forEach(a => { const k = ckey(a.loc, a.pos), c = cur.get(k), lastForKey = pam.filter(x => ckey(x.loc, x.pos) === k).pop();
+    if (a === lastForKey && c && c.value !== a.to) warns.push(`${short(a.loc)} ${a.pos}: اتعدّل لـ ${a.to} في ${monthLabel(pm)}، والشيت الجديد فيه ${c.value}. اتأكد أنهي الصح، ولو التعديل لسه ساري اعمله تاني في الشهر الجديد.`); });
+  const st = S.settings;
+  if (st) cur.forEach(e => { if (!st.posMap[nkey(e.pos)] || (!st.locMap[norm(e.loc)] && !(st.overrides || []).some(o => ckey(o.loc, o.pos) === ckey(e.loc, e.pos)) && !(st.splits || []).some(s => ckey(s.loc, s.pos) === ckey(e.loc, e.pos))))
+    warns.push(`${short(e.loc)} — ${e.pos}: مش متطابق مع الرواتب، ضيفه في الإعدادات.`); });
+  if (warns.length) { show($("u-warn"), "warn", warns.join("\n")); $("u-warn").style.whiteSpace = "pre-line"; }
+  const ks = new Set([...cur.keys(), ...prev.keys()]);
+  const rows = [...ks].map(k => { const c = cur.get(k), p = prev.get(k), e = c || p; return { loc: short(e.loc), pos: e.pos, prev: p?.value ?? 0, cur: c?.value ?? 0 }; })
+    .sort((a, b) => Math.abs(b.cur - b.prev) - Math.abs(a.cur - a.prev) || a.loc.localeCompare(b.loc, "ar"));
+  $("u-table").innerHTML = rows.map(r => { const d = r.cur - r.prev;
+    return `<tr><td>${esc(r.loc)}</td><td>${esc(r.pos)}</td><td class="n">${pm ? fmt(r.prev) : "—"}</td><td class="n">${fmt(r.cur)}</td><td class="n">${pm && d ? `<span class="pill ${d < 0 ? "s" : "o"}">${sign(d)}</span>` : "—"}</td></tr>`; }).join("");
+  $("u-save").textContent = "حفظ الشيت لشهر " + monthLabel(m);
+  $("u-preview").classList.remove("hidden");
+}
+$("u-cancel").addEventListener("click", () => { PENDING = null; $("u-preview").classList.add("hidden"); });
+$("u-save").addEventListener("click", async () => {
+  if (!PENDING) return;
+  if (S.plans[PENDING.month] && !confirm("فيه شيت محفوظ لنفس الشهر. تستبدله؟")) return;
+  $("u-save").disabled = true;
+  try {
+    await setDoc(doc(db, "plans", PENDING.month), {
+      month: PENDING.month, rows: PENDING.rows, file_name: PENDING.file_name, sheet_name: PENDING.sheet_name,
+      uploaded_by: auth.currentUser.uid, uploaded_email: auth.currentUser.email || "", uploaded_at: serverTimestamp()
+    });
+    show($("u-msg"), "ok", `اتحفظ شيت ${monthLabel(PENDING.month)}.`);
+    S.month = PENDING.month; PENDING = null; $("u-preview").classList.add("hidden"); $("u-file").value = ""; $("u-opts").classList.add("hidden");
+    await loadAll();
+  } catch (err) { show($("u-msg"), "err", "ماتحفظش: " + err.message); }
+  $("u-save").disabled = false;
+});
+
+// ===== الأعداد من الرواتب =====
+function renderCountsStatus() {
+  const s = S.summary;
+  $("c-status").innerHTML = s
+    ? `آخر ملخص${S.summaryMonth !== S.month ? ` (لشهر ${monthLabel(S.summaryMonth)})` : ""}: ${fmt(s.total)} سجل، من رواتب <b>${esc(s.period || "—")}</b>، اتحدّث ${s.computed_at?.toDate ? s.computed_at.toDate().toLocaleString("ar-EG") : ""}.`
+    : "مفيش ملخص لسه.";
+}
+$("c-run").addEventListener("click", async () => {
+  const msg = $("c-msg"); hide(msg);
+  if (!confirm(`هيقرا شيت الرواتب المرفوع حالياً كله مرة واحدة ويحفظ الملخص لشهر ${monthLabel(S.month)}. نكمل؟`)) return;
+  $("c-run").disabled = true; show(msg, "info", "جاري القراءة...");
+  try {
+    const snap = await getDocs(collection(db, "payroll"));
+    const seen = new Set(), counts = new Map(), periods = {};
+    snap.forEach(d => {
+      const r = d.data(), data = r.data || {}, f = {};
+      Object.keys(data).forEach(k => f[norm(k)] = data[k]);
+      const code = norm(r.employee_code); if (!code || seen.has(code)) return; seen.add(code);
+      const site = norm(f["الفرع \\ المصنع"] ?? f["الفرع \\\\ المصنع"] ?? f["موقع العمل"]);
+      const job = norm(f["الوظيفة"]), type = norm(f["نوع الوظيفة"]), per = norm(f["فترة القبض"]);
+      if (per) periods[per] = (periods[per] || 0) + 1;
+      if (!site || !job) return;
+      const k = site + "|" + job + "|" + type;
+      counts.set(k, { site, job, type, n: (counts.get(k)?.n || 0) + 1 });
+    });
+    if (!seen.size) throw new Error("شيت الرواتب فاضي أو مش مرفوع.");
+    if (!counts.size) throw new Error("مش لاقي عمود \"الفرع \\ المصنع\" أو \"الوظيفة\" في الرواتب.");
+    const period = Object.entries(periods).sort((a, b) => b[1] - a[1]).map(([p]) => p).slice(0, 3).join(" / ");
+    await setDoc(doc(db, "headcount_summary", S.month), { month: S.month, counts: [...counts.values()], total: seen.size, period, computed_at: serverTimestamp(), computed_by: auth.currentUser.uid });
+    show(msg, "ok", `اتحدّث: ${fmt(seen.size)} موظف.`);
+    await loadMonth();
+  } catch (err) { show(msg, "err", "ماتحدّثش: " + err.message); }
+  $("c-run").disabled = false;
+});
+
+// ===== الإعدادات =====
+const ED = { loc: [], pos: [], ovr: [], split: [] };
+function fromSettings(st) {
+  ED.loc = Object.entries(st?.locMap || {}).map(([a, b]) => [a, b]);
+  ED.pos = Object.entries(st?.posMap || {}).map(([a, b]) => [a, b]);
+  ED.ovr = (st?.overrides || []).map(o => [o.loc, o.pos, o.site]);
+  ED.split = (st?.splits || []).map(s => [s.loc, s.pos, s.parts.map(p => `${p.site}:${p.count}`).join("، ")]);
+}
+function renderSettings() {
+  if (!ED._init) { fromSettings(S.settings); ED._init = true; }
+  if (S.settings) hide($("s-empty")); else show($("s-empty"), "warn", "الإعدادات لسه متحفظتش. دوس \"تحميل الإعدادات المبدئية\"، راجعها، وبعدين \"حفظ الإعدادات\".");
+  const cell = (t, i, j) => `<td><input type="text" data-t="${t}" data-i="${i}" data-j="${j}" value="${esc(ED[t][i][j])}"></td>`;
+  const del = (t, i) => `<td><button class="btn sec small" data-del="${t}" data-i="${i}">حذف</button></td>`;
+  $("s-loc").innerHTML = ED.loc.map((r, i) => `<tr>${cell("loc", i, 0)}${cell("loc", i, 1)}${del("loc", i)}</tr>`).join("");
+  $("s-pos").innerHTML = ED.pos.map((r, i) => `<tr>${cell("pos", i, 0)}${cell("pos", i, 1)}${del("pos", i)}</tr>`).join("");
+  $("s-ovr").innerHTML = ED.ovr.map((r, i) => `<tr>${cell("ovr", i, 0)}${cell("ovr", i, 1)}${cell("ovr", i, 2)}${del("ovr", i)}</tr>`).join("");
+  $("s-split").innerHTML = ED.split.map((r, i) => `<tr>${cell("split", i, 0)}${cell("split", i, 1)}${cell("split", i, 2)}${del("split", i)}</tr>`).join("");
+}
+document.querySelector('[data-panel="settings"]').addEventListener("input", e => {
+  const t = e.target.dataset.t; if (!t) return; ED[t][+e.target.dataset.i][+e.target.dataset.j] = e.target.value;
+});
+document.querySelector('[data-panel="settings"]').addEventListener("click", e => {
+  const add = e.target.dataset.add, delT = e.target.dataset.del;
+  if (add) { ED[add].push(add === "ovr" || add === "split" ? ["", "", ""] : ["", ""]); renderSettings(); }
+  if (delT) { ED[delT].splice(+e.target.dataset.i, 1); renderSettings(); }
+});
+$("s-default").addEventListener("click", () => { fromSettings(DEFAULT_SETTINGS); renderSettings(); show($("s-msg"), "info", "اتحملت الإعدادات المبدئية في الجداول. راجعها ودوس حفظ."); });
+$("s-save").addEventListener("click", async () => {
+  const msg = $("s-msg"); hide(msg);
+  try {
+    const locMap = {}, posMap = {};
+    ED.loc.forEach(([a, b]) => { if (norm(a) && norm(b)) locMap[norm(a)] = norm(b); });
+    ED.pos.forEach(([a, b]) => { if (norm(a) && norm(b)) posMap[nkey(a)] = norm(b); });
+    const overrides = ED.ovr.filter(r => norm(r[0]) && norm(r[1]) && norm(r[2])).map(([loc, pos, site]) => ({ loc: norm(loc), pos: nkey(pos), site: norm(site) }));
+    const splits = ED.split.filter(r => norm(r[0]) && norm(r[1]) && norm(r[2])).map(([loc, pos, txt]) => {
+      const parts = txt.split(/[،,]/).map(s => s.trim()).filter(Boolean).map(s => {
+        const i = s.lastIndexOf(":"); if (i < 0) throw new Error(`التوزيع "${s}" لازم يبقى بالشكل موقع:عدد`);
+        const count = parseInt(s.slice(i + 1), 10); if (!Number.isInteger(count)) throw new Error(`العدد في "${s}" مش رقم`);
+        return { site: norm(s.slice(0, i)), count };
+      });
+      return { loc: norm(loc), pos: nkey(pos), parts };
+    });
+    await setDoc(doc(db, "plan_settings", "mapping"), { locMap, posMap, overrides, splits, updated_by: auth.currentUser.uid, updated_at: serverTimestamp() });
+    S.settings = { locMap, posMap, overrides, splits };
+    show(msg, "ok", "اتحفظت الإعدادات.");
+    renderSettings(); renderDash();
+  } catch (err) { show(msg, "err", "ماتحفظتش: " + err.message); }
+});
+// ===== الحسابات (أدمن بس — التنفيذ على السيرفر worker.py) =====
+// ===== إعدادات الإدارة: من Firestore (config/admin) — الأدمن بس يقدر يقراها =====
+// قايمة الحسابات المخططة وإيميل استثناء الفيش والحساب المشترك مش مكتوبة في الكود (الريبو Public).
+let PLANNED = [], FICHE_EXCEPTION_EMAIL = "", SHARED_EMAIL = "";
+async function loadAdminConfig() {
+  try {
+    const snap = await getDoc(doc(db, "config", "admin"));
+    const c = snap.exists() ? snap.data() : {};
+    PLANNED = c.planned || []; FICHE_EXCEPTION_EMAIL = (c.fiche_exception_email || "").toLowerCase(); SHARED_EMAIL = (c.shared_email || "").toLowerCase();
+  } catch (e) { console.warn("config/admin:", e.message); }
+}
+const ROLE_AR = { admin: "أدمن", supervisor: "مشرف", hr: "HR", accountant: "محاسب", viewer: "مشاهد" };
+let STAFF = [];
+
+async function createTask(type, extra) {
+  const u = auth.currentUser;
+  if (!u) throw new Error("انتهت الجلسة — ادخل تاني");
+  return await addDoc(collection(db, "admin_tasks"), {
+    type, requested_by: u.uid, requested_email: u.email || "", status: "pending", created_at: serverTimestamp(), ...extra
+  });
+}
+function waitTask(ref, timeoutMs) {
+  return new Promise(resolve => {
+    let done = false, unsub = null;
+    const finish = r => { if (done) return; done = true; clearTimeout(timer); if (unsub) unsub(); resolve(r); };
+    const timer = setTimeout(() => finish({ status: "timeout" }), timeoutMs);
+    unsub = onSnapshot(ref, snap => { const d = snap.data(); if (d && (d.status === "done" || d.status === "error")) finish(d); },
+      err => finish({ status: "error", message: "مش قادر أتابع الطلب: " + err.message }));
+  });
+}
+
+function initAccounts() {
+  $("ac-sites").innerHTML = SUP_SITES.map(s => `<label class="row" style="flex-direction:row;gap:4px;font-size:13px;color:#222;"><input type="checkbox" value="${esc(s)}"> ${esc(s)}</label>`).join("");
+  $("ac-role").addEventListener("change", () => { $("ac-sites").style.opacity = $("ac-role").value === "supervisor" ? 1 : .4; });
+  onSnapshot(doc(db, "staff_accounts", "all"), snap => {
+    const d = snap.exists() ? snap.data() : null;
+    STAFF = d?.accounts || [];
+    $("ac-updated").textContent = d?.updated_at?.toDate ? "آخر تحديث للقايمة: " + d.updated_at.toDate().toLocaleString("ar-EG") : "القايمة لسه ماتعملتش — هتظهر أول ما السيرفر يشتغل بالنسخة الجديدة.";
+    renderAccounts();
+  }, err => show($("ac-server"), "warn", "مش قادر أقرا قايمة الحسابات: " + err.message));
+  onSnapshot(doc(db, "admin_tasks_status", "server"), snap => {
+    const t = snap.exists() && snap.data().last_seen?.toDate ? snap.data().last_seen.toDate() : null;
+    const ok = t && (Date.now() - t.getTime()) / 60000 <= 11;
+    if (ok) hide($("ac-server")); else show($("ac-server"), "warn", "السيرفر واقف — الطلبات هتستنى لحد ما يشتغل.");
+  });
+}
+function sitesText(a) { return a.role === "supervisor" ? ((a.sites || []).join("، ") || "الكل ما عدا مواقع الحضور") : "—"; }
+function renderAccounts() {
+  const by = Object.fromEntries(STAFF.map(a => [String(a.email).toLowerCase(), a]));
+  $("ac-plan").innerHTML = PLANNED.map(p => {
+    const a = by[p.email];
+    const same = a && a.role === p.role && JSON.stringify([...(a.sites || [])].sort()) === JSON.stringify([...p.sites].sort());
+    const st = !a ? `<span class="c-s">لسه مااتعملش</span>` : !same ? `<span class="c-s">الصلاحيات مختلفة</span>` : a.disabled ? `<span class="muted">متوقف</span>` : `<span class="c-k">جاهز</span>`;
+    const btn = !a ? `<button class="btn small" data-plan="${esc(p.email)}">إنشاء</button>` : !same ? `<button class="btn sec small" data-plan="${esc(p.email)}">تظبيط الصلاحيات</button>` : "";
+    return `<tr><td dir="ltr" style="text-align:right">${esc(p.email)}</td><td>${esc(p.label)}</td><td>${ROLE_AR[p.role]}</td><td>${esc(sitesText(p))}</td><td>${st}</td><td>${btn}</td></tr>`;
+  }).join("");
+  $("ac-list").innerHTML = STAFF.length ? STAFF.map(a => `<tr><td dir="ltr" style="text-align:right">${esc(a.email)}</td><td>${ROLE_AR[a.role] || esc(a.role || "—")}</td><td>${esc(sitesText(a))}</td><td>${a.disabled ? "متوقف" : "شغال"}</td>
+    <td class="row" style="gap:4px;">${a.role === "admin" ? "" : `<button class="btn sec small" data-edit="${esc(a.email)}">تعديل</button><button class="btn sec small" data-pass="${esc(a.email)}">باسورد جديد</button>`}</td></tr>`).join("")
+    : `<tr><td colspan="5" class="muted">مفيش حسابات ظاهرة لسه.</td></tr>`;
+}
+function fillForm(a) {
+  $("ac-email").value = a.email; $("ac-role").value = a.role in ROLE_AR && a.role !== "admin" ? a.role : "supervisor";
+  $("ac-sites").querySelectorAll("input").forEach(i => i.checked = (a.sites || []).includes(i.value));
+  $("ac-disabled").checked = !!a.disabled;
+  $("ac-role").dispatchEvent(new Event("change"));
+  $("ac-email").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+document.querySelector('[data-panel="accounts"]').addEventListener("click", async e => {
+  const t = e.target;
+  if (t.dataset.plan) { const p = PLANNED.find(x => x.email === t.dataset.plan); fillForm({ ...p, disabled: false }); return saveAccount(); }
+  if (t.dataset.edit) { const a = STAFF.find(x => x.email === t.dataset.edit); if (a) fillForm(a); return; }
+  if (t.dataset.pass) {
+    if (!confirm(`باسورد مؤقت جديد لـ ${t.dataset.pass}؟ الباسورد القديم هيبطل، وأي حد داخل بيه هيخرج.`)) return;
+    return runAccountTask("account_password", { email: t.dataset.pass });
+  }
+});
+$("ac-save").addEventListener("click", () => saveAccount());
+$("ac-copy").addEventListener("click", () => navigator.clipboard?.writeText($("ac-secret-val").textContent));
+function saveAccount() {
+  const email = $("ac-email").value.trim().toLowerCase(), role = $("ac-role").value;
+  const sites = role === "supervisor" ? [...$("ac-sites").querySelectorAll("input:checked")].map(i => i.value) : [];
+  if (!email || !email.includes("@")) return show($("ac-msg"), "err", "اكتب الإيميل.");
+  if (role === "supervisor" && !sites.length && email !== SHARED_EMAIL
+      && !confirm("مشرف من غير مواقع = نفس صلاحيات الحساب المشترك (كل العمال ما عدا مواقع الحضور). متأكد؟")) return;
+  return runAccountTask("account_save", { email, role, sites, disabled: $("ac-disabled").checked });
+}
+async function runAccountTask(type, extra) {
+  const msg = $("ac-msg"); $("ac-secret").classList.add("hidden");
+  show(msg, "info", "جاري إرسال الطلب للسيرفر...");
+  document.querySelectorAll('[data-panel="accounts"] button').forEach(b => b.disabled = true);
+  try {
+    const ref = await createTask(type, extra);
+    const r = await waitTask(ref, 60000);
+    if (r.status === "done") {
+      show(msg, "ok", r.message);
+      if (r.secret) { $("ac-secret-val").textContent = r.secret; $("ac-secret").classList.remove("hidden"); }
+    } else if (r.status === "timeout") show(msg, "warn", "الطلب اتسجّل بس السيرفر مردّش لسه — هيتنفذ أول ما يشتغل، وارجع للصفحة دي تشوف النتيجة.");
+    else show(msg, "err", r.message || "حصل خطأ، حاول تاني");
+  } catch (err) { show(msg, "err", err.code === "permission-denied" ? "مش مسموح — اتأكد إن الـ Rules الجديدة اتنشرت." : "خطأ: " + err.message); }
+  document.querySelectorAll('[data-panel="accounts"] button').forEach(b => b.disabled = false);
+}
+// ===== بيانات العمال (الأدمن وHR والمحاسب) =====
+const W_SITES = SUP_SITES;
+const WS = { base: [], ovr: {}, edit: null, pending: [] };
+const arNorm = s => String(s ?? "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/\s+/g, " ").trim();
+const typeLabel = t => ({ "اساسي": "أساسي" }[t] || t || "—");
+async function initWorkers() {
+  $("w-site").innerHTML = `<option value="">كل المواقع</option>` + W_SITES.map(s => `<option>${esc(s)}</option>`).join("");
+  $("w-site2").innerHTML = W_SITES.map(s => `<option>${esc(s)}</option>`).join("");
+  $("w-from").value = today();
+  const snaps = await Promise.all(W_SITES.map(s => getDoc(doc(db, "rosters_base", s)).catch(() => null)));
+  WS.base = [];
+  snaps.forEach((sn, i) => { if (sn?.exists()) (sn.data().workers || []).forEach(w => WS.base.push({ ...w, site: W_SITES[i] })); });
+  $("w-jobs").innerHTML = [...new Set(WS.base.map(w => w.job).filter(Boolean))].sort().map(j => `<option value="${esc(j)}">`).join("");
+  onSnapshot(collection(db, "roster_overrides"), snap => {
+    WS.ovr = {}; snap.forEach(d => WS.ovr[d.id] = d.data());
+    renderWorkers(); renderOverrides();
+  }, err => show($("w-msg"), "err", "مش قادر أقرا التعديلات: " + err.message));
+  renderWorkers();
+  onSnapshot(collection(db, "new_workers"), snap => {
+    WS.newAll = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const rows = WS.newAll.filter(x => x.status !== "rejected")
+      .sort((a, b) => (b.at?.seconds || 0) - (a.at?.seconds || 0));
+    $("w-new").innerHTML = rows.length ? rows.map(x => `<tr><td>${esc(x.name)}</td><td style="direction:ltr;text-align:right">${esc(x.nid)}</td><td>${esc(x.site)}</td><td>${esc(x.job)}</td>
+      <td>${x.role === "roster" ? "عامل في الكشف" : "بديل"}${x.no_card ? `<div class="c-s" style="font-size:12px;">من غير بطاقة</div>` : ""}</td><td style="direction:ltr;text-align:right">${esc(x.first_day || "")}</td><td>${ficheCell(x)}</td>
+      <td><span class="vo-txt">${x.type ? typeLabel(x.type) : (x.role === "roster" ? "جديد (مستني)" : "بديل جديد")}</span><select data-ntype="${esc(x.id)}"><option value="">${x.role === "roster" ? "جديد (مستني)" : "بديل جديد"}</option>${["اساسي", "موسمي", "يومية"].map(t => `<option value="${t}" ${x.type === t ? "selected" : ""}>${typeLabel(t)}</option>`).join("")}</select></td>
+      <td class="row" style="gap:4px;"><button class="btn sec small" data-nsave="${esc(x.id)}">حفظ</button><button class="btn sec small" data-nrej="${esc(x.id)}">رفض</button></td></tr>`).join("")
+      : `<tr><td colspan="9" class="muted">مفيش.</td></tr>`;
+    renderRem();
+  }, () => {});
+  onSnapshot(collection(db, "sheet_removals"), snap => {
+    WS.rem = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderRem();
+  }, () => {});
+}
+// ===== البلاك ليست =====
+function initBlacklist() {
+  // الإضافة والشيل للأدمن والـ HR بس (زي الـ Rules)، والمحاسب بيشوف القايمة بس
+  const canBL = S.role === "admin" || S.role === "hr";
+  $("bl-form").classList.toggle("hidden", !canBL);
+  onSnapshot(collection(db, "blacklist_info"), snap => {
+    const rows = snap.docs.map(d => d.data()).sort((a, b) => (b.at?.seconds || 0) - (a.at?.seconds || 0));
+    $("bl-list").innerHTML = rows.length ? rows.map(x => `<tr><td>${esc(x.name)}</td><td style="direction:ltr;text-align:right">${esc(x.nid)}</td><td>${esc(x.reason)}${x.note ? `<div class="muted">${esc(x.note)}</div>` : ""}</td><td class="muted">${esc(x.by_email || "")}</td><td>${canBL ? `<button class="btn sec small" data-blrm="${esc(x.nid)}">شيل</button>` : ""}</td></tr>`).join("")
+      : `<tr><td colspan="5" class="muted">مفيش.</td></tr>`;
+  }, () => {});
+  $("bl-add").onclick = async () => {
+    const nid = $("bl-nid").value.replace(/\D/g, ""), name = $("bl-name").value.trim(), u = auth.currentUser;
+    if (nid.length !== 14) return show($("bl-msg"), "err", "الرقم القومي لازم 14 رقم.");
+    if (!confirm(`إضافة ${name || nid} للبلاك ليست؟`)) return;
+    try {
+      // الاتنين مع بعض: يا يتحفظوا الاتنين يا ولا واحد (عشان ميبقاش فيه عامل ممنوع ومش ظاهر في القايمة)
+      const b = writeBatch(db);
+      b.set(doc(db, "blacklist", nid), { on: true });
+      b.set(doc(db, "blacklist_info", nid), { nid, name, reason: $("bl-reason").value, note: $("bl-note").value.trim(), by: u.uid, by_email: u.email || "", at: serverTimestamp() });
+      await b.commit();
+      ["bl-nid", "bl-name", "bl-note"].forEach(i => $(i).value = ""); show($("bl-msg"), "ok", "اتضاف.");
+    } catch (e) { show($("bl-msg"), "err", "ماتضافش: " + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules." : e.message)); }
+  };
+  $("bl-list").onclick = async e => {
+    const nid = e.target.dataset.blrm; if (!nid || !confirm("تشيله من البلاك ليست؟")) return;
+    try { const b = writeBatch(db); b.delete(doc(db, "blacklist", nid)); b.delete(doc(db, "blacklist_info", nid)); await b.commit(); } catch (er) { show($("bl-msg"), "err", er.message); }
+  };
+}
+function renderRem() {
+    const rows = WS.rem || [];
+    $("w-rem").innerHTML = rows.length ? rows.map(x => `<tr><td>${esc(x.name)}</td><td>${esc(x.code)}</td><td>${esc(x.site)}</td><td>${esc(x.reason)}${x.note ? `<div class="muted">${esc(x.note)}</div>` : ""}</td>
+      <td class="muted">${esc(x.by_email || "")}</td><td>${WS.ovr[x.code]?.type === "مشي" ? `<span class="c-k">متسجل مشي</span>`
+        : newOf(x)?.status === "rejected" ? `<span class="c-k">اترفض واتشال</span>`
+        : `<button class="btn sec small" data-left="${esc(x.code)}" data-rsite="${esc(x.site)}" data-rname="${esc(x.name)}">${!WS.base.some(w => w.code === x.code) && newOf(x) ? "ارفضه (اتضاف بالغلط)" : "سجّل إنه مشي"}</button>`}</td></tr>`).join("")
+      : `<tr><td colspan="6" class="muted">مفيش.</td></tr>`;
+}
+function ficheDue(first) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(first || "")) return null;
+  const d = new Date(first + "T00:00:00"); let n = 5;
+  while (n > 0) { d.setDate(d.getDate() + 1); if (d.getDay() !== 5) n--; }
+  return d;
+}
+function ficheCell(x) {
+  if (x.fiche) return `<span class="c-k">اترفع</span>`;
+  const due = ficheDue(x.first_day), late = due && new Date() > due;
+  const can = (auth.currentUser?.email || "").toLowerCase() === FICHE_EXCEPTION_EMAIL;
+  let h = due ? `<span class="${late ? "c-s" : "muted"}">${late ? "المهلة خلصت" : "لحد"} ${due.toLocaleDateString("ar-EG", { day: "numeric", month: "short" })}</span>` : "";
+  if (x.fiche_exception) h += ` <span class="amd">استثناء</span>`;
+  if (can) h += ` <button class="btn sec small" data-fex="${esc(x.id)}" data-on="${x.fiche_exception ? 0 : 1}">${x.fiche_exception ? "إلغاء الاستثناء" : "استثناء"}</button>`;
+  return h;
+}
+$("w-new")?.addEventListener("click", async e => {
+  if (e.target.dataset.fex) {
+    const on = e.target.dataset.on === "1";
+    if (on && !confirm("تسمح للعامل ده يتسجل حضوره من غير فيش؟")) return;
+    try { await updateDoc(doc(db, "new_workers", e.target.dataset.fex), { fiche_exception: on, fiche_exception_at: serverTimestamp() }); }
+    catch (err) { alert("ماتحفظش: " + err.message); }
+    return;
+  }
+  const id = e.target.dataset.nsave || e.target.dataset.nrej; if (!id) return;
+  try {
+    if (e.target.dataset.nrej) {
+      if (!confirm("ترفض العامل ده؟ هيتشال من الكشف وقايمة البدلاء.")) return;
+      await updateDoc(doc(db, "new_workers", id), { status: "rejected" });
+    } else {
+      const t = document.querySelector(`[data-ntype="${id}"]`).value;
+      await updateDoc(doc(db, "new_workers", id), { type: t || null });
+    }
+  } catch (err) { alert("ماتحفظش: " + err.message); }
+});
+// عامل اتضاف من المشرف (new_workers) ومش في الرواتب: نلاقيه بالكود/الرقم القومي أو بالاسم والموقع
+function newOf(r) {
+  const all = WS.newAll || [], c = String(r.code || "");
+  return all.find(n => n.id === c || n.nid === c || (n.nid && c.endsWith(n.nid)))
+    || all.find(n => n.site === r.site && arNorm(n.name) === arNorm(r.name));
+}
+$("w-rem")?.addEventListener("click", async e => {
+  const code = e.target.dataset.left; if (!code) return;
+  const w = WS.base.find(x => x.code === code);
+  if (!w) {
+    const nw = newOf({ code, site: e.target.dataset.rsite, name: e.target.dataset.rname });
+    if (!nw) return alert("العامل ده مش في بيانات الرواتب ولا في العمال الجداد.");
+    if (!confirm(`${nw.name} اتضاف من المشرف ومش في الرواتب.\nترفضه؟ هيتشال من الكشف وقايمة البدلاء.`)) return;
+    try { await updateDoc(doc(db, "new_workers", nw.id), { status: "rejected" }); }
+    catch (err) { alert("ماتسجلش: " + err.message); }
+    return;
+  }
+  if (!confirm(`تسجل ${w.name} إنه مشي؟`)) return;
+  try { await setDoc(doc(db, "roster_overrides", code), ovrDoc(w, "مشي", w.job, w.site, today(), "اتشال من الكشف")); }
+  catch (err) { alert("ماتسجلش: " + err.message); }
+});
+function current(w) { const o = WS.ovr[w.code]; return o ? { ...w, site: o.site || w.site, job: o.job || w.job, type: o.type || w.type, edited: true } : w; }
+function renderWorkers() {
+  const q = arNorm($("w-q").value), site = $("w-site").value;
+  let list = WS.base.map(current);
+  if (site) list = list.filter(w => w.site === site);
+  if (q) list = list.filter(w => arNorm(w.name).includes(q) || String(w.code).toLowerCase().includes(q.toLowerCase()) || String(w.nid).includes(q));
+  $("w-count").textContent = `${fmt(list.length)} عامل` + (list.length > 100 ? " — بيظهر أول 100، ضيّق البحث" : "");
+  $("w-list").innerHTML = list.slice(0, 100).map(w => `<tr><td>${esc(w.name)}</td><td>${esc(w.code)}</td><td>${esc(w.site)}</td>
+    <td>${esc(typeLabel(w.type))}${w.edited ? ` <span class="amd">معدّل</span>` : ""}</td><td>${esc(w.job)}</td>
+    <td><button class="btn sec small" data-w="${esc(w.code)}">تعديل</button></td></tr>`).join("") || `<tr><td colspan="6" class="muted">مفيش نتايج.</td></tr>`;
+}
+function renderOverrides() {
+  const byCode = Object.fromEntries(WS.base.map(w => [w.code, w]));
+  const rows = Object.entries(WS.ovr).sort((a, b) => (b[1].at?.seconds || 0) - (a[1].at?.seconds || 0));
+  $("w-ovr").innerHTML = rows.length ? rows.map(([code, o]) => {
+    const b = byCode[code] || {};
+    const ch = [];
+    if (o.type === "مشي") ch.push("مشي");
+    else {
+      if (o.type && o.type !== b.type) ch.push(`${typeLabel(b.type)} ← ${typeLabel(o.type)}`);
+      if (o.job && o.job !== b.job) ch.push(`الوظيفة: ${o.job}`);
+      if (o.site && o.site !== b.site) ch.push(`${b.site || "—"} ← ${o.site}`);
+    }
+    return `<tr><td>${esc(o.name || b.name || "")}</td><td>${esc(code)}</td><td>${esc(ch.join("، ") || "بدون فرق عن الرواتب")}${o.note ? `<div class="muted">${esc(o.note)}</div>` : ""}</td>
+      <td style="direction:ltr;text-align:right">${esc(o.from || "")}</td><td class="muted">${esc(o.by_email || "")}</td>
+      <td><button class="btn sec small" data-undo="${esc(code)}">إلغاء التعديل</button></td></tr>`;
+  }).join("") : `<tr><td colspan="6" class="muted">مفيش تعديلات.</td></tr>`;
+}
+$("w-q")?.addEventListener("input", renderWorkers);
+$("w-site")?.addEventListener("change", renderWorkers);
+$("w-list")?.addEventListener("click", e => {
+  const code = e.target.dataset.w; if (!code) return;
+  const w = current(WS.base.find(x => x.code === code));
+  WS.edit = WS.base.find(x => x.code === code);
+  $("w-title").textContent = `${w.name} — ${w.code}`;
+  $("w-type").value = ["اساسي", "موسمي", "يومية", "مشي"].includes(w.type) ? w.type : "يومية";
+  $("w-job").value = w.job || ""; $("w-site2").value = w.site; $("w-note").value = WS.ovr[code]?.note || "";
+  $("w-from").value = WS.ovr[code]?.from || today();
+  hide($("w-msg")); $("w-form").classList.remove("hidden"); $("w-form").scrollIntoView({ behavior: "smooth", block: "center" });
+});
+$("w-cancel")?.addEventListener("click", () => $("w-form").classList.add("hidden"));
+function ovrDoc(w, type, job, site, from, note) {
+  const u = auth.currentUser;
+  return { code: w.code, name: w.name || "", nid: w.nid || "", site: type === "مشي" ? (w.site || "") : site, job: job || w.job || "", type,
+    from: from || today(), note: note || "", by: u.uid, by_email: u.email || "", at: serverTimestamp() };
+}
+$("w-save")?.addEventListener("click", async () => {
+  const w = WS.edit; if (!w) return;
+  const type = $("w-type").value, job = $("w-job").value.trim(), site = $("w-site2").value;
+  if (!job && type !== "مشي") return show($("w-msg"), "err", "اكتب الوظيفة.");
+  $("w-save").disabled = true;
+  try {
+    if (type === w.type && job === w.job && site === w.site) {
+      if (WS.ovr[w.code]) await deleteDoc(doc(db, "roster_overrides", w.code));
+      show($("w-msg"), "ok", "البيانات رجعت زي شيت الرواتب.");
+    } else {
+      await setDoc(doc(db, "roster_overrides", w.code), ovrDoc(w, type, job, site, $("w-from").value, $("w-note").value.trim()));
+      show($("w-msg"), "ok", "اتحفظ. كشف الموقع هيتحدّث خلال ثواني.");
+    }
+    setTimeout(() => $("w-form").classList.add("hidden"), 1200);
+  } catch (err) { show($("w-msg"), "err", "ماتحفظش: " + (err.code === "permission-denied" ? "مش مسموح للحساب ده." : err.message)); }
+  $("w-save").disabled = false;
+});
+$("w-ovr")?.addEventListener("click", async e => {
+  const code = e.target.dataset.undo; if (!code) return;
+  if (!confirm("تلغي التعديل ده؟ العامل هيرجع زي ما هو في شيت الرواتب.")) return;
+  try { await deleteDoc(doc(db, "roster_overrides", code)); } catch (err) { alert("مااتلغاش: " + err.message); }
+});
+// رفع من إكسيل
+function nidCheck(nid) {
+  if (!/^[23]\d{13}$/.test(nid)) return "الرقم القومي لازم 14 رقم ويبدأ بـ 2 أو 3";
+  const y = (nid[0] === "2" ? 1900 : 2000) + +nid.slice(1, 3), m = +nid.slice(3, 5), d = +nid.slice(5, 7);
+  const b = new Date(y, m - 1, d);
+  if (b.getFullYear() !== y || b.getMonth() !== m - 1 || b.getDate() !== d) return "تاريخ الميلاد في الرقم القومي غلط";
+  const t = new Date(); let age = t.getFullYear() - y - ((t.getMonth() + 1 < m || (t.getMonth() + 1 === m && t.getDate() < d)) ? 1 : 0);
+  if (age < 18) return `تحت السن القانوني (${age} سنة)`;
+  return "";
+}
+const TYPE_IN = { "اساسي": "اساسي", "أساسي": "اساسي", "سنوي": "اساسي", "موسمي": "موسمي", "يوميه": "يومية", "يومية": "يومية", "مشي": "مشي", "حذف": "مشي" };
+$("w-file")?.addEventListener("change", async e => {
+  hide($("w-up-msg")); $("w-preview").classList.add("hidden"); WS.pending = []; WS.pendingNew = [];
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const wb = XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: "array", cellDates: true });
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "", raw: false });
+    const col = (r, ...names) => { for (const n of names) { const k = Object.keys(r).find(k => norm(k) === n); if (k !== undefined && norm(r[k])) return norm(r[k]); } return ""; };
+    const byCode = Object.fromEntries(WS.base.map(w => [String(w.code).toUpperCase(), w]));
+    const problems = []; let same = 0;
+    rows.forEach((r, i) => {
+      let code = col(r, "الكود", "كود الموظف", "code").toUpperCase();
+      // من غير كود: لو الرقم القومي موجود في الرواتب نجيب كوده ونعامله كتعديل
+      const nidIn = code ? "" : col(r, "الرقم القومي", "الرقم القومى").replace(/\D/g, "");
+      const known = nidIn ? WS.base.find(w => String(w.nid) === nidIn) : null;
+      if (known) code = String(known.code).toUpperCase();
+      if (!code) {
+        const nid = nidIn, name = col(r, "الاسم");
+        if (!nid && !name) return;
+        const bad = nidCheck(nid); if (bad) { problems.push(`سطر ${i + 2}: ${name || nid} — ${bad}`); return; }
+        if (!name) { problems.push(`سطر ${i + 2}: الاسم ناقص`); return; }
+        const tIn = col(r, "النوع", "نوع الوظيفة"), nt = TYPE_IN[arNorm(tIn)] || TYPE_IN[tIn], site = col(r, "الموقع"), job = col(r, "الوظيفة");
+        if (!["اساسي", "موسمي", "يومية"].includes(nt)) { problems.push(`سطر ${i + 2}: النوع لازم أساسي أو موسمي أو يومية`); return; }
+        if (!W_SITES.includes(site)) { problems.push(`سطر ${i + 2}: الموقع "${site}" مش من مواقع الحضور`); return; }
+        if (!job) { problems.push(`سطر ${i + 2}: الوظيفة ناقصة`); return; }
+        WS.pendingNew.push({ nid, name, site, job, type: nt });
+        return;
+      }
+      const w = byCode[code]; if (!w) { problems.push(`سطر ${i + 2}: الكود ${code} مش في مواقع الحضور`); return; }
+      const cur = current(w);
+      const tRaw = col(r, "النوع", "نوع الوظيفة"); const type = tRaw ? TYPE_IN[arNorm(tRaw).replace("ا", "ا")] || TYPE_IN[tRaw] : cur.type;
+      if (tRaw && !type) { problems.push(`سطر ${i + 2}: النوع "${tRaw}" مش معروف`); return; }
+      const job = col(r, "الوظيفة") || cur.job, site = col(r, "الموقع") || cur.site;
+      if (type !== "مشي" && !W_SITES.includes(site)) { problems.push(`سطر ${i + 2}: الموقع "${site}" مش من مواقع الحضور`); return; }
+      if (type === cur.type && job === cur.job && site === cur.site) { same++; return; }
+      WS.pending.push({ w, cur, type, job, site, from: col(r, "ساري من") || today(), note: col(r, "ملاحظة") });
+    });
+    // عمال على نفس المواقع في البوابة ومش في الشيت (مش بيتغيروا، للمعلومة بس)
+    const seen = new Set(rows.map(r => col(r, "الكود", "كود الموظف", "code").toUpperCase()).filter(Boolean));
+    rows.forEach(r => { const n = col(r, "الرقم القومي", "الرقم القومى").replace(/\D/g, ""); const k = n && WS.base.find(w => String(w.nid) === n); if (k) seen.add(String(k.code).toUpperCase()); });
+    const fileSites = new Set(rows.map(r => col(r, "الموقع")).filter(s => W_SITES.includes(s)));
+    const missing = WS.base.filter(w => { const c = current(w); return fileSites.has(c.site) && c.type !== "مشي" && !seen.has(String(w.code).toUpperCase()); });
+    const missNote = !missing.length ? "" : `\nتنبيه: ${fmt(missing.length)} عامل على ${[...fileSites].join(" / ")} في البوابة مش موجودين في الشيت ومش هيتغيروا — لو مشيوا اكتبهم بالنوع "مشي": ` + missing.slice(0, 10).map(w => `${w.code} ${w.name}`).join("، ") + (missing.length > 10 ? " …" : "");
+    $("w-prev-list").innerHTML = WS.pendingNew.map(n => `<tr><td>جديد</td><td>${esc(n.name)}<div class="muted" style="direction:ltr;text-align:right">${esc(n.nid)}</div></td>
+      <td>—</td><td><b>${esc(typeLabel(n.type))}</b> · ${esc(n.job)} · ${esc(n.site)}</td><td>من غير بطاقة</td></tr>`).join("") + WS.pending.map(p => `<tr><td>${esc(p.w.code)}</td><td>${esc(p.w.name)}</td>
+      <td>${esc(typeLabel(p.cur.type))} · ${esc(p.cur.job)} · ${esc(p.cur.site)}</td><td><b>${esc(typeLabel(p.type))}</b>${p.type !== "مشي" ? ` · ${esc(p.job)} · ${esc(p.site)}` : ""}</td><td>${esc(p.note)}</td></tr>`).join("");
+    show($("w-up-msg"), problems.length ? "warn" : "info", `${fmt(WS.pending.length)} تعديل و${fmt(WS.pendingNew.length)} عامل جديد جاهزين للحفظ.` + (same ? `\n${fmt(same)} عامل بياناتهم مطابقة للبوابة ومش محتاجين تعديل.` : "") + missNote + (problems.length ? `\n${problems.length} سطر فيهم مشكلة ومش هيتحفظوا:\n` + problems.slice(0, 15).join("\n") : ""));
+    $("w-up-msg").style.whiteSpace = "pre-line";
+    if (WS.pending.length || WS.pendingNew.length) $("w-preview").classList.remove("hidden");
+  } catch (err) { show($("w-up-msg"), "err", "مش قادر أقرا الملف: " + err.message); }
+});
+$("w-discard")?.addEventListener("click", () => { WS.pending = []; $("w-preview").classList.add("hidden"); $("w-file").value = ""; hide($("w-up-msg")); });
+$("w-apply")?.addEventListener("click", async () => {
+  if (!WS.pending.length && !WS.pendingNew.length) return;
+  $("w-apply").disabled = true;
+  try {
+    const u = auth.currentUser;
+    for (const n of WS.pendingNew)
+      await setDoc(doc(db, "new_workers", n.nid), { nid: n.nid, name: n.name, site: n.site, job: n.job, type: n.type, role: "roster",
+        no_card: true, first_day: today(), added_by: u.uid, added_email: u.email || "", at: serverTimestamp() });
+    for (let i = 0; i < WS.pending.length; i += 400) {
+      const b = writeBatch(db);
+      WS.pending.slice(i, i + 400).forEach(p => b.set(doc(db, "roster_overrides", p.w.code), ovrDoc(p.w, p.type, p.job, p.site, p.from, p.note)));
+      await b.commit();
+    }
+    show($("w-up-msg"), "ok", `اتحفظ ${fmt(WS.pending.length)} تعديل و${fmt(WS.pendingNew.length)} عامل جديد. الكشوف هتتحدّث خلال ثواني.`);
+    WS.pending = []; WS.pendingNew = []; $("w-preview").classList.add("hidden"); $("w-file").value = "";
+  } catch (err) { show($("w-up-msg"), "err", "ماتحفظش: " + err.message); }
+  $("w-apply").disabled = false;
+});
+</script>
+</body>
+</html>

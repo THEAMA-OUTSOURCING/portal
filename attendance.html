@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تسجيل الحضور - Theama</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'IBM Plex Sans Arabic','Segoe UI',Tahoma,sans-serif;background:#f5f5f0;color:#222;min-height:100vh;padding:12px;font-size:15px;line-height:1.6;}
+input,button,select{font-family:inherit;font-size:15px;}
+input[type=email],input[type=password],input[type=date],select{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:10px;background:#fff;color:#222;}
+input:focus,select:focus{outline:none;border-color:#c0392b;}
+button:focus-visible{outline:2px solid #185fa5;outline-offset:2px;}
+.wrap{max-width:760px;margin:0 auto;}
+.card{background:#fff;border:1px solid #e5e5e5;border-radius:14px;padding:14px 16px;margin-bottom:12px;}
+h1{font-size:19px;font-weight:600;}
+h2{font-size:15px;font-weight:600;margin-bottom:8px;}
+.muted{color:#888;font-size:13px;}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.grow{flex:1 1 160px;}
+.btn{padding:11px 18px;font-weight:500;cursor:pointer;background:#c0392b;color:#fff;border:none;border-radius:10px;}
+.btn:disabled{background:#e0a09a;cursor:not-allowed;}
+.btn.sec{background:#f5f5f0;color:#444;border:1px solid #ddd;}
+.btn.small{padding:5px 10px;font-size:13px;}
+.btn.block{width:100%;}
+.msg{padding:10px 12px;border-radius:10px;font-size:14px;margin-top:10px;display:none;white-space:pre-line;}
+.msg.show{display:block;}
+.msg.ok{background:#eaf3de;color:#3b6d11;} .msg.err{background:#fcebeb;color:#a32d2d;}
+.msg.warn{background:#fff5de;color:#8a5a10;} .msg.info{background:#eef4fb;color:#185fa5;}
+.upl{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:2px dashed #d8b4ae;border-radius:14px;padding:18px;background:#fffaf9;cursor:pointer;text-align:center;}
+.upl i{font-size:30px;color:#c0392b;}
+.pages{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:12px;}
+.pg{border:1px solid #e5e5e5;border-radius:12px;overflow:hidden;background:#fafafa;font-size:13px;}
+.pg img{width:100%;height:110px;object-fit:cover;display:block;cursor:zoom-in;background:#eee;}
+.pg .b{padding:7px 9px;}
+.pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;}
+.p-ok{background:#eaf3de;color:#3b6d11;} .p-wait{background:#eef4fb;color:#185fa5;} .p-err{background:#fcebeb;color:#a32d2d;} .p-warn{background:#fff5de;color:#8a5a10;} .p-grey{background:#eee;color:#666;}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#e5e5e5;border:1px solid #e5e5e5;border-radius:12px;overflow:hidden;margin-bottom:12px;}
+.stat{background:#fff;padding:8px 10px;text-align:center;}
+.stat .v{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;}
+.stat .l{font-size:11px;color:#888;}
+.grp{font-size:13px;font-weight:600;color:#fff;background:#2b2b2b;border-radius:8px;padding:4px 10px;margin:12px 0 6px;}
+.w{display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid #f0efe9;}
+.w.flag{background:#fffaf0;}
+.w.missing{background:#f6f6f6;}
+.w .nm{flex:1;min-width:0;}
+.w .nm b{font-weight:500;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.w .nm small{color:#888;font-size:12px;display:block;}
+.seg{display:flex;border:1px solid #ddd;border-radius:9px;overflow:hidden;flex-shrink:0;}
+.seg button{border:none;background:#fff;padding:6px 11px;font-size:13px;cursor:pointer;color:#555;}
+.seg button[aria-pressed=true].p{background:#3b6d11;color:#fff;}
+.seg button[aria-pressed=true].a{background:#a32d2d;color:#fff;}
+.hidden{display:none !important;}
+.center{max-width:380px;margin:50px auto;}
+.viewer{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:50;padding:10px;}
+.viewer img{max-width:100%;max-height:100%;}
+.viewer{flex-direction:column;gap:8px;}
+.m-hits{max-height:240px;overflow:auto;margin:4px 0 8px;border-radius:10px;}
+.m-hits:empty{display:none;}
+.m-hits button{display:block;width:100%;text-align:right;padding:10px 12px;border:0;border-bottom:1px solid #eee;background:#fafafa;cursor:pointer;font:inherit;}
+.m-hits button:hover{background:#f0f0f0;}
+.m-hits small{color:#888;margin-inline-start:6px;}
+.m-picked{margin:6px 0 8px;padding:10px 12px;border:2px solid #c0392b;border-radius:10px;background:#fff5f4;display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.viewer-cap{color:#fff;font-weight:700;text-align:center;}
+img[data-zoom]{cursor:zoom-in;}
+.fm-pg{position:relative;}
+.fm-pg button{position:absolute;top:4px;left:4px;background:rgba(0,0,0,.6);color:#fff;border:0;border-radius:50%;width:26px;height:26px;font-size:14px;line-height:26px;padding:0;cursor:pointer;}
+.sticky{position:sticky;bottom:0;background:#f5f5f0;padding:10px 0 4px;}
+.rep{padding:4px 6px 10px 6px;border-bottom:1px solid #f0efe9;background:#fffdfb;font-size:13px;}
+.rep .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid #ddd;border-radius:999px;padding:3px 10px;background:#fff;margin:3px 0;cursor:pointer;font-size:13px;}
+.rep .chip.sel{background:#eaf3de;border-color:#3b6d11;color:#3b6d11;font-weight:600;}
+.rep input{width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:14px;margin-top:4px;}
+.rep .hits{margin-top:4px;}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;z-index:40;}
+.modal .box{background:#fff;width:100%;max-width:520px;border-radius:16px 16px 0 0;padding:16px;max-height:90vh;overflow:auto;}
+@media (min-width:600px){.modal{align-items:center;}.modal .box{border-radius:16px;}}
+</style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#c0392b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="تيما">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<script>if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));</script>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="login" class="card center hidden">
+    <h2>تسجيل الحضور</h2>
+    <p class="muted" style="margin-bottom:12px;">ادخل بحساب الموقع.</p>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <input type="email" id="l-email" placeholder="الإيميل" autocomplete="username" dir="ltr">
+      <input type="password" id="l-pass" placeholder="الباسورد" autocomplete="current-password" dir="ltr">
+      <button class="btn" id="l-btn">دخول</button>
+    </div>
+    <div class="msg err" id="l-err"></div>
+  </div>
+
+  <div id="denied" class="card center hidden">
+    <h2>الحساب ده مالوش تسجيل حضور</h2>
+    <p class="muted">الصفحة دي لحسابات المواقع بس.</p>
+    <button class="btn sec" id="d-out" style="margin-top:12px;">خروج</button>
+  </div>
+
+  <div id="app" class="hidden">
+    <div class="row" style="justify-content:space-between;margin-bottom:10px;">
+      <div><h1>تسجيل الحضور</h1><div class="muted" id="who"></div></div>
+      <div class="row"><button class="btn sec small" id="logout">خروج</button></div>
+    </div>
+    <nav id="pnav" class="pnav" aria-label="صفحات البوابة"></nav>
+
+    <div class="card">
+      <div class="row">
+        <label class="grow"><span class="muted">الموقع</span><select id="site"></select></label>
+        <label class="grow"><span class="muted">يوم الحضور</span><input type="date" id="date"></label>
+      </div>
+      <div class="row" id="print-row" style="margin-top:10px;gap:8px;">
+        <button class="btn sec grow" id="print"><i class="ti ti-printer"></i> طباعة الكشف</button>
+        <button class="btn sec grow" id="order"><i class="ti ti-arrows-sort"></i> ترتيب الكشف</button>
+      </div>
+      <div class="msg" id="deadline"></div>
+      <div class="msg" id="day-state"></div>
+    </div>
+
+    <div class="card" id="upload-card">
+      <h2>صور الكشف</h2>
+      <div class="row" style="align-items:stretch;">
+        <label class="upl grow" for="cam">
+          <i class="ti ti-camera"></i>
+          <b>صوّر بالكاميرا</b>
+          <span class="muted">صفحة صفحة</span>
+        </label>
+        <label class="upl grow" for="file">
+          <i class="ti ti-photo"></i>
+          <b>اختار من المعرض</b>
+          <span class="muted">ممكن كذا صورة مرة واحدة</span>
+        </label>
+      </div>
+      <p class="muted" style="margin-top:8px;">كل صفحة صورة لوحدها، وبأي ترتيب. صوّر الورقة كلها من فوق، في نور كويس.</p>
+      <input type="file" id="cam" accept="image/*" capture="environment" class="hidden">
+      <input type="file" id="file" accept="image/*" multiple class="hidden">
+      <div class="msg" id="up-msg"></div>
+      <div class="pages" id="pages"></div>
+    </div>
+
+    <div class="card" id="manage-card">
+      <h2>إدارة الكشف</h2>
+      <p class="muted" style="margin-bottom:8px;">الحذف والإضافة هنا بيغيّروا الكشف المطبوع وقايمة المراجعة بس، والمرتبات مش بتتأثر. وأي تغيير بيوصل لـ HR.</p>
+      <div class="row">
+        <button class="btn sec" id="m-add"><i class="ti ti-user-plus"></i> إضافة عامل جديد (بالبطاقة)</button>
+        <button class="btn sec" id="m-remove"><i class="ti ti-user-minus"></i> شيل اسم من الكشف</button>
+      </div>
+      <div id="m-remove-form" class="hidden" style="margin-top:10px;">
+        <input type="search" id="m-q" placeholder="اكتب اسم العامل أو جزء منه" autocomplete="off" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:10px;">
+        <div id="m-hits" class="m-hits"></div>
+        <div id="m-picked" class="m-picked hidden"></div>
+        <input type="hidden" id="m-who">
+        <select id="m-reason" style="margin-bottom:8px;"><option>استقالة</option><option>انقطاع</option><option>نقل لموقع تاني</option><option>فصل</option><option>أخرى</option></select>
+        <input type="text" id="m-note" placeholder="ملاحظة (اختياري)" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:10px;margin-bottom:8px;">
+        <button class="btn" id="m-remove-save">شيل من الكشف</button>
+      </div>
+      <div id="m-removed" style="margin-top:10px;"></div>
+      <div class="msg" id="m-msg"></div>
+    </div>
+
+    <div class="card" id="lv-card">
+      <h2>طلبات الإجازة والمرضي</h2>
+      <p class="muted" style="margin-bottom:8px;">اختار العامل والنوع والأيام، وصوّر الورقة (التقرير الطبي أو طلب الإجازة). الطلب بيروح للـ HR، وبعده لاعتماد العميل.</p>
+      <button class="btn sec" id="lv-new"><i class="ti ti-calendar-plus"></i> طلب جديد</button>
+      <div class="msg" id="lv-msg"></div>
+      <div id="lv-list" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="card hidden" id="fiche-card">
+      <h2>عمال جداد: الفيش والبطاقة</h2>
+      <p class="muted" style="margin-bottom:8px;">الفيش (صحيفة الحالة الجنائية) لازم يترفع خلال 5 أيام عمل من أول يوم حضور. بعد المهلة، حضور العامل بيتقفل لحد ما يترفع.</p>
+      <div id="fiche-list"></div>
+      <div class="msg" id="f-msg"></div>
+    </div>
+
+    <div id="review" class="hidden">
+      <div class="stats" id="stats"></div>
+      <div class="msg" id="checks"></div>
+      <div class="card">
+        <h2>العدد المطلوب</h2>
+        <div id="plan-box"></div>
+      </div>
+      <div class="card">
+        <h2>العمال</h2>
+        <p class="muted" style="margin-bottom:4px;">اللي متلوّن بالأصفر محتاج تراجعه، واللي بالرمادي مش موجود في أي صورة لسه.</p>
+        <div id="workers"></div>
+      </div>
+      <div class="card hidden" id="extra-card">
+        <h2>صفوف مكتوبة بخط اليد أو مش متطابقة</h2>
+        <p class="muted" style="margin-bottom:6px;">لو ده عامل جديد اشتغل النهارده، ضيفه بصورة بطاقته. ولو بديل، اختاره قصاد اللي غاب.</p>
+        <div id="extras"></div>
+      </div>
+      <div class="sticky">
+        <button class="btn block" id="confirm">تأكيد الحضور</button>
+        <div class="msg" id="c-msg"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="viewer hidden" id="viewer"><div class="viewer-cap" id="viewer-cap"></div><img id="viewer-img" alt="صورة"><div class="muted" style="color:#ccc;">دوس في أي حتة للقفل</div></div>
+<div class="modal hidden" id="fm">
+  <div class="box">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px;"><h2 id="fm-title" style="margin:0;">رفع الفيش</h2><button class="btn sec small" id="fm-close">قفل</button></div>
+    <p class="muted" style="margin-bottom:10px;">صوّر الفيش صورة واحدة واضحة، وهيتحفظ PDF.</p>
+    <div class="row"><label class="btn sec" for="fm-cam">صوّر الفيش</label><label class="btn sec" for="fm-file">من المعرض</label></div>
+    <input type="file" id="fm-cam" accept="image/*" capture="environment" class="hidden">
+    <input type="file" id="fm-file" accept="image/*" class="hidden">
+    <div id="fm-thumbs" class="row" style="margin-top:10px;"></div>
+    <button class="btn block" id="fm-send" style="margin-top:10px;" disabled>ابعت الفيش</button>
+    <div class="msg" id="fm-msg"></div>
+  </div>
+</div>
+<div class="modal hidden" id="lvm">
+  <div class="box">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px;"><h2 style="margin:0;">طلب إجازة / مرضي</h2><button class="btn sec small" id="lvm-close">قفل</button></div>
+    <span class="muted">العامل</span>
+    <input type="search" id="lv-q" placeholder="اكتب اسم العامل أو الكود" autocomplete="off" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:10px;">
+    <div id="lv-hits" class="m-hits"></div>
+    <div id="lv-picked" class="m-picked hidden"></div>
+    <label style="display:block;margin:8px 0;"><span class="muted">النوع</span><select id="lv-type"><option value="sick">مرضي</option><option value="leave">إجازة</option></select></label>
+    <div class="row">
+      <label class="grow"><span class="muted">من</span><input type="date" id="lv-from"></label>
+      <label class="grow"><span class="muted">لحد</span><input type="date" id="lv-to"></label>
+    </div>
+    <div class="muted" id="lv-days" style="margin-top:4px;"></div>
+    <div style="margin-top:10px;"><span class="muted">صورة الورقة (لازم)</span>
+      <div class="row" style="margin-top:4px;"><label class="btn sec small" for="lv-cam">صوّر</label><label class="btn sec small" for="lv-file">من المعرض</label></div>
+      <img id="lv-img" class="hidden" data-zoom alt="صورة الطلب" title="دوس تكبّر" style="width:100%;max-height:240px;object-fit:contain;margin-top:8px;border:1px solid #eee;border-radius:10px;">
+    </div>
+    <input type="file" id="lv-cam" accept="image/*" capture="environment" class="hidden">
+    <input type="file" id="lv-file" accept="image/*" class="hidden">
+    <button class="btn block" id="lv-send" style="margin-top:12px;" disabled>ابعت الطلب</button>
+    <div class="msg" id="lv-m"></div>
+  </div>
+</div>
+<div class="modal hidden" id="idm">
+  <div class="box">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px;"><h2 id="idm-title" style="margin:0;">عامل جديد</h2><button class="btn sec small" id="idm-close">قفل</button></div>
+    <p class="muted" id="idm-sub" style="margin-bottom:10px;"></p>
+    <label id="idm-job-wrap" style="display:block;margin-bottom:10px;"><span class="muted">الوظيفة</span><select id="idm-job"></select></label>
+    <div class="row" style="align-items:stretch;">
+      <div class="grow" style="border:1px solid #e5e5e5;border-radius:12px;padding:10px;text-align:center;">
+        <b>1. وش البطاقة</b>
+        <img id="idm-front-img" class="hidden" data-zoom alt="وش البطاقة" title="دوس تكبّر" style="width:100%;max-height:200px;object-fit:contain;margin-top:6px;">
+        <div class="row" style="justify-content:center;margin-top:6px;"><label class="btn sec small" for="idm-front-cam">صوّر</label><label class="btn sec small" for="idm-front-file">من المعرض</label></div>
+      </div>
+      <div class="grow" style="border:1px solid #e5e5e5;border-radius:12px;padding:10px;text-align:center;">
+        <b>2. ضهر البطاقة</b>
+        <img id="idm-back-img" class="hidden" data-zoom alt="ضهر البطاقة" title="دوس تكبّر" style="width:100%;max-height:200px;object-fit:contain;margin-top:6px;">
+        <div class="row" style="justify-content:center;margin-top:6px;"><label class="btn sec small" for="idm-back-cam">صوّر</label><label class="btn sec small" for="idm-back-file">من المعرض</label></div>
+      </div>
+    </div>
+    <input type="file" id="idm-front-cam" accept="image/*" capture="environment" class="hidden" data-side="front">
+    <input type="file" id="idm-front-file" accept="image/*" class="hidden" data-side="front">
+    <input type="file" id="idm-back-cam" accept="image/*" capture="environment" class="hidden" data-side="back">
+    <input type="file" id="idm-back-file" accept="image/*" class="hidden" data-side="back">
+    <button class="btn block" id="idm-send" style="margin-top:10px;" disabled>ابعت البطاقة للقراءة</button>
+    <div class="msg" id="idm-msg"></div>
+    <div id="idm-result" class="hidden" style="margin-top:10px;border:1px solid #e5e5e5;border-radius:12px;padding:12px;">
+      <div><span class="muted">الاسم:</span> <b id="idm-name"></b></div>
+      <div><span class="muted">الرقم القومي:</span> <b id="idm-nid" dir="ltr"></b></div>
+      <div><span class="muted">السن:</span> <b id="idm-age"></b></div>
+      <div class="msg warn" id="idm-warn"></div>
+      <button class="btn block" id="idm-ok" style="margin-top:10px;">تأكيد الإضافة</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { db, auth, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite } from './shared.js';
+import { openPrintView, openOrderEditor } from './sheet.js';
+
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmt = n => Number(n || 0).toLocaleString("ar-EG");
+function show(el, type, text) { el.className = "msg show " + type; el.textContent = text; }
+function hide(el) { el.className = "msg"; el.textContent = ""; }
+const pad = n => String(n).padStart(2, "0");
+const ymd = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+
+const S = { regional: false, admin: false, sites: [], site: null, date: null, roster: [], pages: [], day: null, choice: {}, unsubPages: null, unsubDay: null, plan: {}, lateCount: 0, pool: [], rep: {}, removals: [], unsubRoster: null, unsubPool: null, unsubRem: null, newWorkers: [], unsubNew: null };
+
+// ===== العدد المطلوب من شيت الاحتياج (الحساب نفسه في shared.js — نفس حساب صفحة الإدارة) =====
+async function loadPlan() {
+  S.plan = {};
+  try { S.plan = planBySite(await fetchPlanBase(S.date.slice(0, 7)), S.date)[S.site] || {}; }
+  catch (e) { S.plan = {}; }
+}
+// أيام موقع في فترة بس (بدل كل أيام الموقع من البداية) — محتاج index على att_days: site + date.
+// لو الـ index لسه مااتعملش، بيرجع للطريقة القديمة عشان الصفحة متقفش.
+async function siteDays(site, from, to) {
+  try {
+    const sn = await getDocs(query(collection(db, "att_days"), where("site", "==", site), where("date", ">=", from), where("date", "<=", to)));
+    return sn.docs;
+  } catch (e) {
+    if (e.code !== "failed-precondition") throw e;
+    console.warn("att_days محتاج index (site + date):", e.message);
+    const sn = await getDocs(query(collection(db, "att_days"), where("site", "==", site)));
+    return sn.docs.filter(d => { const x = d.data().date || ""; return x >= from && x <= to; });
+  }
+}
+async function loadLate() {
+  S.lateCount = 0;
+  try {
+    const month = S.date.slice(0, 7);
+    const days = await siteDays(S.site, month + "-01", month + "-31");
+    days.forEach(d => { const x = d.data(); if ((S.regional ? x.review_late : x.late) && x.date !== S.date) S.lateCount++; });
+  } catch (e) { S.lateCount = 0; }
+}
+const ORD = ["الأولى", "التانية", "التالتة", "الرابعة", "الخامسة", "السادسة", "السابعة", "التامنة", "التاسعة", "العاشرة"];
+const ordinal = n => ORD[n - 1] || `رقم ${n}`;
+
+// ===== الدخول =====
+$("l-btn").addEventListener("click", async () => {
+  hide($("l-err"));
+  try { await signInWithEmailAndPassword(auth, $("l-email").value.trim(), $("l-pass").value); }
+  catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); }
+});
+$("l-pass").addEventListener("keydown", e => { if (e.key === "Enter") $("l-btn").click(); });
+$("logout").addEventListener("click", () => signOut(auth));
+$("d-out").addEventListener("click", () => signOut(auth));
+
+onAuthStateChanged(auth, async user => {
+  ["login", "denied", "app"].forEach(id => $(id).classList.add("hidden"));
+  if (!user) { $("login").classList.remove("hidden"); return; }
+  let claims = {};
+  try { claims = (await user.getIdTokenResult()).claims || {}; } catch (e) {}
+  S.admin = claims.role === "admin";
+  // الإقليمي: المستند config/regionals الـ Rules بتسمح بقرايته للإقليميين بس، فلو اتقري يبقى الحساب إقليمي.
+  // (لو النت فصل، بنحاول مرة كمان قبل ما نعتبره مشرف عادي)
+  S.regional = false;
+  if (claims.role === "supervisor") {
+    for (let i = 0; i < 2 && !S.regional; i++) {
+      try { S.regional = (await getDoc(doc(db, "config", "regionals"))).exists(); break; }
+      catch (e) { if (e.code === "permission-denied") break; }
+    }
+  }
+  if (claims.role === "admin") S.sites = SUP_SITES;
+  else if (claims.role === "supervisor" && Array.isArray(claims.sites) && claims.sites.length) S.sites = claims.sites;
+  else { $("denied").classList.remove("hidden"); return; }
+  $("who").textContent = user.email;
+  $("site").innerHTML = S.sites.map(s => `<option>${esc(s)}</option>`).join("");
+  const y = new Date(); y.setDate(y.getDate() - 1);
+  $("date").max = ymd(new Date());
+  $("date").value = ymd(y);
+  $("app").classList.remove("hidden");
+  await openDay();
+  lvWatch();
+});
+$("site").addEventListener("change", openDay);
+$("date").addEventListener("change", openDay);
+
+// ===== فتح يوم =====
+function deadlineOf(date) {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(y, m - 1, d + 2, 9, 0, 0);
+}
+async function openDay() {
+  S.site = $("site").value; S.date = $("date").value;
+  if (!S.site || !S.date) return;
+  S.unsubPages?.(); S.unsubDay?.();
+  S.unsubPages = S.unsubDay = null;
+  S.pages = []; S.day = null; S.choice = {};
+  hide($("up-msg")); hide($("c-msg"));
+  // مواقع شيبسي والإمداد: حضورها إكسيل من الأدمن، فالمشرف ليه الكشف والبطايق والطلبات بس (من غير تصوير ولا تأكيد)
+  S.photo = ATT_SITES.includes(S.site);
+  ["upload-card", "print-row"].forEach(id => $(id).classList.toggle("hidden", !S.photo));
+  $("app").querySelector("h1").textContent = S.photo ? "تسجيل الحضور" : "الكشف والطلبات";
+  $("date").previousElementSibling.textContent = S.photo ? "يوم الحضور" : "اليوم";
+  const dl = deadlineOf(S.date);
+  if (new Date() > dl) show($("deadline"), "err", `المهلة خلصت (${dl.toLocaleString("ar-EG", { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" })}). الرفع متاح، بس هيتسجل متأخر.`);
+  else show($("deadline"), "info", `آخر ميعاد للرفع: ${dl.toLocaleString("ar-EG", { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" })}`);
+  if (!S.photo) hide($("deadline"));   // مالوش ميعاد رفع
+
+  S.unsubRoster?.(); S.unsubPool?.(); S.unsubRem?.(); S.rep = {};
+  try {
+    const r = await getDoc(doc(db, "rosters", S.site));
+    S.roster = r.exists() ? (r.data().workers || []) : [];
+  } catch (e) { S.roster = []; }
+  if (!S.roster.length) show($("day-state"), "err", "كشف الموقع مش موجود لسه. الأدمن لازم يعمل مزامنة من لوحة الإدارة.");
+  else hide($("day-state"));
+  S.unsubRoster = onSnapshot(doc(db, "rosters", S.site), snap => { if (snap.exists()) { S.roster = snap.data().workers || []; render(); renderManage(); } }, () => {});
+  S.unsubPool = onSnapshot(doc(db, "pools", S.site), snap => { S.pool = snap.exists() ? (snap.data().workers || []) : []; render(); }, () => {});
+  S.unsubNew?.();
+  S.unsubNew = onSnapshot(query(collection(db, "new_workers"), where("site", "==", S.site)), snap => {
+    S.newWorkers = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(x => x.status !== "rejected");
+    renderFiche(); render();
+  }, () => {});
+  S.unsubRem = onSnapshot(query(collection(db, "sheet_removals"), where("site", "==", S.site)), snap => {
+    S.removals = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderManage();
+  }, () => {});
+  if (!S.photo) { render(); return; }
+  await Promise.all([loadPlan(), loadLate()]);
+
+  S.unsubDay = onSnapshot(doc(db, "att_days", S.site + "__" + S.date), snap => {
+    S.day = snap.exists() ? snap.data() : null;
+    if (S.day) {
+      const fromSaved = {};
+      Object.entries(S.day.entries || {}).forEach(([c, e]) => { fromSaved[c] = e.s; if (e.rep && !S.rep[c]) S.rep[c] = e.rep; });
+      S.choice = { ...fromSaved, ...S.choice };
+      const t = S.day.confirmed_at?.toDate ? S.day.confirmed_at.toDate().toLocaleString("ar-EG") : "";
+      const rt = S.day.reviewed_at?.toDate ? S.day.reviewed_at.toDate().toLocaleString("ar-EG") : "";
+      if (S.day.status === "approved") show($("day-state"), "ok", "اليوم ده اتعتمد من المحاسب، ومينفعش يتعدل.");
+      else if (S.day.status === "reviewed") show($("day-state"), "ok", `الإقليمي راجع اليوم ده (${esc(S.day.reviewed_email || "")}${rt ? " — " + rt : ""})${S.day.review_late ? " (متأخر)" : ""}. ` + (S.regional || S.admin ? "تقدر تعدّل وتراجع تاني لحد ما المحاسب يعتمده." : "مستني اعتماد المحاسب، ولو فيه تعديل كلّم الإقليمي."));
+      else show($("day-state"), "ok", `المشرف أكد اليوم ده${t ? " — " + t : ""}${S.day.late ? " (متأخر)" : ""}. ` + (S.regional ? "راجعه وأكد عشان يروح للمحاسب." : "مستني مراجعة الإقليمي، وتقدر تعدّل لحد ما يراجعه."));
+    }
+    render();
+  }, () => {});
+  S.unsubPages = onSnapshot(query(collection(db, "att_pages"), where("site", "==", S.site), where("date", "==", S.date)), snap => {
+    S.pages = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (a.created_at?.seconds || 0) - (b.created_at?.seconds || 0));
+    render();
+  }, err => show($("up-msg"), "err", "مش قادر أقرا الصور: " + err.message));
+}
+
+// ===== رفع الصور =====
+async function compress(file) {
+  const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+  const maxSide = 1800;
+  const k = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+  for (const q of [0.82, 0.72, 0.62, 0.5]) {
+    const data = c.toDataURL("image/jpeg", q).split(",")[1];
+    if (data.length < 900000) return data;
+  }
+  throw new Error("الصورة كبيرة جداً");
+}
+async function onFiles(e) {
+  const files = [...e.target.files]; e.target.value = "";
+  if (!files.length) return;
+  if (lockedForMe()) return show($("up-msg"), "err", S.day?.status === "approved" ? "اليوم ده اتعتمد، مينفعش يترفعله صور." : "الإقليمي راجع اليوم ده، مينفعش يترفعله صور. كلّمه لو فيه تعديل.");
+  const u = auth.currentUser;
+  let ok = 0;
+  for (let i = 0; i < files.length; i++) {
+    show($("up-msg"), "info", `بيرفع صورة ${i + 1} من ${files.length}...`);
+    try {
+      const image = await compress(files[i]);
+      await addDoc(collection(db, "att_pages"), {
+        site: S.site, date: S.date, image, uploaded_by: u.uid, uploaded_email: u.email || "",
+        status: "pending", created_at: serverTimestamp()
+      });
+      ok++;
+    } catch (err) {
+      show($("up-msg"), "err", `صورة ${i + 1} ماترفعتش: ` + (err.code === "permission-denied" ? "مش مسموح للحساب ده." : err.message));
+      return;
+    }
+  }
+  show($("up-msg"), "ok", `اترفع ${fmt(ok)} صورة. القراءة بتاخد حوالي دقيقة لكل صورة، والنتيجة هتظهر لوحدها.`);
+}
+$("file").addEventListener("change", onFiles);
+$("cam").addEventListener("change", onFiles);
+$("pages").addEventListener("click", async e => {
+  const del = e.target.closest("[data-del]");
+  if (del) {
+    if (!confirm("تمسح الصورة دي؟ نتيجتها هتتشال من الحضور.")) return;
+    try { await deleteDoc(doc(db, "att_pages", del.dataset.del)); }
+    catch (err) { show($("up-msg"), "err", "مااتمسحتش: " + err.message); }
+    return;
+  }
+  const img = e.target.closest("img[data-view]");
+  if (img) { $("viewer-cap").textContent = ""; $("viewer-img").src = img.src; $("viewer").classList.remove("hidden"); }
+});
+$("viewer").addEventListener("click", () => $("viewer").classList.add("hidden"));
+// تكبير صور البطاقة والفيش قبل الإرسال، مع اسم العامل فوق الصورة
+document.addEventListener("click", e => {
+  const img = e.target.closest("img[data-zoom]"); if (!img || !img.src) return;
+  const box = img.closest(".box");
+  const title = box?.querySelector("h2")?.textContent || "";
+  const who = box?.id === "idm" || img.id.startsWith("idm") ? ($("idm-name")?.textContent || "") : "";
+  $("viewer-cap").textContent = [title, who, img.alt].filter(Boolean).join(" — ");
+  $("viewer-img").src = img.src; $("viewer").classList.remove("hidden");
+});
+
+// ===== العرض =====
+// صف مكتوب بخط اليد: هل هو عامل موجود في الكشف؟ (بالرقم القومي أو بالاسم)
+function matchExtra(x) {
+  const nid = String(x.nid || "").replace(/\D/g, "");
+  if (nid.length >= 10) {
+    const hits = S.roster.filter(w => w.nid && w.nid.length === 14 && nid.length === 14
+      ? [...w.nid].filter((c, i) => c !== nid[i]).length <= 2
+      : w.nid && w.nid.endsWith(nid.slice(-6)));
+    if (hits.length === 1) return hits[0];
+  }
+  if (x.name) {
+    const sc = S.roster.map(w => ({ w, s: nameScore(x.name, w.name) })).sort((a, b) => b.s - a.s);
+    if (sc[0] && sc[0].s >= 0.85 && (!sc[1] || sc[0].s - sc[1].s >= 0.1)) return sc[0].w;
+  }
+  return null;
+}
+function aiState() {
+  // آخر قراءة لكل عامل من الصور اللي خلصت
+  const map = {};
+  S.pages.filter(p => p.status === "done").forEach(p => {
+    (p.result?.rows || []).forEach(r => { if (r.code) map[r.code] = { ...r, page: p.id }; });
+  });
+  S.pages.filter(p => p.status === "done").forEach(p => {
+    (p.result?.extra || []).forEach(x => {
+      const w = matchExtra(x);
+      if (w && !map[w.code]) map[w.code] = { s: "P", conf: "M", match: "handwritten", note: x.note || "", code: w.code, page: p.id };
+    });
+  });
+  return map;
+}
+function needsReview(r) { return !r || r.s === "U" || r.conf === "L" || r.match === "fuzzy" || r.match === "handwritten"; }
+
+// اليوم مقفول عليّا؟ بعد اعتماد المحاسب على الكل، وبعد مراجعة الإقليمي على المشرف
+function lockedForMe() {
+  const st = S.day?.status;
+  return st === "approved" || (st === "reviewed" && !S.regional && !S.admin);
+}
+function render() {
+  const busy = S.pages.filter(p => p.status === "pending" || p.status === "reading").length;
+  $("pages").innerHTML = S.pages.map(p => {
+    const res = p.result || {};
+    const rows = res.rows || [];
+    const pres = rows.filter(r => r.s === "P").length, abs = rows.filter(r => r.s === "A").length;
+    const reps = rows.filter(r => r.s === "A" && r.note).length, extra = (res.extra || []).length;
+    const calc = pres + reps + extra;
+    let st;
+    if (p.status === "pending") st = `<span class="pill p-wait">مستني السيرفر</span>`;
+    else if (p.status === "reading") st = `<span class="pill p-wait">بيقرا...</span>`;
+    else if (p.status === "error") st = `<span class="pill p-err">فشلت</span><div class="muted">${esc(p.error || "")}</div>`;
+    else st = `<span class="pill p-ok">${fmt(rows.length)} صف</span> ` +
+      (res.count == null ? `<span class="pill p-warn">العدد المكتوب مااتقراش</span>`
+        : res.count === calc ? `<span class="pill p-ok">العدد ${fmt(calc)} ✓</span>`
+        : `<span class="pill p-warn">مكتوب ${fmt(res.count)} / محسوب ${fmt(calc)}</span>`);
+    const mine = p.uploaded_by === auth.currentUser?.uid && p.status !== "reading" && S.day?.status !== "approved";
+    return `<div class="pg"><img src="data:image/jpeg;base64,${esc(p.image)}" data-view alt="صفحة">
+      <div class="b">${st}${mine ? `<div style="margin-top:6px;"><button class="btn sec small" data-del="${p.id}">مسح</button></div>` : ""}</div></div>`;
+  }).join("");
+
+  const hasDone = S.pages.some(p => p.status === "done") || S.day;
+  $("review").classList.toggle("hidden", !hasDone || !S.roster.length);
+  if (!hasDone || !S.roster.length) return;
+
+  const ai = aiState();
+  const groups = {};
+  S.roster.forEach(w => { const g = (w.type === "موسمي" ? "موسمي — " : "") + w.job; (groups[g] ??= []).push(w); });
+  let P = 0, A = 0, open = 0, flagged = 0;
+  const html = Object.entries(groups).map(([g, ws]) => `<div class="grp">${esc(g)} (${fmt(ws.length)})</div>` + ws.map(w => {
+    const r = ai[w.code];
+    const blocked = isBlocked(w);
+    if (blocked) S.choice[w.code] = "A";
+    const def = S.choice[w.code] ?? (r && r.s !== "U" && !needsReview(r) ? r.s : null);
+    if (def === "P") P++; else if (def === "A") A++; else open++;
+    const flag = r && needsReview(r);
+    if (flag) flagged++;
+    const why = !r ? "مش موجود في أي صورة"
+      : r.s === "U" ? "القراءة مش واضحة"
+      : r.match === "fuzzy" ? "الرقم القومي اتقرا بفرق بسيط"
+      : r.match === "handwritten" ? "اتكتب بخط اليد تحت الكشف — اتأكد"
+      : r.conf === "L" ? "القراءة مش أكيدة" : "";
+    const aiTxt = r ? (r.s === "P" ? "قرا: حاضر" : r.s === "A" ? `قرا: غايب${r.word ? " (" + esc(r.word) + ")" : ""}` : "قرا: مش واضح") : "";
+    const note = r?.note ? ` — ملاحظة: ${esc(r.note)}` : "";
+    const ro = lockedForMe() ? "disabled" : "";
+    const roP = ro || (blocked ? "disabled" : "");
+    return `<div class="w ${!r ? "missing" : flag ? "flag" : ""}">
+      <div class="nm"><b>${esc(w.name)}</b><small>${esc(aiTxt)}${note}${why ? ` · <span style="color:#8a5a10">${esc(why)}</span>` : ""}${blocked ? ` · <span style="color:#a32d2d">الحضور مقفول لحد ما الفيش يترفع</span>` : ""}</small></div>
+      <div class="seg"><button class="p" data-c="${w.code}" data-v="P" aria-pressed="${def === "P"}" ${roP}>حاضر</button><button class="a" data-c="${w.code}" data-v="A" aria-pressed="${def === "A"}" ${ro}>غايب</button></div></div>` +
+      (def === "A" ? repBlock(w, r) : "");
+  }).join("")).join("");
+  $("workers").innerHTML = html;
+
+  // العدد المطلوب لكل وظيفة (أساسي + موسمي مع بعض)
+  const perJob = {};
+  S.roster.forEach(w => {
+    const r = ai[w.code];
+    const def = S.choice[w.code] ?? (r && r.s !== "U" && !needsReview(r) ? r.s : null);
+    perJob[w.job] ??= 0; if (def === "P") perJob[w.job]++;
+    if (def === "A" && S.rep[w.code]) perJob[w.job]++;
+  });
+  S.over = Object.entries(perJob).filter(([j, n]) => S.plan[j] != null && n > S.plan[j]).map(([job, n]) => ({ job, n, plan: S.plan[job] }));
+  const planRows = Object.keys(perJob).map(j => `<tr><td>${esc(j)}</td><td class="n">${fmt(perJob[j])}</td><td class="n">${S.plan[j] != null ? fmt(S.plan[j]) : "—"}</td>
+    <td class="n">${S.plan[j] == null ? "" : perJob[j] > S.plan[j] ? `<span class="pill p-err">زيادة ${fmt(perJob[j] - S.plan[j])}</span>` : perJob[j] < S.plan[j] ? `<span class="pill p-grey">ناقص ${fmt(S.plan[j] - perJob[j])}</span>` : `<span class="pill p-ok">مطابق</span>`}</td></tr>`).join("");
+  $("plan-box").innerHTML = Object.keys(S.plan).length ? `<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr><th style="text-align:right">الوظيفة</th><th>الحاضرين</th><th>المطلوب</th><th></th></tr></thead><tbody>${planRows}</tbody></table>
+    <p class="muted" style="margin-top:6px;">المطلوب = أساسي + موسمي، من شيت الاحتياج بتاع الشهر.</p>` : `<p class="muted">مفيش عدد مطلوب متسجل للموقع ده.</p>`;
+
+  $("stats").innerHTML = [[P, "حاضر"], [A, "غايب"], [open, "محتاج قرار"], [flagged, "اتعلّم للمراجعة"]]
+    .map(([v, l]) => `<div class="stat"><div class="v">${fmt(v)}</div><div class="l">${l}</div></div>`).join("");
+
+  // صفوف من غير عامل معروف + المكتوبة بخط اليد
+  const loose = [];
+  S.pages.filter(p => p.status === "done").forEach(p => {
+    (p.result?.rows || []).filter(r => !r.code).forEach(r => loose.push(`صف ${esc(r.n)}: رقم قومي ${esc(r.nid || "مش مقروء")} — ${r.s === "P" ? "حاضر" : r.s === "A" ? "غايب" : "مش واضح"}`));
+    (p.result?.extra || []).filter(x => !matchExtra(x)).forEach(x => loose.push(`بخط اليد: ${esc(x.name || "اسم مش مقروء")}${x.nid ? " — " + esc(x.nid) : ""}${x.note ? " — " + esc(x.note) : ""} <button class="btn sec small" data-addnew="1">إضافة بالبطاقة</button>`));
+  });
+  $("extra-card").classList.toggle("hidden", !loose.length);
+  $("extras").innerHTML = loose.map(t => `<div class="muted" style="padding:4px 0;border-bottom:1px solid #f0efe9;">${t}</div>`).join("");
+
+  const msgs = [];
+  if (busy) msgs.push(`فيه ${fmt(busy)} صورة لسه بتتقري.`);
+  const missing = S.roster.filter(w => !ai[w.code]).length;
+  if (missing && S.pages.some(p => p.status === "done")) msgs.push(`${fmt(missing)} عامل مالهمش صف في أي صورة — اتأكد إنك صوّرت كل الصفحات، أو حدد حالتهم بإيدك.`);
+  if (S.over.length) msgs.push("الحاضرين عدّوا العدد المطلوب: " + S.over.map(o => `${o.job} ${fmt(o.n)} والمطلوب ${fmt(o.plan)}`).join("، ") + ". حدد مين اللي مش هيتحسب (علّم عليه غياب).");
+  if (msgs.length) show($("checks"), "warn", msgs.join("\n")); else hide($("checks"));
+  const btn = $("confirm");
+  btn.textContent = S.regional ? "مراجعة الإقليمي وتأكيد" : "تأكيد الحضور";
+  btn.disabled = open > 0 || busy > 0 || lockedForMe();
+  btn.textContent = open > 0 ? `فاضل ${fmt(open)} عامل محتاجين قرار` : busy ? "استنى لحد ما الصور تتقري" : S.over.length ? "العدد أكتر من المطلوب" : (S.day ? "تأكيد التعديل" : "تأكيد الحضور");
+}
+
+$("workers").addEventListener("click", e => {
+  const b = e.target.closest("button[data-c]"); if (!b) return;
+  S.choice[b.dataset.c] = b.dataset.v;
+  if (b.dataset.v === "P") delete S.rep[b.dataset.c];
+  render();
+});
+
+// ===== التأكيد =====
+$("confirm").addEventListener("click", async () => {
+  const ai = aiState(), u = auth.currentUser;
+  const entries = {};
+  let P = 0, A = 0;
+  for (const w of S.roster) {
+    const r = ai[w.code];
+    const s = S.choice[w.code] ?? (r && !needsReview(r) ? r.s : null);
+    if (s !== "P" && s !== "A") return show($("c-msg"), "err", "فيه عمال لسه محتاجين قرار.");
+    if (s === "P") P++; else A++;
+    entries[w.code] = { name: w.name, nid: w.nid || "", job: w.job, type: w.type, s, ai: r ? r.s : "", by: S.choice[w.code] && (!r || S.choice[w.code] !== r.s) ? "sup" : "ai", note: r?.note || "", page: r?.page || "" };
+    if (s === "A" && S.rep[w.code]) entries[w.code].rep = S.rep[w.code];
+  }
+  if (S.over.length) {
+    try {
+      await addDoc(collection(db, "att_alerts"), { type: "over_plan", site: S.site, date: S.date,
+        detail: S.over.map(o => `${o.job}: ${o.n} / ${o.plan}`).join("، "), by: u.uid, by_email: u.email || "", at: serverTimestamp() });
+    } catch (e) {}
+    return show($("c-msg"), "err", "مينفعش تأكد: الحاضرين أكتر من العدد المطلوب. " + S.over.map(o => `${o.job}: ${o.n} والمطلوب ${o.plan}`).join("، "));
+  }
+  const late = new Date() > deadlineOf(S.date);
+  const nth = S.lateCount + 1;
+  if (late && !(S.regional ? S.day?.review_late : S.day?.late) && !confirm(`اتأخرت في رفع حضور يوم ${S.date}.\nدي المرة ${ordinal(nth)} الشهر ده.\nالتأخير بيتسجل وبيأثر على تقييمك وراتبك.\n\nتأكد الحضور؟`)) return;
+  if (!late && !confirm(`تأكيد حضور ${S.site} يوم ${S.date}:\nحاضر ${P} — غايب ${A}`)) return;
+  $("confirm").disabled = true;
+  try {
+    const base = {
+      site: S.site, date: S.date, entries,
+      counts: { present: P, absent: A, total: S.roster.length },
+      pages: S.pages.filter(p => p.status === "done").map(p => p.id),
+    };
+    if (S.regional) {
+      // الإقليمي: مراجعة (لو المشرف مارفعش، الإقليمي بيرفع ويراجع مرة واحدة)
+      const sup = S.day?.confirmed_at ? { late: !!S.day.late, confirmed_by: S.day.confirmed_by, confirmed_email: S.day.confirmed_email || "", confirmed_at: S.day.confirmed_at }
+        : { late, confirmed_by: u.uid, confirmed_email: u.email || "", confirmed_at: serverTimestamp() };
+      await setDoc(doc(db, "att_days", S.site + "__" + S.date), { ...base, ...sup, status: "reviewed",
+        review_late: late || !!S.day?.review_late, reviewed_by: u.uid, reviewed_email: u.email || "", reviewed_at: serverTimestamp() });
+    } else {
+      await setDoc(doc(db, "att_days", S.site + "__" + S.date), { ...base, status: "confirmed",
+        late: late || !!S.day?.late, confirmed_by: u.uid, confirmed_email: u.email || "", confirmed_at: serverTimestamp() });
+    }
+    show($("c-msg"), "ok", "اتأكد الحضور ✓");
+  } catch (err) {
+    show($("c-msg"), "err", "ماتأكدش: " + (err.code === "permission-denied" ? "مش مسموح (يمكن اليوم اتراجع أو اتعتمد)." : err.message));
+  }
+  $("confirm").disabled = false;
+});
+// ===== طباعة الكشف اليومي وترتيبه (التفاصيل في sheet.js) =====
+// الترتيب محفوظ على الموقع في sheet_order/{الموقع}. بيأثر على الكشف المطبوع بس.
+async function loadOrder(site) {
+  try { const s = await getDoc(doc(db, "sheet_order", site)); return s.exists() ? s.data() : null; }
+  catch (e) { return null; }   // من غير ترتيب محفوظ: الكشف بيطلع بالترتيب العادي
+}
+const orderNote = o => {
+  if (!o?.updated_at) return "";
+  const t = o.updated_at.toDate ? o.updated_at.toDate() : null;
+  return "آخر تعديل: " + (o.updated_email || "") + (t ? " — " + t.toLocaleString("ar-EG", { day: "numeric", month: "long", hour: "numeric", minute: "2-digit" }) : "");
+};
+$("print").addEventListener("click", async () => {
+  if (!S.roster.length) return show($("deadline"), "err", "كشف الموقع مش موجود لسه.");
+  const [year, month] = (S.date || ymd(new Date())).split("-").map(Number);
+  const order = await loadOrder(S.site);
+  await openPrintView({ site: S.site, roster: S.roster, order, plan: S.plan, month, year });
+});
+$("order").addEventListener("click", async () => {
+  if (!S.roster.length) return show($("deadline"), "err", "كشف الموقع مش موجود لسه.");
+  const site = S.site;
+  const order = await loadOrder(site);
+  await openOrderEditor({
+    site, roster: S.roster, order, canEdit: true, lastChange: orderNote(order),
+    onSave: async o => {
+      const u = auth.currentUser;
+      // آخر حفظ هو اللي بيمشي، ومين غيّر وإمتى بيتسجلوا مع الترتيب
+      await setDoc(doc(db, "sheet_order", site), {
+        site, groups: o.groups, breaks: o.breaks,
+        updated_by: u.uid, updated_email: u.email || "", updated_at: serverTimestamp(),
+      });
+    },
+  });
+});
+// ===== البدلاء =====
+const anorm = s => String(s ?? "").replace(/[\u064B-\u0652]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/عبد\s+/g, "عبد").replace(/\s+/g, " ").trim();
+function lev(a, b) {
+  const m = a.length, n = b.length; if (!m || !n) return Math.max(m, n);
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; }
+  return prev[n];
+}
+function nameScore(q, name) {
+  const a = anorm(q).split(" ").filter(Boolean), b = anorm(name).split(" ");
+  if (!a.length) return 0;
+  let tot = 0;
+  a.forEach((t, i) => { const u = b[i] || ""; tot += 1 - lev(t, u) / Math.max(t.length, u.length, 1); });
+  return tot / a.length;
+}
+function usedReps(except) {
+  return new Set(Object.entries(S.rep).filter(([c]) => c !== except).map(([, r]) => r.nid || r.code));
+}
+function candidates(q, except, limit = 6) {
+  const used = usedReps(except);
+  const overdue = new Set(S.newWorkers.filter(x => ficheState(x).st === "overdue").map(x => x.id));
+  return S.pool.filter(p => !used.has(p.nid || p.code) && !overdue.has(p.nid))
+    .map(p => ({ p, sc: nameScore(q, p.name) })).filter(x => x.sc >= 0.6)
+    .sort((a, b) => b.sc - a.sc).slice(0, limit).map(x => x.p);
+}
+function repBlock(w, r) {
+  const ro = lockedForMe();
+  const cur = S.rep[w.code];
+  if (cur) return `<div class="rep">البديل: <span class="chip sel">✓ ${esc(cur.name)}</span>${ro ? "" : ` <button class="btn sec small" data-repclear="${w.code}">تغيير</button>`}</div>`;
+  if (ro) return "";
+  let sug = "";
+  if (r?.note) {
+    const best = candidates(r.note, w.code, 1)[0];
+    sug = best ? `<div class="muted">مكتوب في الملاحظات: "${esc(r.note)}" — تقصد:</div><span class="chip" data-pick="${w.code}" data-who="${esc(best.nid || best.code)}">${esc(best.name)} ✓</span>`
+      : `<div class="muted">مكتوب في الملاحظات: "${esc(r.note)}" — مش لاقيه في قايمة البدلاء.</div>`;
+  }
+  return `<div class="rep" data-rep="${w.code}">${sug}
+    <input type="text" placeholder="لو فيه بديل، اكتب أول اسمه..." data-search="${w.code}">
+    <div class="hits" id="hits-${w.code}"></div>
+    <button class="btn sec small" data-newrep="${w.code}" style="margin-top:4px;">بديل جديد مش في القايمة (بالبطاقة)</button></div>`;
+}
+function pickRep(code, who) {
+  const p = S.pool.find(x => (x.nid || x.code) === who); if (!p) return;
+  S.rep[code] = { nid: p.nid || "", name: p.name, code: p.code || "" };
+  render();
+}
+$("workers").addEventListener("input", e => {
+  const code = e.target.dataset.search; if (!code) return;
+  const q = e.target.value.trim(), box = $("hits-" + code);
+  if (q.length < 2) { box.innerHTML = ""; return; }
+  const hits = candidates(q, code);
+  box.innerHTML = hits.length ? hits.map(p => `<span class="chip" data-pick="${code}" data-who="${esc(p.nid || p.code)}">${esc(p.name)}</span>`).join(" ")
+    : `<span class="muted">مفيش حد بالاسم ده في البدلاء — لو جديد، استخدم "بديل جديد".</span>`;
+});
+$("workers").addEventListener("click", e => {
+  const pick = e.target.closest("[data-pick]"); if (pick) return pickRep(pick.dataset.pick, pick.dataset.who);
+  const clr = e.target.closest("[data-repclear]"); if (clr) { delete S.rep[clr.dataset.repclear]; return render(); }
+  const nr = e.target.closest("[data-newrep]"); if (nr) return openId("replacement", nr.dataset.newrep);
+});
+$("extras").addEventListener("click", e => { if (e.target.closest("[data-addnew]")) openId("roster"); });
+
+// ===== إدارة الكشف =====
+function renderManage() {
+  renderRmHits();
+  $("m-removed").innerHTML = S.removals.length ? `<div class="muted" style="margin-bottom:4px;">اتشالوا من الكشف:</div>` + S.removals.map(r =>
+    `<div class="w"><div class="nm"><b>${esc(r.name)}</b><small>${esc(r.reason)}${r.note ? " — " + esc(r.note) : ""}</small></div><button class="btn sec small" data-restore="${esc(r.id)}">رجّعه</button></div>`).join("") : "";
+}
+// بحث عن اسم للشيل: كل ما يكتب حرف القايمة تقرب لحد ما يختار
+const rmNorm = s => String(s ?? "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/\s+/g, " ").trim();
+function renderRmHits() {
+  const q = rmNorm($("m-q").value); if (!q || $("m-who").value) { $("m-hits").innerHTML = ""; return; }
+  const words = q.split(" ");
+  const hits = S.roster.filter(w => { const n = rmNorm(w.name); return words.every(x => n.includes(x)) || String(w.nid || "").includes(q) || String(w.code || "") === q; })
+    .sort((a, b) => rmNorm(a.name).indexOf(words[0]) - rmNorm(b.name).indexOf(words[0])).slice(0, 30);
+  $("m-hits").innerHTML = hits.length ? hits.map(w => `<button type="button" data-rmpick="${esc(w.code)}"><b>${esc(w.name)}</b><small>${esc(w.job || "")}</small></button>`).join("")
+    : `<div class="muted" style="padding:8px;">مفيش اسم في الكشف بالشكل ده.</div>`;
+}
+function rmPick(code) {
+  const w = S.roster.find(x => x.code === code);
+  $("m-who").value = w ? code : "";
+  $("m-picked").innerHTML = w ? `<div><b>${esc(w.name)}</b> <small class="muted">${esc(w.job || "")}</small></div><button type="button" class="btn sec small" data-rmclear>غيّر</button>` : "";
+  $("m-picked").classList.toggle("hidden", !w); $("m-q").classList.toggle("hidden", !!w); renderRmHits();
+}
+$("m-q").addEventListener("input", renderRmHits);
+$("m-hits").addEventListener("click", e => { const b = e.target.closest("[data-rmpick]"); if (b) rmPick(b.dataset.rmpick); });
+$("m-picked").addEventListener("click", e => { if (e.target.closest("[data-rmclear]")) { rmPick(""); $("m-q").focus(); } });
+$("m-remove").addEventListener("click", () => {
+  const f = $("m-remove-form"); f.classList.toggle("hidden");
+  if (!f.classList.contains("hidden")) { $("m-q").value = ""; rmPick(""); $("m-q").focus(); }
+});
+$("m-remove-save").addEventListener("click", async () => {
+  const code = $("m-who").value, w = S.roster.find(x => x.code === code); if (!w) return show($("m-msg"), "err", "اختار العامل من القايمة الأول.");
+  if (!confirm(`تشيل ${w.name} من الكشف؟ (السبب: ${$("m-reason").value})`)) return;
+  const u = auth.currentUser;
+  try {
+    await setDoc(doc(db, "sheet_removals", S.site + "__" + code), { site: S.site, code, name: w.name, reason: $("m-reason").value,
+      note: $("m-note").value.trim(), by: u.uid, by_email: u.email || "", at: serverTimestamp() });
+    show($("m-msg"), "ok", "اتشال. الكشف هيتحدّث خلال ثواني."); $("m-note").value = ""; $("m-q").value = ""; rmPick(""); $("m-remove-form").classList.add("hidden");
+  } catch (err) { show($("m-msg"), "err", "ماتشالش: " + err.message); }
+});
+$("m-removed").addEventListener("click", async e => {
+  const id = e.target.dataset.restore; if (!id) return;
+  try { await deleteDoc(doc(db, "sheet_removals", id)); show($("m-msg"), "ok", "رجع للكشف."); }
+  catch (err) { show($("m-msg"), "err", "مارجعش: " + err.message); }
+});
+$("m-add").addEventListener("click", () => openId("roster"));
+
+// ===== البطاقة =====
+const ID = { purpose: null, target: null, check: null, result: null, unsub: null, front: null, back: null };
+// limit = أقصى طول للصورة (base64). البطاقة: صورتين × 460 ألف (حد الـ Rules 470 ألف).
+// الفيش: صورة واحدة بس في المستند (حد Firestore 1 ميجا) → لحد 800 ألف وبدقة أعلى عشان الكلام يتقري.
+const FICHE_LIMIT = 800000, FICHE_SIDE = 1800;
+async function compressCard(file, limit = 460000, maxSide = 1400) {
+  const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+  // لو الجودة لوحدها مانزلتش الحجم، نصغّر الأبعاد خطوة خطوة بدل ما نرفض الصورة
+  for (const side of [maxSide, maxSide * 0.8, maxSide * 0.65]) {
+    const k = Math.min(1, side / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas"); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    for (const q of [0.85, 0.75, 0.65, 0.55, 0.45, 0.35]) { const d = c.toDataURL("image/jpeg", q).split(",")[1]; if (d.length < limit) return d; }
+  }
+  throw new Error("الصورة كبيرة جداً");
+}
+function openId(purpose, target) {
+  ID.purpose = purpose; ID.target = target || null; ID.check = null; ID.result = null; ID.unsub?.();
+  const w = target ? S.roster.find(x => x.code === target) : null;
+  $("idm-title").textContent = purpose === "roster" ? "إضافة عامل جديد للكشف" : "بديل جديد";
+  $("idm-sub").textContent = purpose === "roster" ? "صوّر وش بطاقة العامل. الاسم والرقم القومي بيتسجلوا زي البطاقة بالظبط."
+    : `بديل لـ ${w?.name || ""}. صوّر وش بطاقته، وبعدها هيفضل في قايمة البدلاء.`;
+  const jobs = [...new Set(S.roster.map(x => x.job).filter(Boolean))];
+  $("idm-job").innerHTML = jobs.map(j => `<option>${esc(j)}</option>`).join("");
+  if (w) $("idm-job").value = w.job;
+  $("idm-job-wrap").classList.toggle("hidden", purpose !== "roster");
+  hide($("idm-msg")); $("idm-result").classList.add("hidden");
+  ID.front = ID.back = null; $("idm-send").disabled = true;
+  ["front", "back"].forEach(sd => $("idm-" + sd + "-img").classList.add("hidden"));
+  $("idm").classList.remove("hidden");
+}
+$("idm-close").addEventListener("click", () => { ID.unsub?.(); $("idm").classList.add("hidden"); });
+async function onSide(e) {
+  const f = e.target.files[0], side = e.target.dataset.side; e.target.value = ""; if (!f) return;
+  try {
+    ID[side] = await compressCard(f);
+    const im = $("idm-" + side + "-img"); im.src = "data:image/jpeg;base64," + ID[side]; im.classList.remove("hidden");
+    $("idm-send").disabled = !(ID.front && ID.back);
+    $("idm-result").classList.add("hidden"); hide($("idm-msg"));
+  } catch (err) { show($("idm-msg"), "err", err.message); }
+}
+["idm-front-cam", "idm-front-file", "idm-back-cam", "idm-back-file"].forEach(id => $(id).addEventListener("change", onSide));
+$("idm-send").addEventListener("click", async () => {
+  if (!ID.front || !ID.back) return;
+  $("idm-send").disabled = true; $("idm-result").classList.add("hidden");
+  show($("idm-msg"), "info", "بيرفع صور البطاقة...");
+  try {
+    const u = auth.currentUser;
+    const ref = await addDoc(collection(db, "id_checks"), { site: S.site, date: S.date, image: ID.front, image_back: ID.back, purpose: ID.purpose,
+      uploaded_by: u.uid, uploaded_email: u.email || "", status: "pending", created_at: serverTimestamp() });
+    ID.check = ref.id;
+    show($("idm-msg"), "info", "بيقرا البطاقة... (حوالي نص دقيقة)");
+    ID.unsub?.();
+    ID.unsub = onSnapshot(ref, snap => {
+      const d = snap.data(); if (!d || d.status === "pending" || d.status === "reading") return;
+      ID.unsub?.(); ID.result = d; $("idm-send").disabled = false;
+      if (d.status === "ok") {
+        hide($("idm-msg"));
+        $("idm-name").textContent = d.name; $("idm-nid").textContent = d.nid; $("idm-age").textContent = d.age + " سنة";
+        if (d.warnings?.length) show($("idm-warn"), "warn", d.warnings.join("\n")); else hide($("idm-warn"));
+        $("idm-result").classList.remove("hidden");
+      } else {
+        show($("idm-msg"), "err", (d.reasons || ["القراءة فشلت"]).join("\n"));
+      }
+    }, err => show($("idm-msg"), "err", err.message));
+  } catch (err) { $("idm-send").disabled = false; show($("idm-msg"), "err", "ماترفعتش: " + (err.code === "permission-denied" ? "مش مسموح للحساب ده." : err.message)); }
+});
+$("idm-ok").addEventListener("click", async () => {
+  const d = ID.result; if (!d || d.status !== "ok") return;
+  const inRoster = S.roster.find(x => x.nid === d.nid), inPool = S.pool.find(x => x.nid === d.nid);
+  const u = auth.currentUser;
+  $("idm-ok").disabled = true;
+  try {
+    if (ID.purpose === "replacement" && (inPool || inRoster)) {
+      if (inRoster) throw new Error("ده عامل في الكشف أصلاً، مينفعش يبقى بديل.");
+    } else if (ID.purpose === "roster" && inRoster) {
+      const nw = S.newWorkers.find(x => x.id === d.nid);
+      if (!nw?.no_card) throw new Error("العامل ده موجود في الكشف أصلاً.");
+      // بطاقة لعامل اتضاف من غير بطاقة: السيرفر حفظها خلاص
+      $("idm").classList.add("hidden");
+      show($("m-msg"), "ok", `بطاقة ${d.name} اتحفظت.`);
+      $("idm-ok").disabled = false;
+      return;
+    } else {
+      // البلاك ليست: ممنوع يتضاف (زي اللي تحت السن)
+      let banned = false; try { banned = (await getDoc(doc(db, "blacklist", d.nid))).exists(); } catch (e) {}
+      if (banned) {
+        try { await addDoc(collection(db, "att_alerts"), { type: "blacklist", site: S.site, date: S.date, detail: `${d.name} — ${d.nid}`, by: u.uid, by_email: u.email || "", at: serverTimestamp() }); } catch (e) {}
+        throw new Error("العامل ده ممنوع تشغيله في تيما. راجع الإدارة.");
+      }
+      await setDoc(doc(db, "new_workers", d.nid), { nid: d.nid, name: d.name, site: S.site,
+        job: ID.purpose === "roster" ? $("idm-job").value : (S.roster.find(x => x.code === ID.target)?.job || ""),
+        role: ID.purpose, check_id: ID.check, first_day: S.date, added_by: u.uid, added_email: u.email || "", at: serverTimestamp() });
+    }
+    if (ID.purpose === "replacement" && ID.target) S.rep[ID.target] = { nid: d.nid, name: d.name, code: inPool?.code || "" };
+    $("idm").classList.add("hidden");
+    show($("m-msg"), "ok", ID.purpose === "roster" ? `${d.name} اتضاف للكشف. هيظهر خلال ثواني.` : `${d.name} اتسجل بديل.`);
+    render();
+  } catch (err) {
+    show($("idm-msg"), "err", err.code === "permission-denied" ? "مااتضافش: يمكن العامل ده اتضاف قبل كده — دوّر عليه في قايمة البدلاء." : err.message);
+  }
+  $("idm-ok").disabled = false;
+});
+// ===== الفيش =====
+const FICHE_DAYS = 5;
+function workingDaysAfter(iso, n) {
+  const d = new Date(iso + "T00:00:00");
+  while (n > 0) { d.setDate(d.getDate() + 1); if (d.getDay() !== 5) n--; }
+  return d;
+}
+function ficheState(nw) {
+  if (nw.fiche) return { st: "ok" };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(nw.first_day || "")) return { st: "waiting" };
+  const due = workingDaysAfter(nw.first_day, FICHE_DAYS);
+  if (nw.fiche_exception) return { st: "exception", due };
+  const ref = new Date((S.date || ymd(new Date())) + "T00:00:00");
+  return { st: ref > due ? "overdue" : "waiting", due };
+}
+function isBlocked(w) {
+  if (!String(w.code).startsWith("N")) return false;
+  const nw = S.newWorkers.find(x => x.id === w.nid);
+  return !!nw && ficheState(nw).st === "overdue";
+}
+function renderFiche() {
+  const list = S.newWorkers.filter(x => !x.fiche || x.no_card);
+  $("fiche-card").classList.toggle("hidden", !list.length);
+  $("fiche-list").innerHTML = list.map(x => {
+    const f = ficheState(x);
+    const dueTxt = f.due ? f.due.toLocaleDateString("ar-EG", { weekday: "long", day: "numeric", month: "long" }) : "";
+    const st = x.fiche ? `<span class="pill p-ok">الفيش اترفع</span>`
+      : f.st === "overdue" ? `<span class="pill p-err">المهلة خلصت ${esc(dueTxt)}</span>`
+      : f.st === "exception" ? `<span class="pill p-wait">استثناء من الإدارة</span>`
+      : `<span class="pill p-warn">آخر ميعاد ${esc(dueTxt)}</span>`;
+    return `<div class="w"><div class="nm"><b>${esc(x.name)}</b><small>${esc(x.job || "")} · ${x.role === "roster" ? "في الكشف" : "بديل"}</small>
+      <div style="margin-top:4px;">${st}${x.no_card ? ` <span class="pill p-err">البطاقة ناقصة</span>` : ""}</div></div>
+      <div class="row" style="gap:4px;flex-direction:column;align-items:stretch;">
+        ${x.fiche ? "" : `<button class="btn sec small" data-fiche="${esc(x.id)}">رفع الفيش</button>`}
+        ${x.no_card ? `<button class="btn sec small" data-card="${esc(x.id)}">رفع البطاقة</button>` : ""}</div></div>`;
+  }).join("");
+}
+const FM = { nid: null, imgs: [] };
+$("fiche-list").addEventListener("click", e => {
+  const f = e.target.dataset.fiche, c = e.target.dataset.card;
+  if (c) return openId("roster");
+  if (!f) return;
+  const nw = S.newWorkers.find(x => x.id === f);
+  FM.nid = f; FM.imgs = []; $("fm-thumbs").innerHTML = ""; $("fm-send").disabled = true; hide($("fm-msg"));
+  $("fm-title").textContent = "رفع الفيش — " + (nw?.name || "");
+  $("fm").classList.remove("hidden");
+});
+$("fm-close").addEventListener("click", () => $("fm").classList.add("hidden"));
+async function onFiche(e) {
+  // الفيش صورة واحدة بس: أي صورة جديدة بتحل محل اللي قبلها
+  const f = e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  try { FM.imgs = [await compressCard(f, FICHE_LIMIT, FICHE_SIDE)]; hide($("fm-msg")); } catch (err) { show($("fm-msg"), "err", err.message); }
+  renderFmThumbs();
+}
+function renderFmThumbs() {
+  $("fm-thumbs").innerHTML = FM.imgs.map((b, i) => `<div class="fm-pg"><img src="data:image/jpeg;base64,${b}" data-zoom alt="صفحة ${i + 1}" title="دوس تكبّر" style="height:160px;border:1px solid #ddd;border-radius:8px;"><button type="button" data-rm="${i}" title="شيل الصفحة">✕</button></div>`).join("")
+    + (FM.imgs.length ? `<div class="muted" style="width:100%;">دوس على الصورة تكبّرها وتتأكد إنها بتاعة العامل ده، ولو غلط شيلها بـ ✕.</div>` : "");
+  $("fm-send").disabled = !FM.imgs.length;
+}
+$("fm-thumbs").addEventListener("click", e => {
+  const rm = e.target.closest("[data-rm]"); if (!rm) return;
+  e.stopPropagation(); FM.imgs.splice(+rm.dataset.rm, 1); renderFmThumbs();
+});
+$("fm-cam").addEventListener("change", onFiche);
+$("fm-file").addEventListener("change", onFiche);
+$("fm-send").addEventListener("click", async () => {
+  if (!FM.imgs.length || !FM.nid) return;
+  $("fm-send").disabled = true; show($("fm-msg"), "info", "بيرفع...");
+  try {
+    const u = auth.currentUser;
+    const ref = await addDoc(collection(db, "doc_uploads"), { site: S.site, nid: FM.nid, kind: "fiche", images: FM.imgs,
+      uploaded_by: u.uid, uploaded_email: u.email || "", status: "pending", created_at: serverTimestamp() });
+    const un = onSnapshot(ref, snap => {
+      const d = snap.data(); if (!d || d.status === "pending" || d.status === "saving") return;
+      un();
+      if (d.status === "done") { $("fm").classList.add("hidden"); show($("f-msg"), "ok", "الفيش اتحفظ ✓"); }
+      else { $("fm-send").disabled = false; show($("fm-msg"), "err", d.error || "الحفظ فشل"); }
+    });
+  } catch (err) { $("fm-send").disabled = false; show($("fm-msg"), "err", "ماترفعش: " + err.message); }
+});
+
+// ===== طلبات الإجازة والمرضي (المشرف بيرفع ← HR تيما ← العميل) =====
+// الطلب بيتسجل في hr_events (source = supervisor) بنفس شكل حالات الشرقية والإكسيل، فصفحة hr.html والتقارير بيقروه زيهم.
+const LV = { who: null, img: "", list: [], unsub: null, site: "" };
+const LV_TY = { sick: "مرضي", leave: "إجازة" };
+const LV_ST = { pending: ["مستني الـ HR", "p-wait"], client_wait: ["مستني اعتماد العميل", "p-warn"], approved: ["اتعتمد", "p-ok"], rejected: ["اترفض", "p-err"] };
+const lvWorkDays = (f, t) => { let n = 0; for (let d = new Date(f + "T00:00"); d <= new Date(t + "T00:00"); d.setDate(d.getDate() + 1)) if (d.getDay() !== 5) n++; return n; };
+function lvWatch() {
+  const site = $("site").value;
+  if (site === LV.site && LV.unsub) return;
+  LV.unsub?.(); LV.unsub = null; LV.site = site; LV.list = []; renderLvList();
+  if (!site) return;
+  LV.unsub = onSnapshot(query(collection(db, "hr_events"), where("source", "==", "supervisor"), where("site", "==", site)), snap => {
+    LV.list = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderLvList();
+  }, err => show($("lv-msg"), "err", "مش قادر أقرا الطلبات: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : err.message)));
+}
+$("site").addEventListener("change", lvWatch);
+function renderLvList() {
+  // آخر 60 يوم بس، الأحدث فوق
+  const cut = new Date(); cut.setDate(cut.getDate() - 60); const c = ymd(cut);
+  const rows = LV.list.filter(e => (e.to || e.from || "") >= c || e.status === "pending" || e.status === "client_wait")
+    .sort((a, b) => String(b.from).localeCompare(String(a.from)));
+  $("lv-list").innerHTML = rows.length ? rows.map(e => {
+    const [st, cls] = LV_ST[e.status] || [e.status, "p-grey"];
+    const moved = e.original && (e.original.from !== e.from || e.original.to !== e.to)
+      ? `<div class="muted">اتعدلت من ${esc(e.original.from)} → ${esc(e.original.to)}</div>` : "";
+    const why = e.status === "rejected" && e.note ? `<div class="muted">السبب: ${esc(e.note)}</div>` : "";
+    return `<div style="border-bottom:1px solid #eee;padding:8px 0;"><div class="row" style="justify-content:space-between;">
+      <b>${esc(e.name)}</b><span><span class="pill p-grey">${LV_TY[e.type] || ""}</span> <span class="pill ${cls}">${st}</span></span></div>
+      <div class="muted">من ${esc(e.from)} لحد ${esc(e.to)} — ${esc(e.days)} يوم</div>${moved}${why}</div>`;
+  }).join("") : `<div class="muted">مفيش طلبات في آخر 60 يوم.</div>`;
+}
+function lvReset() {
+  LV.who = null; LV.img = ""; $("lv-q").value = ""; $("lv-type").value = "sick";
+  const t = ymd(new Date()); $("lv-from").value = t; $("lv-to").value = t;
+  $("lv-img").classList.add("hidden"); $("lv-img").src = ""; hide($("lv-m")); lvPick(""); lvCheck();
+}
+$("lv-new").addEventListener("click", () => { lvReset(); $("lvm").classList.remove("hidden"); $("lv-q").focus(); });
+$("lvm-close").addEventListener("click", () => $("lvm").classList.add("hidden"));
+function renderLvHits() {
+  const q = rmNorm($("lv-q").value); if (!q || LV.who) { $("lv-hits").innerHTML = ""; return; }
+  const hits = (S.roster || []).filter(w => rmNorm(w.name).includes(q) || String(w.code || "").includes(q) || String(w.nid || "").includes(q)).slice(0, 12);
+  $("lv-hits").innerHTML = hits.length ? hits.map(w => `<button type="button" data-lvpick="${esc(w.code)}"><b>${esc(w.name)}</b><small>${esc(w.job || "")}</small></button>`).join("")
+    : `<div class="muted" style="padding:8px;">مفيش عامل بالاسم ده في كشف الموقع</div>`;
+}
+function lvPick(code) {
+  LV.who = code ? (S.roster || []).find(w => String(w.code) === String(code)) || null : null;
+  const w = LV.who;
+  $("lv-picked").innerHTML = w ? `<div><b>${esc(w.name)}</b> <small class="muted">${esc(w.job || "")}</small></div><button type="button" class="btn sec small" data-lvclear>غيّر</button>` : "";
+  $("lv-picked").classList.toggle("hidden", !w); $("lv-q").classList.toggle("hidden", !!w); renderLvHits(); lvCheck();
+}
+$("lv-q").addEventListener("input", renderLvHits);
+$("lv-hits").addEventListener("click", e => { const b = e.target.closest("[data-lvpick]"); if (b) lvPick(b.dataset.lvpick); });
+$("lv-picked").addEventListener("click", e => { if (e.target.closest("[data-lvclear]")) { lvPick(""); $("lv-q").focus(); } });
+// نفس العامل في أيام متداخلة مع طلب تاني لسه شغال أو اتعتمد
+function lvOverlap(w, f, t) {
+  return LV.list.find(e => e.status !== "rejected" && ((w.nid && e.nid === w.nid) || String(e.code) === String(w.code)) && e.from <= t && (e.to || e.from) >= f);
+}
+function lvCheck() {
+  const f = $("lv-from").value, t = $("lv-to").value;
+  let err = "";
+  if (!f || !t) err = "حدد من ولحد";
+  else if (t < f) err = "«لحد» قبل «من»";
+  $("lv-days").textContent = err || `${lvWorkDays(f, t)} يوم (الجمعة مش بتتحسب)`;
+  const ov = !err && LV.who ? lvOverlap(LV.who, f, t) : null;
+  if (ov) show($("lv-m"), "warn", `فيه طلب تاني لنفس العامل في الأيام دي (${LV_TY[ov.type]} من ${ov.from} لحد ${ov.to} — ${(LV_ST[ov.status] || [ov.status])[0]}).`);
+  else if ($("lv-m").classList.contains("warn")) hide($("lv-m"));
+  $("lv-send").disabled = !!err || !LV.who || !LV.img || !!ov;
+}
+$("lv-from").addEventListener("change", () => { if ($("lv-to").value < $("lv-from").value) $("lv-to").value = $("lv-from").value; lvCheck(); });
+$("lv-to").addEventListener("change", lvCheck);
+async function onLvImg(e) {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try {
+    LV.img = await compressCard(f);
+    $("lv-img").src = "data:image/jpeg;base64," + LV.img; $("lv-img").classList.remove("hidden"); hide($("lv-m"));
+  } catch (err) { LV.img = ""; show($("lv-m"), "err", err.message); }
+  lvCheck();
+}
+$("lv-cam").addEventListener("change", onLvImg);
+$("lv-file").addEventListener("change", onLvImg);
+$("lv-send").addEventListener("click", async () => {
+  const w = LV.who, f = $("lv-from").value, t = $("lv-to").value, type = $("lv-type").value, site = $("site").value;
+  if (!w || !LV.img || !f || t < f) return;
+  $("lv-send").disabled = true; show($("lv-m"), "info", "بيرفع...");
+  try {
+    const u = auth.currentUser;
+    await addDoc(collection(db, "hr_events"), {
+      source: "supervisor", site, nid: String(w.nid || ""), code: String(w.code || ""), name: w.name || "", job: w.job || "",
+      type, type_ar: LV_TY[type], from: f, to: t, days: String(lvWorkDays(f, t)),
+      image: "data:image/jpeg;base64," + LV.img, status: "pending", entry_date: ymd(new Date()),
+      by_email: u.email || "", uploaded_by: u.uid, created_at: serverTimestamp() });
+    $("lvm").classList.add("hidden");
+    show($("lv-msg"), "ok", `الطلب اتبعت للـ HR — ${LV_TY[type]} ${w.name} من ${f} لحد ${t}.`);
+  } catch (err) {
+    $("lv-send").disabled = false;
+    show($("lv-m"), "err", "ماترفعش: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : err.message));
+  }
+});
+</script>
+</body>
+</html>

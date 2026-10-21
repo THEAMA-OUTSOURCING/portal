@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تقارير الحضور - Theama</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'IBM Plex Sans Arabic','Segoe UI',Tahoma,sans-serif;background:#f5f5f0;color:#222;padding:12px;font-size:14px;line-height:1.6;}
+input,button,select{font-family:inherit;font-size:14px;}
+input,select{padding:8px 10px;border:1px solid #ddd;border-radius:9px;background:#fff;color:#222;}
+.wrap{max-width:1300px;margin:0 auto;}
+.card{background:#fff;border:1px solid #e5e5e5;border-radius:14px;padding:14px 16px;margin-bottom:12px;}
+h1{font-size:19px;font-weight:600;} h2{font-size:15px;font-weight:600;margin-bottom:8px;}
+.muted{color:#888;font-size:13px;}
+.row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
+label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#777;}
+.btn{padding:9px 16px;font-weight:500;cursor:pointer;background:#c0392b;color:#fff;border:none;border-radius:9px;}
+.btn:disabled{opacity:.5;cursor:not-allowed;} .btn.sec{background:#f5f5f0;color:#444;border:1px solid #ddd;} .btn.small{padding:4px 10px;font-size:12px;}
+.tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
+.tab{padding:8px 14px;border:1px solid #ddd;background:#fff;border-radius:999px;cursor:pointer;}
+.tab[aria-selected=true]{background:#2b2b2b;color:#fff;border-color:#2b2b2b;}
+.msg{padding:9px 12px;border-radius:9px;font-size:13px;margin-top:10px;display:none;white-space:pre-line;}
+.msg.show{display:block;} .msg.ok{background:#eaf3de;color:#3b6d11;} .msg.err{background:#fcebeb;color:#a32d2d;} .msg.warn{background:#fff5de;color:#8a5a10;} .msg.info{background:#eef4fb;color:#185fa5;}
+.hidden{display:none !important;}
+.tbl{overflow:auto;max-height:70vh;border:1px solid #eee;border-radius:10px;}
+table{border-collapse:collapse;font-size:12px;}
+th,td{border:1px solid #e5e5e5;padding:3px 5px;text-align:center;white-space:nowrap;}
+th{background:#2b2b2b;color:#fff;position:sticky;top:0;z-index:1;font-weight:500;}
+td.nm{text-align:right;} td.off,th.off{background:#fde9d9;} th.off{color:#a32d2d;}
+td.a{color:#a32d2d;font-weight:600;} td.lv{color:#185fa5;font-weight:600;} td.lvg{color:#3b6d11;font-weight:600;} td.conf{outline:2px solid #e0a020;outline-offset:-2px;} td.unapp{background:#fffbea;} td.wt{color:#8a5a10;background:#fff5de;font-weight:600;}
+tr.foot td{background:#f3f3ef;font-weight:600;}
+.list td{padding:6px 8px;font-size:13px;} .list th{padding:6px 8px;font-size:13px;}
+.pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:600;}
+.p-ok{background:#eaf3de;color:#3b6d11;} .p-wait{background:#fff5de;color:#8a5a10;} .p-late{background:#fcebeb;color:#a32d2d;}
+.center{max-width:380px;margin:50px auto;}
+@media print{
+  body{background:#fff;padding:0;} .noprint{display:none !important;} .card{border:none;padding:0;margin:0;}
+  .tbl{max-height:none;overflow:visible;border:none;} th{position:static;}
+  table{font-size:7.5pt;width:100%;} th,td{padding:1px 2px;}
+  th,td.off,th.off,tr.foot td{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  @page{size:A4 landscape;margin:8mm;}
+}
+#print-head{display:none;} @media print{#print-head{display:block;margin-bottom:6px;}}
+</style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#c0392b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="تيما">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<script>if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));</script>
+</head>
+<body>
+<div class="wrap">
+  <div id="login" class="card center hidden">
+    <h2>تقارير الحضور</h2>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <input type="email" id="l-email" placeholder="الإيميل" dir="ltr">
+      <input type="password" id="l-pass" placeholder="الباسورد" dir="ltr">
+      <button class="btn" id="l-btn">دخول</button>
+    </div>
+    <div class="msg err" id="l-err"></div>
+  </div>
+  <div id="denied" class="card center hidden"><h2>الحساب ده مالوش صلاحية على التقارير</h2><button class="btn sec" id="d-out" style="margin-top:10px;">خروج</button></div>
+
+  <div id="app" class="hidden">
+    <div class="row noprint" style="justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div><h1>تقارير الحضور</h1><div class="muted" id="who"></div></div>
+      <div class="row"><button class="btn sec small" id="logout">خروج</button></div>
+    </div>
+    <nav id="pnav" class="pnav" aria-label="صفحات البوابة"></nav>
+    <div class="tabs noprint">
+      <button class="tab" data-tab="report" aria-selected="true">التقرير الشهري</button>
+      <button class="tab hidden" data-tab="approve" aria-selected="false" id="tab-approve">اعتماد الحضور</button>
+      <button class="tab" data-tab="holidays" aria-selected="false">العطلات</button>
+    </div>
+
+    <!-- التقرير -->
+    <section data-panel="report">
+      <div class="card noprint">
+        <div class="row">
+          <label class="f">الموقع<select id="r-site"></select></label>
+          <label class="f">الفترة<select id="r-mode"><option value="21">من 21 لـ 20</option><option value="cal">الشهر الميلادي</option><option value="custom">من تاريخ لتاريخ</option></select></label>
+          <label class="f" id="r-month-w">الشهر<input type="month" id="r-month"></label>
+          <label class="f hidden" id="r-from-w">من<input type="date" id="r-from"></label>
+          <label class="f hidden" id="r-to-w">لحد<input type="date" id="r-to"></label>
+          <label class="f office-only hidden">التقرير<select id="r-kind"><option value="att">حضور</option><option value="annual">إجازات</option><option value="sick">مرضي</option></select></label>
+          <label class="f">الوظيفة<select id="r-job"><option value="">كل الوظايف</option></select></label>
+          <label class="row" style="align-items:center;gap:4px;font-size:13px;"><input type="checkbox" id="r-approved"> المعتمد بس</label>
+          <button class="btn" id="r-go">اعرض</button>
+          <label class="f">بحث<input id="r-q" placeholder="الاسم أو الرقم القومي أو الكود" style="min-width:200px"></label>
+          <button class="btn sec" id="r-print" disabled><i class="ti ti-printer"></i> طباعة</button>
+          <button class="btn sec office-only hidden" id="r-xlsx" disabled><i class="ti ti-file-spreadsheet"></i> إكسيل</button>
+        </div>
+        <p class="muted" style="margin-top:6px;">1 = حاضر، غ = غايب، فاضي = مفيش حضور متأكد لليوم ده. في المواقع المرفوعة إكسيل الرمز بيظهر زي ما هو: ج إجازة، م/ض مرضي، ر راحة، ق توقف، ن نص يوم، ورقم = ساعات (إضافي). في الشرقية: الإجازات والمرضي المعتمدين من الـ HR بيظهروا ج / م، والمستقيل «س» من يوم تسجيل الاستقالة، والخانة اللي عليها إطار برتقالي = تعارض (حالة معتمدة والشيت بيقول حاضر). الجمعة والعطلات متلوّنة، واللي اشتغل فيها بيتحسب إضافي. الخانات الصفرا = متأكدة من المشرف ولسه مااتعتمدتش.</p>
+        <div class="msg" id="r-msg"></div>
+      </div>
+      <div class="card hidden" id="r-out">
+        <div id="print-head"></div>
+        <div class="tbl"><table id="r-table"></table></div>
+        <div class="muted" id="r-sum" style="margin-top:8px;"></div>
+      </div>
+    </section>
+
+    <!-- الاعتماد -->
+    <section data-panel="approve" class="hidden">
+      <div class="card">
+        <div class="row">
+          <label class="f">من<input type="date" id="a-from"></label>
+          <label class="f">لحد<input type="date" id="a-to"></label>
+          <label class="f">الحالة<select id="a-st"><option value="reviewed">مستني اعتماد</option><option value="confirmed">مستني الإقليمي</option><option value="">الكل</option><option value="approved">معتمد</option></select></label>
+          <button class="btn" id="a-go">اعرض</button>
+          <button class="btn sec" id="a-all" disabled>اعتماد كل المعروض</button>
+        </div>
+        <div class="msg" id="a-msg"></div>
+        <div class="tbl" style="margin-top:10px;"><table class="list" style="width:100%"><thead><tr><th>الموقع</th><th>اليوم</th><th>حاضر</th><th>غايب</th><th>بدلاء</th><th>اتعدّل من المشرف</th><th>أكّده</th><th>الحالة</th><th></th></tr></thead><tbody id="a-list"></tbody></table></div>
+      </div>
+      <div class="card hidden" id="a-detail"><h2 id="a-dtitle"></h2>
+        <div class="row" id="a-edit-bar" style="margin-bottom:8px;"><span class="muted">تقدر تغيّر حالة أي عامل من هنا وبعدين:</span><button class="btn small" id="a-esave">احفظ التعديل واعتمد</button></div>
+        <p class="muted hidden" id="a-locked" style="margin-bottom:8px;">اليوم ده معتمد. لو محتاج تعدّل فيه: دوس «إلغاء الاعتماد» في الجدول، وبعدين افتح التفاصيل تاني وعدّل واعتمد.</p><div class="tbl"><table class="list" style="width:100%"><thead><tr><th>الاسم</th><th>الوظيفة</th><th>الحالة</th><th>قراءة الصورة</th><th>البديل</th><th>ملاحظة</th></tr></thead><tbody id="a-dlist"></tbody></table></div></div>
+    </section>
+
+    <!-- العطلات -->
+    <section data-panel="holidays" class="hidden">
+      <div class="card">
+        <p class="muted" style="margin-bottom:8px;">حدد العطلات الرسمية لكل شهر باليوم الفعلي اللي هيتاخد إجازة (مثلاً 6 أكتوبر لو اتنقلت للخميس 8، سجّل يوم 8). الجمعة بتتلوّن لوحدها.</p>
+        <div class="row">
+          <label class="f">الشهر<input type="month" id="h-month"></label>
+          <label class="f admin-only hidden">اليوم<input type="date" id="h-date"></label>
+          <label class="f admin-only hidden">اسم العطلة<input type="text" id="h-name" placeholder="مثلاً عيد 6 أكتوبر"></label>
+          <button class="btn admin-only hidden" id="h-add">إضافة</button>
+        </div>
+        <div class="msg" id="h-msg"></div>
+        <table class="list" style="margin-top:10px;min-width:320px;"><thead><tr><th>اليوم</th><th>العطلة</th><th></th></tr></thead><tbody id="h-list"></tbody></table>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script type="module">
+import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { db, auth, ATT_SITES, XL_SITES } from './shared.js';
+
+// خانة اليوم: 1 حاضر، غ غايب، أو الرمز زي ما هو (ج م ض ر ق ن 8 ...). p = قيمة الحضور (ن = نص يوم)
+function cellOf(e, app) {
+  if (e.s === "P") return { v: e.c || "1", p: e.c === "ن" ? 0.5 : 1, hrs: !!e.x, app };   // x = ساعات في يوم راحة (الإمداد) → إضافي
+  if (e.s === "A") return { v: "غ", p: 0, a: true, app };
+  return { v: e.c || "؟", p: 0, l: true, app };
+}
+const DAYN = ["الحد", "الاتنين", "التلات", "الأربع", "الخميس", "الجمعة", "السبت"];
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const pad = n => String(n).padStart(2, "0");
+const ymd = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
+function hide(el) { el.className = "msg"; }
+const S = { role: null, sites: [], office: false, report: null };
+
+$("l-btn").onclick = async () => { try { await signInWithEmailAndPassword(auth, $("l-email").value.trim(), $("l-pass").value); } catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); } };
+$("logout").onclick = () => signOut(auth); $("d-out").onclick = () => signOut(auth);
+
+onAuthStateChanged(auth, async user => {
+  ["login", "denied", "app"].forEach(i => $(i).classList.add("hidden"));
+  if (!user) return $("login").classList.remove("hidden");
+  let c = {}; try { c = (await user.getIdTokenResult()).claims || {}; } catch (e) {}
+  S.role = c.role;
+  // المشاهد (viewer) بيشوف زي المكتب، بس من غير اعتماد أو تعديل
+  S.view = c.role === "viewer";
+  if (["admin", "hr", "accountant", "viewer"].includes(c.role)) { S.sites = [...ATT_SITES, ...XL_SITES]; S.office = true; }
+  else if (c.role === "supervisor" && Array.isArray(c.sites) && c.sites.length) S.sites = c.sites;
+  else return $("denied").classList.remove("hidden");
+  $("who").textContent = user.email;
+  document.querySelectorAll(".office-only").forEach(e => e.classList.toggle("hidden", !S.office));
+  document.querySelectorAll(".admin-only").forEach(e => e.classList.toggle("hidden", c.role !== "admin"));
+  S.canApprove = ["admin", "accountant"].includes(c.role);
+  $("tab-approve").classList.toggle("hidden", !S.canApprove && !S.view);
+  $("a-all").classList.toggle("hidden", !S.canApprove);
+  // أزرار التنقل بين الصفحات بقت في shared.js (حسب الدور)
+  if (S.view) { $("tab-approve").textContent = "حالة الاعتماد"; }
+  $("r-site").innerHTML = (S.office ? `<option value="*">كل المواقع</option>` : "") + S.sites.map(s => `<option>${esc(s)}</option>`).join("");
+  const now = new Date(), m = ymd(now).slice(0, 7);
+  $("r-month").value = now.getDate() > 20 ? ymd(new Date(now.getFullYear(), now.getMonth() + 1, 1)).slice(0, 7) : m;
+  $("h-month").value = m;
+  $("a-to").value = ymd(now); $("a-from").value = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 14));
+  $("app").classList.remove("hidden");
+  loadHolidays();
+});
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
+  document.querySelectorAll(".tab").forEach(x => x.setAttribute("aria-selected", x === t));
+  document.querySelectorAll("[data-panel]").forEach(p => p.classList.toggle("hidden", p.dataset.panel !== t.dataset.tab));
+});
+$("r-kind").onchange = () => { S.report = null; $("r-out").classList.add("hidden"); $("r-print").disabled = true; $("r-xlsx").disabled = true; };
+$("r-mode").onchange = () => {
+  const c = $("r-mode").value === "custom";
+  $("r-month-w").classList.toggle("hidden", c); $("r-from-w").classList.toggle("hidden", !c); $("r-to-w").classList.toggle("hidden", !c);
+};
+
+// ===== العطلات =====
+async function holidaysFor(months) {
+  const out = {};
+  for (const m of months) { try { const s = await getDoc(doc(db, "holidays", m)); Object.assign(out, s.exists() ? s.data().days || {} : {}); } catch (e) {} }
+  return out;
+}
+async function loadHolidays() {
+  const m = $("h-month").value; if (!m) return;
+  const h = await holidaysFor([m]);
+  const rows = Object.entries(h).sort();
+  $("h-list").innerHTML = rows.length ? rows.map(([d, n]) => `<tr><td>${DAYN[new Date(d + "T00:00").getDay()]} ${d}</td><td>${esc(n)}</td><td>${S.role === "admin" ? `<button class="btn sec small" data-hdel="${d}">شيل</button>` : ""}</td></tr>`).join("") : `<tr><td colspan="3" class="muted">مفيش عطلات متسجلة للشهر ده.</td></tr>`;
+}
+$("h-month").onchange = loadHolidays;
+$("h-add").onclick = async () => {
+  const d = $("h-date").value, n = $("h-name").value.trim();
+  if (!d || !n) return show($("h-msg"), "err", "اختار اليوم واكتب اسم العطلة.");
+  const m = d.slice(0, 7), h = await holidaysFor([m]); h[d] = n;
+  try { await setDoc(doc(db, "holidays", m), { days: h, updated_at: serverTimestamp() }); $("h-month").value = m; $("h-name").value = ""; show($("h-msg"), "ok", "اتضافت."); loadHolidays(); }
+  catch (e) { show($("h-msg"), "err", "ماتضافتش: " + e.message); }
+};
+$("h-list").onclick = async e => {
+  const d = e.target.dataset.hdel; if (!d) return;
+  const m = d.slice(0, 7), h = await holidaysFor([m]); delete h[d];
+  try { await setDoc(doc(db, "holidays", m), { days: h, updated_at: serverTimestamp() }); loadHolidays(); } catch (er) { show($("h-msg"), "err", er.message); }
+};
+
+// أيام موقع في فترة بس (بدل كل أيام الموقع من البداية) — محتاج index على att_days: site + date.
+// لو الـ index لسه مااتعملش، بيرجع للطريقة القديمة عشان الصفحة متقفش.
+async function siteDays(site, from, to) {
+  try {
+    const sn = await getDocs(query(collection(db, "att_days"), where("site", "==", site), where("date", ">=", from), where("date", "<=", to)));
+    return sn.docs;
+  } catch (e) {
+    if (e.code !== "failed-precondition") throw e;
+    console.warn("att_days محتاج index (site + date):", e.message);
+    const sn = await getDocs(query(collection(db, "att_days"), where("site", "==", site)));
+    return sn.docs.filter(d => { const x = d.data().date || ""; return x >= from && x <= to; });
+  }
+}
+// ===== جلب أيام الحضور =====
+async function fetchDays(from, to, site) {
+  let docs = [];
+  if (S.office && (!site || site === "*")) {
+    // المكتب، كل المواقع: الفترة بس
+    const sn = await getDocs(query(collection(db, "att_days"), where("date", ">=", from), where("date", "<=", to)));
+    sn.forEach(d => docs.push({ id: d.id, ...d.data() }));
+  } else {
+    // موقع واحد (أو مواقع المشرف): الموقع في الفترة بس
+    const sites = site && site !== "*" ? [site] : S.sites;
+    for (const s of sites) (await siteDays(s, from, to)).forEach(d => docs.push({ id: d.id, ...d.data() }));
+  }
+  return docs;
+}
+function period() {
+  const mode = $("r-mode").value;
+  if (mode === "custom") return [$("r-from").value, $("r-to").value];
+  const [y, m] = $("r-month").value.split("-").map(Number);
+  if (mode === "cal") return [ymd(new Date(y, m - 1, 1)), ymd(new Date(y, m, 0))];
+  return [ymd(new Date(y, m - 2, 21)), ymd(new Date(y, m - 1, 20))];
+}
+
+// ===== الحالات المعتمدة من الـ HR (إجازة / مرضي / استقالة): الشرقية من Drive، وطلبات المشرفين، وإكسيل الـ HR =====
+// واللي مستني رد العميل (بيبسي والإمداد / شيبسي) بيظهر «م؟» أو «ج؟» أو «خ؟» — مش غياب ومش معتمد
+const SHARQIA = "الشرقية للدخان";
+async function applySharqiaEvents(list, from, to) {
+  const rows = list; if (!rows.length) return;
+  let codes = {}, evs = [];
+  try { const m = await getDoc(doc(db, "sharqia_map", "codes")); codes = m.exists() ? m.data().codes || {} : {}; } catch (e) {}
+  try {
+    // المستني العميل الأول، والمعتمد بعده عشان يكسب لو الاتنين على نفس اليوم
+    const [w, a] = await Promise.all(["client_wait", "approved"].map(st => getDocs(query(collection(db, "hr_events"), where("status", "==", st)))));
+    w.forEach(d => evs.push(d.data())); a.forEach(d => evs.push(d.data()));
+  } catch (e) {}
+  const byCode = {}, byNid = {};
+  rows.forEach(r => { if (r.site === SHARQIA && !r.nid && codes[r.code]?.nid) r.nid = codes[r.code].nid; byCode[r.site + "|" + r.code] = r; if (r.nid) byNid[r.nid] = r; });
+  // الرموز الموحدة: ج إجازة، خ إجازة بدون أجر، م مرضي (العارضة القديمة بتتعرض ج)
+  const KIND = { annual: ["ج", "إجازة"], casual: ["ج", "إجازة"], unpaid: ["خ", "إجازة بدون أجر"] };
+  const isFri = d => new Date(d + "T00:00").getDay() === 5;
+  for (const e of evs) {
+    const r = (e.nid && byNid[e.nid]) || (e.source === "sharqia_drive" ? byCode[SHARQIA + "|" + e.code] : null); if (!r) continue;
+    if (e.type === "resign") {
+      if (!e.entry_date || e.entry_date > to) continue;
+      r.resigned = e.entry_date;
+      for (const d of Object.keys(r.cells)) if (d >= e.entry_date && !r.cells[d].p) r.cells[d] = { v: "س", p: 0, l: true, app: true, ev: "استقالة من " + e.entry_date + (e.reason ? " — " + e.reason : "") };
+      continue;
+    }
+    if (!e.from) continue;
+    const [code, lbl] = e.type === "sick" ? ["م", "مرضي"] : (KIND[e.kind] || ["ج", "إجازة"]);
+    const wait = e.status === "client_wait";
+    for (let d = new Date(e.from + "T00:00"); ymd(d) <= (e.to || e.from); d.setDate(d.getDate() + 1)) {
+      const k = ymd(d); if (k < from || k > to || isFri(k)) continue;
+      const c = r.cells[k];
+      if (c?.p) { c.conf = lbl + (wait ? " مستني اعتماد العميل" : " معتمد") + " والشيت بيقول حاضر"; continue; }
+      r.cells[k] = wait
+        ? { v: code + "؟", p: 0, w: true, app: true, ev: `في انتظار اعتماد ${e.type === "sick" ? "المرضي" : "الإجازة"} من العميل ${e.from} → ${e.to}` }
+        : { v: code, p: 0, l: true, app: true, ev: lbl + ` معتمد ${e.from} → ${e.to}` };
+    }
+  }
+}
+
+// ===== تقرير الإجازات (ج) / المرضي: سطر لكل حالة معتمدة نهائي =====
+const LV_TITLE = { annual: "إجازات", sick: "مرضي" };
+async function leaveReport(from, to, site, jobF, kind) {
+  show($("r-msg"), "info", "بيحمّل...");
+  try {
+    // مين في الموقع: من حضور الفترة (عشان مواقع الإكسيل كمان) + كشوف المواقع
+    const who = {}, byCode = {}, anyCode = {};
+    const put = (s, code, nid, name, job) => { const w = { site: s, code: String(code || ""), nid: nid || "", name: name || "", job: job || "" }; if (w.nid) who[w.nid] ??= w; if (w.code) { byCode[s + "|" + w.code] ??= w; anyCode[w.code] ??= w; } };
+    let codes = {};
+    try { const m = await getDoc(doc(db, "sharqia_map", "codes")); codes = m.exists() ? m.data().codes || {} : {}; } catch (e) {}
+    for (const d of await fetchDays(from, to, site))
+      Object.entries(d.entries || {}).forEach(([code, e]) => put(d.site, code, e.nid || (d.site === SHARQIA ? codes[code]?.nid : ""), e.name, e.job));
+    for (const s of (site === "*" ? S.sites : [site])) {
+      try { const r = await getDoc(doc(db, "rosters", s)); (r.exists() ? r.data().workers : []).forEach(w => put(s, w.code, w.nid, w.name, w.job)); } catch (e) {}
+    }
+    const evs = [];
+    const sn = await getDocs(query(collection(db, "hr_events"), where("status", "==", "approved")));
+    sn.forEach(d => evs.push(d.data()));
+    const isFri = d => new Date(d + "T00:00").getDay() === 5;
+    const list = [];
+    for (const e of evs) {
+      const ok = kind === "sick" ? e.type === "sick" : (e.type === "leave" && e.kind !== "unpaid");
+      if (!ok || !e.from) continue;
+      const eTo = e.to || e.from;
+      if (eTo < from || e.from > to) continue;
+      const w = (e.nid && who[e.nid]) || (e.source === "sharqia_drive" ? byCode[SHARQIA + "|" + e.code] : (e.code ? anyCode[String(e.code)] : null));
+      if (!w && site !== "*") continue;     // موقع معيّن: الحالات اللي عمالها في الموقع ده بس
+      let inP = 0; for (let d = new Date((e.from > from ? e.from : from) + "T00:00"); ymd(d) <= (eTo < to ? eTo : to); d.setDate(d.getDate() + 1)) if (!isFri(ymd(d))) inP++;
+      list.push({ site: w?.site || [e.company, e.loc].filter(Boolean).join(" — ") || "—", name: e.name || w?.name || "", nid: e.nid || w?.nid || "", code: e.code || w?.code || "",
+        job: w?.job || e.job || "", from: e.from, to: eTo, inP, days: +e.days || inP, reason: e.reason || "", note: e.note || "",
+        flag: e.deleted_in_sheet ? "اتمسح من الشيت" : e.changed ? "اتعدل في الشيت ولسه مستني مراجعة الـ HR" : "" });
+    }
+    const jobs = [...new Set(list.map(r => r.job).filter(Boolean))].sort();
+    $("r-job").innerHTML = `<option value="">كل الوظايف</option>` + jobs.map(j => `<option ${j === jobF ? "selected" : ""}>${esc(j)}</option>`).join("");
+    let rows = jobF ? list.filter(r => r.job === jobF) : list;
+    if (!rows.length) { $("r-out").classList.add("hidden"); return show($("r-msg"), "warn", `مفيش ${LV_TITLE[kind]} معتمد في الفترة دي.`); }
+    rows.sort((a, b) => a.site.localeCompare(b.site) || a.name.localeCompare(b.name) || a.from.localeCompare(b.from));
+    const multi = site === "*";
+    let h = `<thead><tr><th>م</th>${multi ? "<th>الموقع</th>" : ""}<th>الاسم</th><th>الرقم القومي / الكود</th><th>الوظيفة</th><th>من</th><th>لحد</th><th>أيام في الفترة</th><th>أيام الحالة</th><th>السبب / ملاحظة</th></tr></thead><tbody>`;
+    rows.forEach((r, i) => h += `<tr data-i="${i}"><td>${i + 1}</td>${multi ? `<td>${esc(r.site)}</td>` : ""}<td class="nm">${esc(r.name)}</td><td>${esc(r.nid || r.code)}</td><td>${esc(r.job)}</td><td>${r.from}</td><td>${r.to}</td><td><b>${r.inP}</b></td><td>${r.days}</td><td class="nm">${esc([r.reason, r.note].filter(Boolean).join(" — "))}${r.flag ? ` <b style="color:#a32d2d">(${esc(r.flag)})</b>` : ""}</td></tr>`);
+    const tot = rows.reduce((a, r) => a + r.inP, 0), ppl = new Set(rows.map(r => r.nid || r.code || r.name)).size;
+    h += `<tr class="foot"><td colspan="${multi ? 7 : 6}" style="text-align:right">الإجمالي</td><td><b>${tot}</b></td><td></td><td></td></tr></tbody>`;
+    $("r-table").innerHTML = h;
+    S.report = { kind, from, to, site, list: rows, tot, ppl };
+    $("print-head").innerHTML = `<b>تقرير ${LV_TITLE[kind]} — ${esc(multi ? "كل المواقع" : site)}${jobF ? " — " + esc(jobF) : ""}</b> — من ${from} لحد ${to}`;
+    $("r-sum").textContent = `${rows.length} حالة · ${ppl} عامل · ${tot} يوم في الفترة (من غير الجمعة) · الحالات المعتمدة من الـ HR بس`;
+    $("r-out").classList.remove("hidden"); hide($("r-msg")); filterRows();
+    $("r-print").disabled = false; $("r-xlsx").disabled = false;
+  } catch (e) { show($("r-msg"), "err", "حصل خطأ: " + e.message); }
+}
+async function leaveXlsx(R) {
+  const ExcelJS = await loadExcelJS();
+  const multi = R.site === "*", title = LV_TITLE[R.kind];
+  const head = ["م", ...(multi ? ["الموقع"] : []), "الاسم", "الرقم القومي / الكود", "الوظيفة", "من", "لحد", "أيام في الفترة", "أيام الحالة", "السبب / ملاحظة"];
+  const wb = new ExcelJS.Workbook(); wb.creator = "بوابة تيما";
+  const ws = wb.addWorksheet(title, { views: [{ rightToLeft: true, state: "frozen", ySplit: 2 }],
+    pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+  const thin = { style: "thin", color: { argb: "FFBFBFBF" } }, box = { top: thin, left: thin, bottom: thin, right: thin };
+  ws.mergeCells(1, 1, 1, head.length);
+  Object.assign(ws.getCell(1, 1), { value: `تقرير ${title} — ${multi ? "كل المواقع" : R.site} — من ${R.from} لحد ${R.to}`, font: { bold: true, size: 13 }, alignment: { horizontal: "center" } });
+  const hr = ws.addRow(head);
+  hr.eachCell(c => { c.font = { bold: true, color: { argb: "FFFFFFFF" } }; c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2B2B2B" } }; c.alignment = { horizontal: "center", vertical: "middle", wrapText: true }; c.border = box; });
+  R.list.forEach((r, i) => {
+    const row = ws.addRow([i + 1, ...(multi ? [r.site] : []), r.name, r.nid || r.code, r.job, r.from, r.to, r.inP, r.days, [r.reason, r.note, r.flag && "(" + r.flag + ")"].filter(Boolean).join(" — ")]);
+    row.eachCell({ includeEmpty: true }, c => { c.border = box; c.alignment = { horizontal: "center", vertical: "middle" }; });
+  });
+  const fv = Array(head.length).fill(null); fv[head.length - 4] = "الإجمالي"; fv[head.length - 3] = R.tot;
+  const f = ws.addRow(fv);
+  f.font = { bold: true };
+  const w = [5, ...(multi ? [18] : []), 28, 18, 16, 12, 12, 10, 10, 30]; w.forEach((x, i) => ws.getColumn(i + 1).width = x);
+  const buf = await wb.xlsx.writeBuffer();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+  a.download = `${title} ${multi ? "كل المواقع" : R.site} ${R.from} - ${R.to}.xlsx`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+// ===== التقرير =====
+$("r-go").onclick = async () => {
+  const [from, to] = period();
+  if (!from || !to || from > to) return show($("r-msg"), "err", "الفترة مش صحيحة.");
+  const site = $("r-site").value, jobF = $("r-job").value, onlyApp = $("r-approved").checked;
+  if (S.office && $("r-kind").value !== "att") return leaveReport(from, to, site, jobF, $("r-kind").value);
+  show($("r-msg"), "info", "بيحمّل...");
+  try {
+    const days = (await fetchDays(from, to, site)).filter(d => !onlyApp || d.status === "approved");
+    const dates = []; for (let d = new Date(from + "T00:00"); ymd(d) <= to; d.setDate(d.getDate() + 1)) dates.push(ymd(d));
+    const hol = await holidaysFor([...new Set(dates.map(d => d.slice(0, 7)))]);
+    const off = d => new Date(d + "T00:00").getDay() === 5 || !!hol[d];
+    // أسماء من كشوف المواقع
+    const roster = {};
+    for (const s of (site === "*" ? S.sites : [site])) {
+      try { const r = await getDoc(doc(db, "rosters", s)); (r.exists() ? r.data().workers : []).forEach(w => roster[s + "|" + w.code] = { ...w, site: s }); } catch (e) {}
+    }
+    const rows = {};
+    const getRow = (key, base) => rows[key] ??= { ...base, cells: {} };
+    for (const d of days) {
+      Object.entries(d.entries || {}).forEach(([code, e]) => {
+        const w = roster[d.site + "|" + code] || {};
+        const r = getRow(d.site + "|" + code, { site: d.site, code, name: e.name || w.name || code, nid: e.nid || w.nid || "", job: e.job || w.job || "", loc: e.loc || "", rep: false });
+        r.cells[d.date] = cellOf(e, d.status === "approved");
+        if (e.s === "A" && e.rep) {
+          const k = d.site + "|R" + (e.rep.nid || e.rep.code || e.rep.name);
+          const rr = getRow(k, { site: d.site, code: e.rep.code || "", name: e.rep.name, nid: e.rep.nid || "", job: e.job || w.job || "", rep: true });
+          rr.cells[d.date] = { v: "1", p: 1, app: d.status === "approved" };
+        }
+      });
+    }
+    let list = Object.values(rows);
+    if (S.office) await applySharqiaEvents(list, from, to);
+    if (!list.length) { $("r-out").classList.add("hidden"); return show($("r-msg"), "warn", "مفيش حضور متأكد في الفترة دي."); }
+    const jobs = [...new Set(list.map(r => r.job))].sort();
+    $("r-job").innerHTML = `<option value="">كل الوظايف</option>` + jobs.map(j => `<option ${j === jobF ? "selected" : ""}>${esc(j)}</option>`).join("");
+    if (jobF) list = list.filter(r => r.job === jobF);
+    list.sort((a, b) => a.site.localeCompare(b.site) || a.rep - b.rep || a.job.localeCompare(b.job) || (a.loc || "").localeCompare(b.loc || "") || a.name.localeCompare(b.name));
+    // الإضافي: شغل في جمعة أو عطلة، أو ساعات مكتوبة بالرقم (زي 8 في يوم راحة منسقين الإمداد)
+    list.forEach(r => { r.total = 0; r.extra = 0; dates.forEach(d => { const c = r.cells[d]; if (c?.p) { r.total += c.p; if (off(d) || c.hrs) r.extra += c.p; } }); });
+    const hasLoc = list.some(r => r.loc);
+    const late = days.filter(d => d.late).length, unapp = days.filter(d => d.status !== "approved").length;
+    S.report = { kind: "att", from, to, dates, list, off, hol, site, late, hasLoc };
+    // جدول
+    const multi = site === "*";
+    let h = `<thead><tr><th>م</th>${multi ? "<th>الموقع</th>" : ""}<th>الاسم</th><th>${list.some(r => !r.nid) ? "الرقم القومي / الكود" : "الرقم القومي"}</th><th>الوظيفة</th>${hasLoc ? "<th>المكان</th>" : ""}` +
+      dates.map(d => `<th class="${off(d) ? "off" : ""}" title="${esc(hol[d] || "")}">${+d.slice(8)}<br>${"حنثرخجس"[new Date(d + "T00:00").getDay()]}</th>`).join("") +
+      `<th>الإجمالي</th><th>إضافي</th></tr></thead><tbody>`;
+    list.forEach((r, i) => {
+      h += `<tr data-i="${i}"><td>${i + 1}</td>${multi ? `<td>${esc(r.site)}</td>` : ""}<td class="nm">${esc(r.name)}${r.rep ? " <span class='muted'>(بديل)</span>" : ""}</td><td>${esc(r.nid || r.code)}</td><td>${esc(r.job)}</td>${hasLoc ? `<td>${esc(r.loc)}</td>` : ""}` +
+        dates.map(d => { const c = r.cells[d]; return `<td class="${off(d) ? "off" : ""} ${c?.a ? "a" : ""} ${c?.l ? (isLeave(c) ? "lvg" : "lv") : ""} ${c?.conf ? "conf" : ""} ${c?.w ? "wt" : ""} ${c && !c.app ? "unapp" : ""}"${c?.ev || c?.conf ? ` title="${esc(c.ev || c.conf)}"` : ""}>${c ? esc(c.v) : ""}</td>`; }).join("") +
+        `<td><b>${r.total}</b></td><td>${r.extra || ""}</td></tr>`;
+    });
+    const span = (multi ? 5 : 4) + (hasLoc ? 1 : 0);
+    const footRow = (label, f) => `<tr class="foot"><td colspan="${span}" style="text-align:right">${esc(label)}</td>` +
+      dates.map(d => `<td class="${off(d) ? "off" : ""}">${f(d) || ""}</td>`).join("") + `<td></td><td></td></tr>`;
+    const pres = (rs, d) => rs.reduce((a, r) => a + (r.cells[d]?.p || 0), 0);
+    (jobF ? [jobF] : jobs).forEach(j => h += footRow("حاضرين — " + j, d => pres(list.filter(r => r.job === j), d)));
+    h += footRow("إجمالي الحاضرين", d => pres(list, d)) + "</tbody>";
+    $("r-table").innerHTML = h;
+    const sTitle = multi ? "كل المواقع" : site;
+    $("print-head").innerHTML = `<b>تقرير حضور ${esc(sTitle)}${jobF ? " — " + esc(jobF) : ""}</b> — من ${from} لحد ${to}`;
+    $("r-sum").textContent = `${list.length} عامل · ${days.length} يوم حضور متأكد · ${unapp} لسه مااتعتمدش · رفع متأخر: ${late} مرة` + (Object.keys(hol).length ? ` · العطلات: ${Object.entries(hol).filter(([d]) => d >= from && d <= to).map(([d, n]) => d.slice(8) + " " + n).join("، ")}` : "");
+    $("r-out").classList.remove("hidden"); hide($("r-msg")); filterRows();
+    $("r-print").disabled = false; $("r-xlsx").disabled = false;
+  } catch (e) { show($("r-msg"), "err", "حصل خطأ: " + e.message); }
+};
+$("r-print").onclick = () => window.print();
+// بحث سريع في الجدول المعروض (الاسم / الرقم القومي / الكود)
+function filterRows() {
+  const q = $("r-q").value.trim();
+  document.querySelectorAll("#r-table tbody tr:not(.foot)").forEach(tr => {
+    const r = S.report?.list?.[+tr.dataset.i];
+    tr.style.display = !q || (r && [r.name, r.nid, r.code].some(x => String(x || "").includes(q))) ? "" : "none";
+  });
+}
+$("r-q").oninput = filterRows;
+// ===== تنزيل إكسيل منسّق زي الجدول اللي على البوابة (ExcelJS بتتحمّل بس لما تدوس الزرار) =====
+let excelJsP = null;
+function loadExcelJS() {
+  return excelJsP ??= new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js";
+    s.onload = () => res(window.ExcelJS);
+    s.onerror = () => { excelJsP = null; rej(new Error("مكتبة الإكسيل ماتحمّلتش")); };
+    document.head.appendChild(s);
+  });
+}
+// رموز الإجازة بأجر (ج ورموز الإجازة في شيتات العملاء) بالأخضر،
+// والمرضي والإجازة بدون أجر (خ) وباقي الرموز (استقالة، توقف، راحة، إصابة) بالأزرق — عشان يبان الفرق
+// (ع وب اتلغوا — الحالات القديمة بتتعرض ج وخ)
+const LEAVE_CODES = new Set(["ج", "ف", "و", "ث"]);
+const isLeave = c => !!c?.l && LEAVE_CODES.has(c.v);
+const DAY_FULL = ["الأحد", "الاتنين", "التلات", "الأربع", "الخميس", "الجمعة", "السبت"];
+// بيبني الشيت من نفس بيانات الجدول المعروض (S.report)
+function buildReportWorkbook(ExcelJS, R) {
+  const multi = R.site === "*";
+  const fixed = ["م", ...(multi ? ["الموقع"] : []), "الاسم", "الرقم القومي", "الوظيفة", ...(R.hasLoc ? ["المكان"] : []), "النوع"];
+  const nF = fixed.length, nD = R.dates.length, nAll = nF + nD + 2;
+  const C = { dark: "FF2B2B2B", off: "FFFDE9D9", offTxt: "FFA32D2D", abs: "FFA32D2D", lv: "FF185FA5", lvg: "FF3B6D11", unapp: "FFFFFBEA", wt: "FFFFF5DE", wtTxt: "FF8A5A10", foot: "FFF3F3EF", conf: "FFE0A020", grid: "FFBFBFBF" };
+  const fill = argb => ({ type: "pattern", pattern: "solid", fgColor: { argb } });
+  const thin = { style: "thin", color: { argb: C.grid } };
+  const box = { top: thin, left: thin, bottom: thin, right: thin };
+  const wb = new ExcelJS.Workbook(); wb.creator = "بوابة تيما";
+  const ws = wb.addWorksheet("الحضور", {
+    views: [{ rightToLeft: true, state: "frozen", xSplit: nF, ySplit: 3 }],
+    pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: .3, right: .3, top: .4, bottom: .4, header: .2, footer: .2 } },
+  });
+  ws.pageSetup.printTitlesRow = "2:3";
+  // 1) العنوان
+  ws.mergeCells(1, 1, 1, nAll);
+  const t = ws.getCell(1, 1);
+  t.value = `تقرير حضور ${multi ? "كل المواقع" : R.site} — من ${R.from} لحد ${R.to}`;
+  t.font = { name: "Arial", size: 14, bold: true }; t.alignment = { horizontal: "center", vertical: "middle" };
+  ws.getRow(1).height = 26;
+  // 2-3) العناوين: الأعمدة الثابتة على صفين، والأيام: التاريخ فوق واسم اليوم تحت
+  const head = (r, c, v, offDay) => {
+    const cell = ws.getCell(r, c); cell.value = v; cell.border = box;
+    cell.font = { name: "Arial", size: 10, bold: true, color: { argb: offDay ? C.offTxt : "FFFFFFFF" } };
+    cell.fill = fill(offDay ? C.off : C.dark);
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  };
+  fixed.forEach((h, i) => { ws.mergeCells(2, i + 1, 3, i + 1); head(2, i + 1, h); });
+  R.dates.forEach((d, i) => {
+    const off = R.off(d), wd = new Date(d + "T00:00").getDay();
+    head(2, nF + 1 + i, +d.slice(8) + "/" + +d.slice(5, 7), off);
+    head(3, nF + 1 + i, DAY_FULL[wd] + (R.hol[d] ? "\n" + R.hol[d] : ""), off);
+  });
+  [["الإجمالي", nF + nD + 1], ["إضافي", nF + nD + 2]].forEach(([h, c]) => { ws.mergeCells(2, c, 3, c); head(2, c, h); });
+  ws.getRow(2).height = 20; ws.getRow(3).height = Object.keys(R.hol).length ? 34 : 20;
+  // 4...) العمال
+  R.list.forEach((r, i) => {
+    const vals = [i + 1, ...(multi ? [r.site] : []), r.name, r.nid || r.code, r.job, ...(R.hasLoc ? [r.loc] : []), r.rep ? "بديل" : "",
+      ...R.dates.map(d => { const c = r.cells[d]; return !c ? null : c.v === "1" ? 1 : (isNaN(+c.v) ? c.v : +c.v); }), r.total, r.extra || null];
+    const row = ws.addRow(vals);
+    row.eachCell({ includeEmpty: true }, (cell, col) => {
+      cell.border = box; cell.font = { name: "Arial", size: 10 };
+      cell.alignment = { horizontal: col === nF - (R.hasLoc ? 4 : 3) || (multi && col === 2) ? "right" : "center", vertical: "middle" };
+      if (col > nF && col <= nF + nD) {
+        const d = R.dates[col - nF - 1], c = r.cells[d];
+        if (R.off(d)) cell.fill = fill(C.off);
+        if (c && !c.app) cell.fill = fill(C.unapp);
+        if (c?.a) cell.font = { name: "Arial", size: 10, bold: true, color: { argb: C.abs } };
+        if (c?.l) cell.font = { name: "Arial", size: 10, bold: true, color: { argb: isLeave(c) ? C.lvg : C.lv } };
+        if (c?.w) { cell.fill = fill(C.wt); cell.font = { name: "Arial", size: 10, bold: true, color: { argb: C.wtTxt } }; }
+        if (c?.conf) { const o = { style: "medium", color: { argb: C.conf } }; cell.border = { top: o, left: o, bottom: o, right: o }; }
+        if (c?.ev || c?.conf) cell.note = c.ev || c.conf;
+      }
+      if (col > nF + nD) cell.font = { name: "Arial", size: 10, bold: true };
+    });
+    // الاسم يمين
+    ws.getCell(row.number, multi ? 3 : 2).alignment = { horizontal: "right", vertical: "middle" };
+    if (r.rep) ws.getCell(row.number, nF).font = { name: "Arial", size: 10, italic: true, color: { argb: "FF888780" } };
+  });
+  // صفوف الإجماليات
+  const pres = (rs, d) => rs.reduce((a, r) => a + (r.cells[d]?.p || 0), 0);
+  const foot = (label, f) => {
+    const row = ws.addRow([...Array(nF).fill(null), ...R.dates.map(d => f(d) || null), null, null]);
+    ws.mergeCells(row.number, 1, row.number, nF);
+    ws.getCell(row.number, 1).value = label;
+    row.eachCell({ includeEmpty: true }, (cell, col) => {
+      cell.border = box; cell.fill = fill(C.foot); cell.font = { name: "Arial", size: 10, bold: true };
+      cell.alignment = { horizontal: col === 1 ? "right" : "center", vertical: "middle" };
+    });
+  };
+  [...new Set(R.list.map(r => r.job))].forEach(j => foot("حاضرين — " + j, d => pres(R.list.filter(r => r.job === j), d)));
+  foot("إجمالي الحاضرين", d => pres(R.list, d));
+  // دليل الألوان
+  ws.addRow([]);
+  const legend = [["غ", "غايب", C.abs], ["ج", "إجازة", C.lvg], ["خ", "إجازة بدون أجر", C.lv], ["م", "مرضي", C.lv], ["س", "استقالة", C.lv], ["م؟ / ج؟ / خ؟", "في انتظار اعتماد العميل", C.wtTxt]];
+  legend.forEach(([k, v, color]) => { const row = ws.addRow([k, v]); row.getCell(1).font = { name: "Arial", bold: true, color: { argb: color } }; row.getCell(2).font = { name: "Arial", size: 9 }; });
+  const l3 = ws.addRow(["", "جمعة أو عطلة رسمية"]); l3.getCell(1).fill = fill(C.off); l3.getCell(2).font = { name: "Arial", size: 9 };
+  const l4 = ws.addRow(["", "يوم لسه مااتعتمدش من المحاسب"]); l4.getCell(1).fill = fill(C.unapp); l4.getCell(2).font = { name: "Arial", size: 9 };
+  // عرض الأعمدة
+  fixed.forEach((h, i) => ws.getColumn(i + 1).width = h === "م" ? 5 : h === "الاسم" ? 30 : h === "الرقم القومي" ? 16 : h === "الوظيفة" ? 18 : h === "المكان" ? 14 : h === "الموقع" ? 14 : 7);
+  R.dates.forEach((d, i) => ws.getColumn(nF + 1 + i).width = 7);
+  ws.getColumn(nF + nD + 1).width = 9; ws.getColumn(nF + nD + 2).width = 7;
+  return wb;
+}
+$("r-xlsx").onclick = async () => {
+  const R = S.report; if (!R) return;
+  const btn = $("r-xlsx"); btn.disabled = true;
+  if (R.kind !== "att") { try { await leaveXlsx(R); } catch (e) { show($("r-msg"), "err", "الإكسيل ماتعملش: " + e.message); } btn.disabled = false; return; }
+  try {
+    const ExcelJS = await loadExcelJS();
+    const buf = await buildReportWorkbook(ExcelJS, R).xlsx.writeBuffer();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    a.download = `حضور ${R.site === "*" ? "كل المواقع" : R.site} ${R.from} - ${R.to}.xlsx`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } catch (e) {
+    console.error("formatted export failed:", e);
+    xlsxPlain();   // لو حصلت مشكلة: الشيت العادي بدل ما الزرار ميعملش حاجة
+  }
+  btn.disabled = false;
+};
+function xlsxPlain() {   // الطريقة القديمة (من غير تنسيق) — احتياطي لو مكتبة التنسيق ماتحمّلتش
+  const R = S.report; if (!R) return;
+  const multi = R.site === "*";
+  const head = ["م", ...(multi ? ["الموقع"] : []), "الاسم", "الرقم القومي", "الوظيفة", ...(R.hasLoc ? ["المكان"] : []), "النوع", ...R.dates.map(d => d.slice(5) + (R.off(d) ? " *" : "")), "الإجمالي", "إضافي"];
+  const aoa = [[`تقرير حضور ${multi ? "كل المواقع" : R.site} — من ${R.from} لحد ${R.to} (* = جمعة أو عطلة)`], head];
+  R.list.forEach((r, i) => aoa.push([i + 1, ...(multi ? [r.site] : []), r.name, r.nid || r.code, r.job, ...(R.hasLoc ? [r.loc] : []), r.rep ? "بديل" : "", ...R.dates.map(d => { const c = r.cells[d]; return !c ? "" : c.v === "1" ? 1 : c.v; }), r.total, r.extra]));
+  const pre = (multi ? 6 : 5) + (R.hasLoc ? 1 : 0);
+  const pres = (rs, d) => rs.reduce((a, r) => a + (r.cells[d]?.p || 0), 0);
+  [...new Set(R.list.map(r => r.job))].forEach(j => aoa.push(["", ...Array(pre - 2).fill(""), "حاضرين — " + j, ...R.dates.map(d => pres(R.list.filter(r => r.job === j), d)), "", ""]));
+  aoa.push(["", ...Array(pre - 2).fill(""), "إجمالي الحاضرين", ...R.dates.map(d => pres(R.list, d)), "", ""]);
+  const ws = XLSX.utils.aoa_to_sheet(aoa); ws["!cols"] = head.map((h, i) => ({ wch: i === (multi ? 2 : 1) ? 32 : i === (multi ? 3 : 2) ? 16 : 6 }));
+  const wb = XLSX.utils.book_new(); wb.Workbook = { Views: [{ RTL: true }] };
+  XLSX.utils.book_append_sheet(wb, ws, "الحضور");
+  XLSX.writeFile(wb, `حضور ${multi ? "كل المواقع" : R.site} ${R.from} - ${R.to}.xlsx`);
+};
+
+
+// آخر ميعاد لاعتماد المحاسب: 9 الصبح بعد يوم من أول إيميل (9 الصبح) بعد تأكيد المشرف
+function apDeadline(d) {
+  const c = d.reviewed_at?.toDate ? d.reviewed_at.toDate() : null; // الميعاد بيبدأ من مراجعة الإقليمي
+  if (!c) return null;
+  const t = new Date(c); t.setHours(9, 0, 0, 0);
+  if (c >= t) t.setDate(t.getDate() + 1);
+  t.setDate(t.getDate() + 1);
+  return t;
+}
+function apState(d) {
+  const dl = apDeadline(d), fmt = x => x.toLocaleString("ar-EG", { weekday: "short", day: "numeric", month: "numeric", hour: "numeric" });
+  if (d.status === "approved") {
+    const at = d.approved_at?.toDate ? d.approved_at.toDate() : null;
+    return `<span class="pill p-ok">معتمد</span>${dl && at && at > dl ? ` <span class="pill p-late">اتأخر</span>` : ""}`;
+  }
+  if (d.status === "confirmed") return `<span class="pill p-wait">مستني الإقليمي</span>`;
+  if (!dl) return `<span class="pill p-wait">مستني</span>`;
+  return new Date() > dl ? `<span class="pill p-late">فات الميعاد</span>` : `<span class="pill p-wait">مستني — لحد ${fmt(dl)}</span>`;
+}
+// ===== الاعتماد =====
+let A = [];
+$("a-go").onclick = async () => {
+  const from = $("a-from").value, to = $("a-to").value, st = $("a-st").value;
+  show($("a-msg"), "info", "بيحمّل...");
+  try {
+    A = (await fetchDays(from, to, "*")).filter(d => !st || d.status === st).sort((a, b) => a.date.localeCompare(b.date) || a.site.localeCompare(b.site));
+    $("a-list").innerHTML = A.length ? A.map((d, i) => {
+      const e = Object.values(d.entries || {}), reps = e.filter(x => x.rep).length, sup = e.filter(x => x.by === "sup").length;
+      return `<tr><td>${esc(d.site)}</td><td>${DAYN[new Date(d.date + "T00:00").getDay()]} ${d.date}</td><td>${d.counts?.present ?? ""}</td><td>${d.counts?.absent ?? ""}</td><td>${reps}</td><td>${sup}</td>
+        <td class="muted">${esc(d.confirmed_email || "")}${d.late ? ` <span class="pill p-late">متأخر</span>` : ""}${d.reviewed_email ? `<br>راجعه: ${esc(d.reviewed_email)}${d.review_late ? ` <span class="pill p-late">متأخر</span>` : ""}` : ""}</td>
+        <td>${apState(d)}</td>
+        <td><button class="btn sec small" data-view="${i}">تفاصيل</button> ${!S.canApprove ? "" : d.status === "approved" ? `<button class="btn sec small" data-un="${i}">إلغاء الاعتماد</button>` : (d.status === "reviewed" || S.role === "admin") ? `<button class="btn small" data-ap="${i}">اعتماد</button>` : ""}</td></tr>`;
+    }).join("") : `<tr><td colspan="9" class="muted">مفيش.</td></tr>`;
+    $("a-all").disabled = !A.some(canAp);
+    hide($("a-msg"));
+  } catch (e) { show($("a-msg"), "err", e.message); }
+};
+const canAp = d => S.canApprove && (d.status === "reviewed" || (S.role === "admin" && d.status === "confirmed"));
+async function setStatus(d, approve) {
+  const u = auth.currentUser;
+  await updateDoc(doc(db, "att_days", d.id), approve
+    ? { status: "approved", approved_by: u.uid, approved_email: u.email || "", approved_at: serverTimestamp() }
+    : { status: d.reviewed_by ? "reviewed" : "confirmed" });
+}
+$("a-list").onclick = async e => {
+  const t = e.target;
+  if (t.dataset.view) {
+    const d = A[+t.dataset.view];
+    $("a-dtitle").textContent = `${d.site} — ${d.date}`;
+    A.cur = d;
+    // اليوم المعتمد: الأدمن بس يعدّل فيه على طول، والمحاسب يلغي الاعتماد الأول (نفس اللي الـ Rules بتسمح بيه)
+    const canEdit = canAp(d) || (d.status === "approved" && S.role === "admin");
+    $("a-edit-bar").classList.toggle("hidden", !canEdit);
+    $("a-locked").classList.toggle("hidden", canEdit || d.status !== "approved" || !S.canApprove);
+    const dis = canEdit ? "" : " disabled";
+    const ai = { P: "حاضر", A: "غايب", U: "مش واضح", "": "مالوش صف" };
+    $("a-dlist").innerHTML = Object.values(d.entries || {}).sort((a, b) => (a.s === "A") === (b.s === "A") ? 0 : a.s === "A" ? -1 : 1).map(x =>
+      `<tr><td>${esc(x.name || "")}</td><td>${esc(x.job || "")}</td><td>${x.s === "P" || x.s === "A" ? `<select data-ecode="${esc(Object.keys(d.entries).find(k => d.entries[k] === x))}"${dis}><option value="P" ${x.s === "P" ? "selected" : ""}>حاضر</option><option value="A" ${x.s === "A" ? "selected" : ""}>غايب</option></select>` : esc(x.c || "")}</td><td>${ai[x.ai ?? ""] || ""}${x.by === "sup" ? " <span class='pill p-wait'>المشرف غيّرها</span>" : ""}</td><td>${esc(x.rep?.name || "")}</td><td>${esc(x.note || "")}</td></tr>`).join("");
+    $("a-detail").classList.remove("hidden"); $("a-detail").scrollIntoView({ behavior: "smooth" });
+    return;
+  }
+  const i = t.dataset.ap ?? t.dataset.un; if (i === undefined || !S.canApprove) return;
+  if (t.dataset.un && !confirm("تلغي الاعتماد؟ الإقليمي هيقدر يعدّل اليوم تاني.")) return;
+  try { await setStatus(A[+i], !!t.dataset.ap); $("a-go").click(); } catch (er) { show($("a-msg"), "err", "مااتحفظش: " + er.message); }
+};
+$("a-esave").onclick = async () => {
+  const d = A.cur; if (!d) return;
+  const entries = JSON.parse(JSON.stringify(d.entries || {})); let n = 0;
+  document.querySelectorAll("#a-dlist [data-ecode]").forEach(sel => { const e = entries[sel.dataset.ecode]; if (e && e.s !== sel.value) { e.s = sel.value; e.by = "acc"; n++; } });
+  if (!n && d.status === "approved") return show($("a-msg"), "info", "مفيش تغيير.");
+  if (!confirm(`${n ? `تعديل ${n} عامل و` : ""}اعتماد ${d.site} يوم ${d.date}؟`)) return;
+  const v = Object.values(entries), u = auth.currentUser;
+  try {
+    await updateDoc(doc(db, "att_days", d.id), { entries, counts: { ...(d.counts || {}), present: v.filter(e => e.s === "P").length, absent: v.filter(e => e.s === "A").length },
+      status: "approved", approved_by: u.uid, approved_email: u.email || "", approved_at: serverTimestamp(), edited_by: u.email || "", edited_n: n });
+    show($("a-msg"), "ok", "اتعدل واتعتمد."); $("a-detail").classList.add("hidden"); $("a-go").click();
+  } catch (er) { show($("a-msg"), "err", "ماتحفظش: " + (er.code === "permission-denied" ? "محتاج تحديث الـ Rules." : er.message)); }
+};
+$("a-all").onclick = async () => {
+  const pend = A.filter(canAp);
+  if (!confirm(`اعتماد ${pend.length} يوم؟`)) return;
+  try { for (const d of pend) await setStatus(d, true); show($("a-msg"), "ok", `اتعتمد ${pend.length} يوم.`); $("a-go").click(); }
+  catch (er) { show($("a-msg"), "err", er.message); }
+};
+</script>
+</body>
+</html>

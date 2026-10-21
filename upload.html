@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>رفع حضور إكسيل - Theama</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'IBM Plex Sans Arabic','Segoe UI',Tahoma,sans-serif;background:#f5f5f0;color:#222;padding:12px;font-size:14px;line-height:1.6;}
+input,button,select{font-family:inherit;font-size:14px;}
+input,select{padding:8px 10px;border:1px solid #ddd;border-radius:9px;background:#fff;color:#222;}
+input[type=file]{width:100%;padding:10px;border:1px dashed #bbb;background:#fafafa;cursor:pointer;}
+.wrap{max-width:1000px;margin:0 auto;}
+.card{background:#fff;border:1px solid #e5e5e5;border-radius:14px;padding:14px 16px;margin-bottom:12px;}
+h1{font-size:19px;font-weight:600;} h2{font-size:15px;font-weight:600;margin-bottom:8px;}
+.muted{color:#888;font-size:13px;}
+.row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
+label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#777;}
+.btn{padding:9px 16px;font-weight:500;cursor:pointer;background:#c0392b;color:#fff;border:none;border-radius:9px;}
+.btn:disabled{opacity:.5;cursor:not-allowed;} .btn.sec{background:#f5f5f0;color:#444;border:1px solid #ddd;} .btn.small{padding:4px 10px;font-size:12px;}
+.msg{padding:9px 12px;border-radius:9px;font-size:13px;margin-top:10px;display:none;white-space:pre-line;}
+.msg.show{display:block;} .msg.ok{background:#eaf3de;color:#3b6d11;} .msg.err{background:#fcebeb;color:#a32d2d;} .msg.warn{background:#fff5de;color:#8a5a10;} .msg.info{background:#eef4fb;color:#185fa5;}
+.hidden{display:none !important;}
+table{border-collapse:collapse;width:100%;font-size:13px;}
+th,td{border-bottom:1px solid #eee;padding:6px 8px;text-align:right;}
+th{color:#888;font-weight:500;}
+.num{font-variant-numeric:tabular-nums;}
+.center{max-width:380px;margin:50px auto;}
+.legend span{display:inline-block;margin-left:12px;}
+details summary{cursor:pointer;color:#8a5a10;margin-top:8px;}
+details ul{margin:6px 18px;font-size:12px;color:#555;max-height:260px;overflow:auto;}
+</style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#c0392b">
+<link rel="icon" href="icon-192.png">
+</head>
+<body>
+<div class="wrap">
+  <div id="login" class="card center hidden">
+    <h2>رفع حضور إكسيل</h2>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <input type="email" id="l-email" placeholder="الإيميل" dir="ltr">
+      <input type="password" id="l-pass" placeholder="الباسورد" dir="ltr">
+      <button class="btn" id="l-btn">دخول</button>
+    </div>
+    <div class="msg err" id="l-err"></div>
+  </div>
+  <div id="denied" class="card center hidden"><h2>الصفحة دي للأدمن بس حالياً</h2><button class="btn sec" id="d-out" style="margin-top:10px;">خروج</button></div>
+
+  <div id="app" class="hidden">
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div><h1>رفع حضور إكسيل</h1><div class="muted" id="who"></div></div>
+      <div class="row"><button class="btn sec small" id="logout">خروج</button></div>
+    </div>
+    <nav id="pnav" class="pnav" aria-label="صفحات البوابة"></nav>
+
+    <div class="card">
+      <h2>1. اختار الملف</h2>
+      <p class="muted" style="margin-bottom:8px;">شيت حضور شيبسي (Payroll)، أو ملف الإمداد (Deployment attendance)، أو شيت الشرقية. البوابة بتتعرف على نوعه لوحدها. لو رفعت ملف لأيام اترفعت قبل كده، الأيام دي بتتحدث بالجديد، والأيام الفاضية في الملف (#N/A أو لسه مااتكتبتش) بتتساب زي ما هي.</p>
+      <input type="file" id="file" accept=".xlsx,.xlsm,.xls">
+      <div class="row hidden" id="emdad-opts" style="margin-top:10px;">
+        <label class="f">شهر الإمداد<select id="e-month"></select></label>
+        <label class="f">السنة<input type="number" id="e-year" style="width:100px"></label>
+        <button class="btn sec" id="e-go">اقرا الشهر ده</button>
+      </div>
+      <div class="msg" id="f-msg"></div>
+    </div>
+
+    <div class="card hidden" id="preview">
+      <h2 id="p-title">2. راجع قبل الحفظ</h2>
+      <div class="row" style="margin-bottom:8px;">
+        <label class="f">من يوم<input type="date" id="p-from"></label>
+        <label class="f">لحد يوم<input type="date" id="p-to"></label>
+        <span class="muted">تقدر تضيّق الفترة لو عاوز ترفع جزء من الملف بس.</span>
+      </div>
+      <table><thead><tr><th>الموقع</th><th>العمال</th><th>الأيام</th><th>من</th><th>لحد</th><th>متوسط حاضر/يوم</th><th>متوسط غايب/يوم</th><th>إجازات ومرضي وراحة</th></tr></thead><tbody id="p-sites"></tbody></table>
+      <p class="muted legend" style="margin-top:8px;"><span>حاضر = 1 أو ش أو ساعات (8…)، ن = نص يوم</span><span>غايب = خ / غ</span><span>ج إجازة، م/ض مرضي، ر راحة، ق توقف، ص إصابة، ف/و/ث إجازات خاصة</span></p>
+      <div id="p-over"></div>
+      <div id="p-issues"></div>
+      <div class="row" style="margin-top:12px;"><button class="btn" id="save" disabled>احفظ الحضور (معتمد)</button></div>
+      <div class="msg" id="s-msg"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { getFirestore, doc, getDoc, getDocs, collection, query, where, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { db, auth, fetchPlanBase, planBySite } from './shared.js';
+import { detect, parseChipsy, parseEmdad, parseSharqia, emdadMonths, counts, COMPANY_LABEL, CHIPSY_PLAN, countsForPlan } from './xl-attendance.js';
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
+function hide(el) { el.className = "msg"; }
+const S = { wb: null, type: null, res: null, fileName: "" };
+
+$("l-btn").onclick = async () => { try { await signInWithEmailAndPassword(auth, $("l-email").value.trim(), $("l-pass").value); } catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); } };
+$("logout").onclick = () => signOut(auth); $("d-out").onclick = () => signOut(auth);
+onAuthStateChanged(auth, async user => {
+  ["login", "denied", "app"].forEach(i => $(i).classList.add("hidden"));
+  if (!user) return $("login").classList.remove("hidden");
+  let role = null; try { role = (await user.getIdTokenResult()).claims.role || null; } catch (e) {}
+  if (role !== "admin") return $("denied").classList.remove("hidden");   // مؤقتاً: الرفع للأدمن بس لحد ما الشكل يتظبط
+  $("who").textContent = user.email;
+  $("app").classList.remove("hidden");
+});
+
+$("file").onchange = async () => {
+  const f = $("file").files[0]; if (!f) return;
+  ["preview", "emdad-opts"].forEach(i => $(i).classList.add("hidden")); hide($("s-msg"));
+  show($("f-msg"), "info", "بيقرا الملف...");
+  try {
+    S.wb = XLSX.read(await f.arrayBuffer(), { cellDates: true }); S.fileName = f.name;
+    S.type = detect(S.wb, XLSX);
+    if (!S.type) return show($("f-msg"), "err", "مش عارف نوع الملف ده. المفروض يكون شيت حضور شيبسي أو ملف الإمداد أو شيت الشرقية.");
+    if (S.type === "emdad") {
+      const ms = emdadMonths(S.wb);
+      // الشهر الافتراضي: آخر شهر فيه بيانات
+      const filled = ms.filter(m => { const r = XLSX.utils.sheet_to_json(S.wb.Sheets[m], { header: 1, defval: null }); return r.slice(2).some(x => x && x[0] != null && x[4] != null); });
+      $("e-month").innerHTML = ms.map(m => `<option ${m === filled[filled.length - 1] ? "selected" : ""}>${esc(m)}</option>`).join("");
+      const yc = S.wb.Sheets[S.wb.SheetNames.find(n => n.replace(/[إأ]/g, "ا") === "اعدادات")]?.B1?.v;
+      $("e-year").value = Number(yc) || new Date().getFullYear();
+      $("emdad-opts").classList.remove("hidden");
+      show($("f-msg"), "ok", "ملف الإمداد — اختار الشهر واضغط «اقرا الشهر ده».");
+      return;
+    }
+    run();
+  } catch (e) { show($("f-msg"), "err", "الملف ماتقراش: " + e.message); }
+};
+$("e-go").onclick = () => run();
+
+function run() {
+  try {
+    S.res = S.type === "chipsy" ? parseChipsy(S.wb, XLSX)
+      : S.type === "sharqia" ? parseSharqia(S.wb, XLSX)
+      : parseEmdad(S.wb, XLSX, $("e-month").value, Number($("e-year").value));
+    const dates = Object.values(S.res.days).map(d => d.date).sort();
+    if (!dates.length) { $("preview").classList.add("hidden"); return show($("f-msg"), "warn", "مفيش أيام فيها حضور في الملف ده."); }
+    $("p-from").value = dates[0]; $("p-to").value = dates[dates.length - 1];
+    show($("f-msg"), "ok", `${COMPANY_LABEL[S.type]} — ${S.res.workers} عامل` + (S.res.ignored ? ` (اتساب ${S.res.ignored} سطر مش تبعنا: شركات تانية أو فرع MN)` : ""));
+    renderPreview();
+  } catch (e) { show($("f-msg"), "err", e.message); }
+}
+function selected() {
+  const a = $("p-from").value, b = $("p-to").value;
+  return Object.entries(S.res.days).filter(([, d]) => d.date >= a && d.date <= b);
+}
+function renderPreview() {
+  const by = {};
+  for (const [, d] of selected()) {
+    const c = counts(d.entries), x = by[d.site] ??= { days: 0, from: d.date, to: d.date, workers: new Set(), p: 0, a: 0, l: 0 };
+    x.days++; x.from = d.date < x.from ? d.date : x.from; x.to = d.date > x.to ? d.date : x.to;
+    Object.keys(d.entries).forEach(k => x.workers.add(k)); x.p += c.present; x.a += c.absent; x.l += c.leave;
+  }
+  const rows = Object.entries(by);
+  $("p-title").textContent = `2. راجع قبل الحفظ — ${COMPANY_LABEL[S.type]} (${S.fileName})`;
+  $("p-sites").innerHTML = rows.length ? rows.map(([s, x]) => `<tr><td>${esc(s)}</td><td class="num">${x.workers.size}</td><td class="num">${x.days}</td><td>${x.from}</td><td>${x.to}</td>
+    <td class="num">${Math.round(x.p / x.days)}</td><td class="num">${Math.round(x.a / x.days)}</td><td class="num">${x.l}</td></tr>`).join("")
+    : `<tr><td colspan="8" class="muted">مفيش أيام في الفترة دي.</td></tr>`;
+  const iss = S.res.issues;
+  $("p-issues").innerHTML = iss.length ? `<details open><summary>${iss.length} ملاحظة — الخانات دي مش هتترفع</summary><ul>${iss.slice(0, 300).map(t => `<li>${esc(t)}</li>`).join("")}</ul></details>` : "";
+  $("save").disabled = !rows.length;
+  $("preview").classList.remove("hidden");
+  renderOver();
+}
+$("p-from").onchange = renderPreview; $("p-to").onchange = renderPreview;
+
+// ===== المخطط: شيبسي ثابت، الإمداد من مخطط بيبسي (نفس حساب صفحة الاحتياج)، الشرقية مالهاش مخطط =====
+// الحساب نفسه في shared.js. بيانات الشهر بتتحمّل مرة واحدة، والنتيجة متخزنة لكل يوم.
+const PLAN = { cache: {}, base: undefined, month: null };
+async function pepsiPlan(date) {          // {site: {job: n}} ليوم معين
+  if (PLAN.cache[date]) return PLAN.cache[date];
+  const month = date.slice(0, 7);
+  try {
+    if (PLAN.month !== month) { PLAN.base = await fetchPlanBase(month); PLAN.month = month; }
+    return (PLAN.cache[date] = planBySite(PLAN.base, date));
+  } catch (e) { return (PLAN.cache[date] = {}); }
+}
+async function overPlan(list) {
+  if (S.type === "sharqia") return { rows: [], note: "الشرقية مالهاش مخطط — الأعداد زي ما هي في الشيت." };
+  const rows = [];
+  for (const [, d] of list) {
+    const plan = S.type === "chipsy" ? CHIPSY_PLAN[d.site] || {} : (await pepsiPlan(d.date))[d.site] || {};
+    const n = {};
+    Object.values(d.entries).forEach(e => { if (countsForPlan(e)) n[e.pj] = (n[e.pj] || 0) + 1; });
+    Object.entries(n).forEach(([job, c]) => { if (plan[job] != null && c > plan[job]) rows.push({ date: d.date, site: d.site, job, c, plan: plan[job] }); });
+  }
+  return { rows: rows.sort((a, b) => a.date.localeCompare(b.date) || a.site.localeCompare(b.site)),
+    note: S.type === "chipsy" ? "مخطط شيبسي الثابت (HC CFI)." : "مخطط بيبسي الحالي على البوابة (الإمداد)." };
+}
+async function renderOver() {
+  const el = $("p-over"); el.innerHTML = `<p class="muted" style="margin-top:8px;">بيقارن بالمخطط...</p>`;
+  const { rows, note } = await overPlan(selected());
+  el.innerHTML = rows.length
+    ? `<div class="msg show warn" style="display:block">في ${rows.length} يوم/وظيفة الحاضرين فيهم أكتر من المخطط (${note}) — تنبيه بس، الحفظ مسموح.</div>
+       <table style="margin-top:6px"><thead><tr><th>اليوم</th><th>الموقع</th><th>الوظيفة</th><th>الحاضرين</th><th>المخطط</th><th>الزيادة</th></tr></thead><tbody>${rows.map(r => `<tr><td>${r.date}</td><td>${esc(r.site)}</td><td>${esc(r.job)}</td><td class="num">${r.c}</td><td class="num">${r.plan}</td><td class="num" style="color:#a32d2d">+${r.c - r.plan}</td></tr>`).join("")}</tbody></table>`
+    : `<p class="muted" style="margin-top:8px;">✓ مفيش يوم الحاضرين فيه زادوا عن المخطط. ${note}</p>`;
+}
+
+// أيام موقع في فترة بس (بدل كل أيام الموقع من البداية) — محتاج index على att_days: site + date.
+// لو الـ index لسه مااتعملش، بيرجع للطريقة القديمة عشان الصفحة متقفش.
+async function siteDays(site, from, to) {
+  try {
+    const sn = await getDocs(query(collection(db, "att_days"), where("site", "==", site), where("date", ">=", from), where("date", "<=", to)));
+    return sn.docs;
+  } catch (e) {
+    if (e.code !== "failed-precondition") throw e;
+    console.warn("att_days محتاج index (site + date):", e.message);
+    const sn = await getDocs(query(collection(db, "att_days"), where("site", "==", site)));
+    return sn.docs.filter(d => { const x = d.data().date || ""; return x >= from && x <= to; });
+  }
+}
+$("save").onclick = async () => {
+  const list = selected(); if (!list.length) return;
+  const sites = [...new Set(list.map(([, d]) => d.site))];
+  if (!confirm(`حفظ ${list.length} يوم حضور (${sites.join("، ")}) كمعتمد؟\nالأيام اللي اترفعت قبل كده هتتحدث بالملف ده.`)) return;
+  $("save").disabled = true; show($("s-msg"), "info", "بيحفظ...");
+  try {
+    // أمان: منكتبش فوق يوم متسجل من الكشوف المصورة
+    for (const s of sites) {
+      const ds = list.filter(([, d]) => d.site === s).map(([, d]) => d.date).sort();
+      const found = await siteDays(s, ds[0], ds[ds.length - 1]);
+      const photo = found.filter(d => d.data().source !== "excel" && list.some(([k]) => k === d.id));
+      if (photo.length) throw new Error(`فيه ${photo.length} يوم في ${s} متسجل من الكشوف المصورة — مش هكتب فوقه.`);
+    }
+    const u = auth.currentUser;
+    for (let i = 0; i < list.length; i += 20) {   // يوم الشرقية كبير، فالدفعات صغيرة
+      const b = writeBatch(db);
+      list.slice(i, i + 20).forEach(([k, d]) => {
+        const c = counts(d.entries);
+        b.set(doc(db, "att_days", k), { site: d.site, date: d.date, entries: d.entries,
+          counts: { present: c.present, absent: c.absent, leave: c.leave, total: c.total },
+          source: "excel", company: S.type, file: S.fileName, status: "approved",
+          uploaded_by: u.uid, uploaded_email: u.email || "", uploaded_at: serverTimestamp(),
+          approved_by: u.uid, approved_email: u.email || "", approved_at: serverTimestamp() });
+      });
+      await b.commit();
+      show($("s-msg"), "info", `اتحفظ ${Math.min(i + 20, list.length)} من ${list.length}...`);
+    }
+    show($("s-msg"), "ok", `اتحفظ ${list.length} يوم ✓ — تقدر تشوفهم في تقارير الحضور.`);
+  } catch (e) {
+    show($("s-msg"), "err", "ماتحفظش: " + (e.code === "permission-denied" ? "مش مسموح — محتاج تحديث الـ Rules (att_days للأدمن والـ HR)." : e.message));
+  }
+  $("save").disabled = false;
+};
+</script>
+</body>
+</html>
