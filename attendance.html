@@ -678,23 +678,29 @@ const orderNote = o => {
   const t = o.updated_at.toDate ? o.updated_at.toDate() : null;
   return "آخر تعديل: " + (o.updated_email || "") + (t ? " — " + t.toLocaleString("ar-EG", { day: "numeric", month: "long", hour: "numeric", minute: "2-digit" }) : "");
 };
+// بدلاء الراحات اللي بياناتهم كاملة (اسم، رقم قومي 14 رقم، وظيفة، ومش متأخر في الورق) — بيتطبعوا في الأماكن الفاضية بس
+function restSubs() {
+  const overdue = new Set((S.newWorkers || []).filter(x => ficheState(x).st === "overdue").map(x => x.id));
+  return (S.pool || []).filter(p => /راحات/.test(p.type || "") && String(p.name || "").trim() && /^\d{14}$/.test(String(p.nid || ""))
+    && String(p.job || "").trim() && !overdue.has(p.nid));
+}
 $("print").addEventListener("click", async () => {
   if (!S.roster.length) return show($("deadline"), "err", "كشف الموقع مش موجود لسه.");
   const [year, month] = (S.date || ymd(new Date())).split("-").map(Number);
   const order = await loadOrder(S.site);
-  await openPrintView({ site: S.site, roster: S.roster, order, plan: S.plan, month, year });
+  await openPrintView({ site: S.site, roster: S.roster, subs: restSubs(), order, plan: S.plan, month, year });
 });
 $("order").addEventListener("click", async () => {
   if (!S.roster.length) return show($("deadline"), "err", "كشف الموقع مش موجود لسه.");
   const site = S.site;
   const order = await loadOrder(site);
   await openOrderEditor({
-    site, roster: S.roster, order, canEdit: true, lastChange: orderNote(order),
+    site, roster: S.roster, subs: restSubs(), order, plan: S.plan, canEdit: true, lastChange: orderNote(order),
     onSave: async o => {
       const u = auth.currentUser;
       // آخر حفظ هو اللي بيمشي، ومين غيّر وإمتى بيتسجلوا مع الترتيب
       await setDoc(doc(db, "sheet_order", site), {
-        site, groups: o.groups, breaks: o.breaks,
+        site, groups: o.groups, breaks: o.breaks, excluded: o.excluded,
         updated_by: u.uid, updated_email: u.email || "", updated_at: serverTimestamp(),
       });
     },

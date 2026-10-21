@@ -1,23 +1,31 @@
 // sheet.js — الكشف المطبوع: الترتيب والصفحات، والطباعة في نفس الصفحة، وحفظ PDF، وشاشة ترتيب الكشف.
 // بيستخدمه attendance.html. الترتيب بيأثر على الكشف المطبوع بس (مالوش علاقة بالمرتبات أو الحضور المتسجل).
 //
-// قواعد الصفحات:
-//  - أساسي وموسمي كل واحد في صفحات لوحده (زي الأول).
-//  - جوه كل نوع: العمال متقسمين بالوظيفة. الوظيفة الكبيرة (13 أو أكتر) ليها صفحاتها، والصغيرة بتتجمع
-//    في صفحات مشتركة تحت شريط أسود باسم الوظيفة.
-//  - الترتيب اليدوي (السحب) بيبقى جوه كل وظيفة. العامل الجديد (مش في الترتيب المحفوظ) بينزل آخر وظيفته.
-//  - فاصل صفحة يدوي بعد أي اسم. من غير فاصل: الصفحة 30 سطر. الصفحة اللي قبل فاصل يدوي تاخد لحد 35،
-//    ولو عدّت 35 بتتقسم كل 30 وشاشة الترتيب بتنبّه.
+// قواعد الكشف:
+//  - كشف واحد للأساسي والموسمي مع بعض. الاستثناء (مؤقت): مساعدين البيع الموسميين في كشف لوحدهم.
+//  - كل وظيفة بتتطبع بعدد سطور = المطلوب في خطة الاحتياج: الأسماء، وبعدها خانات فاضية لحد المطلوب.
+//    الوظيفة اللي مالهاش رقم في الخطة: أسماءها بس. الوظيفة اللي في الخطة ومفيش عليها حد: خانات فاضية بس.
+//  - لو الموجود أكتر من المطلوب: يتطبع المطلوب بس. اللي بيدير الكشف بيشيل الزيادة من «ترتيب الكشف»
+//    (زرار «شيل»)، واللي لسه زيادة بعد كده هو اللي في آخر الوظيفة ومش بيتطبع.
+//  - الترقيم بيبدأ من 1 في كل وظيفة، والخانات الفاضية بتكمّل الترقيم. «عدد الصفحة» = الأسماء بس.
+//  - الوظيفة الكبيرة (13 سطر أو أكتر) ليها صفحاتها، والصغيرة بتتجمع في صفحات مشتركة تحت شريط باسمها.
+//  - فاصل صفحة يدوي بعد أي اسم. من غير فاصل: الصفحة 30 اسم. الصفحة اللي قبل فاصل يدوي تاخد لحد 35.
+//  - الخانات الفاضية ماتقسمش الكشف: لو الصفحة زحمت بتصغر بالتدريج تحت آخر اسم، وآخر خانة أصغر حاجة،
+//    والأسماء بحجمها العادي. «المطلوب» بيظهر على الشاشة بس، مش على الورق ولا الـ PDF.
 
 export const AUTO_ROWS = 30, MAX_ROWS = 35, OWN_PAGE_MIN = 13;
-export const TYPES = [{ id: "basic", label: "أساسي" }, { id: "seasonal", label: "موسمي" }];
-export const typeOf = w => (w.type === "موسمي" ? "seasonal" : "basic");
+const BODY_MM = 180, ROW_MM = 6, MIN_MM = 2.5, BLANK_UNIT = 0.5;   // جسم الجدول (30 صف × 6 مم)، والصف العادي، وأصغر خانة فاضية عادةً
+const FREE_MM = 186, SPILL_MM = 1.2;   // المساحة الحقيقية تحت الجدول تقريباً، وأقل من كده بس الخانات بتنزل صفحة جديدة
+export const TYPES = [{ id: "basic", label: "الكشف", title: "" }, { id: "seasonal", label: "موسمي — مساعدين البيع", title: " — موسمي" }];
+export const isSalesJob = job => /مساعد\S*\s+(ال)?بيع/.test(String(job || ""));
+// الكشف اللي العامل بيتطبع فيه: الموسمي في كشف لوحده لمساعدين البيع بس
+export const typeOf = w => (w.type === "موسمي" && isSalesJob(w.job) ? "seasonal" : "basic");
 export const keyOf = w => String(w.code || ("N" + (w.nid || "")));
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 // ---------------------------------------------------------------- الترتيب
-// order = مستند sheet_order/{site} (أو null): { groups: [{type, job, keys:[...]}], breaks: [...] }
+// order = مستند sheet_order/{site} (أو null): { groups: [{type, job, keys:[...]}], breaks: [...], excluded: [...] }
 function savedIndex(order, type, job) {
   const g = (order?.groups || []).find(x => x.type === type && x.job === job);
   const m = new Map();
@@ -25,7 +33,7 @@ function savedIndex(order, type, job) {
   return m;
 }
 
-// الوظايف بالترتيب اللي هتتطبع بيه: [[job, workers]] — الكبيرة الأول (الأكبر فالأصغر) زي الأول.
+// الوظايف بالترتيب المحفوظ: [[job, workers]] (كل العمال، حتى اللي اتشالوا)
 export function orderedJobs(workers, type, order) {
   const groups = new Map();
   workers.forEach((w, i) => { const j = w.job || ""; if (!groups.has(j)) groups.set(j, []); groups.get(j).push([w, i]); });
@@ -39,15 +47,74 @@ export function orderedJobs(workers, type, order) {
     });
     out.push([job, list.map(x => x[0])]);
   }
-  return out.sort((a, b) => b[1].length - a[1].length);
+  return out;
 }
 
-// تقسيم قايمة سطور على صفحات حسب الفواصل اليدوية وقاعدة 30/35
+// بديل الراحات بيدخل الكشف بس لو مكانه فاضي في المطلوب (مش زيادة عنه)، وبعد عمال الكشف كلهم
+export const isSub = w => !!w.sub;
+// subs = بدلاء الراحات (بياناتهم كاملة) — بيتحطوا في كشف الأساسي جوه وظيفتهم
+export function sheetWorkers(roster, subs) {
+  return [...roster, ...(subs || []).map(w => ({ ...w, sub: true }))];
+}
+
+// تخطيط الكشف كله: { basic: [job], seasonal: [job] }
+// job = { job, need, all:[w], names:[w] (اللي هيتطبعوا), extra:[w] (زيادة مش هتتطبع), excluded:[w], spare:[w] (بدلاء مالهمش مكان), blanks }
+export function buildJobs(roster, order, plan, subs) {
+  plan = plan || {};
+  const workers = sheetWorkers(roster, subs);
+  const excl = new Set(order?.excluded || []);
+  const left = {};                                   // المطلوب اللي لسه فاضل لكل وظيفة (الأساسي بياخد الأول، والبدلاء آخر حاجة)
+  const needOf = job => (plan[job] != null && Number(plan[job]) >= 0 ? Number(plan[job]) : null);
+  const out = {};
+  // 1) عمال الكشف
+  for (const t of TYPES) {
+    out[t.id] = orderedJobs(workers.filter(w => typeOf(w) === t.id), t.id, order).map(([job, all]) => {
+      const need = needOf(job);
+      const active = all.filter(w => !excl.has(keyOf(w)));
+      const staff = active.filter(w => !isSub(w));
+      const excluded = all.filter(w => excl.has(keyOf(w)));
+      const j = { job, need, all, active, excluded, spare: [], blanks: 0 };
+      if (need == null) { j.chosen = new Set(staff); j.extra = []; return j; }
+      if (!(job in left)) left[job] = need;
+      const take = staff.slice(0, left[job]);
+      left[job] -= take.length;
+      j.chosen = new Set(take); j.extra = staff.slice(take.length);
+      return j;
+    });
+  }
+  // 2) بدلاء الراحات في الأماكن الفاضية بس
+  for (const j of out.basic) {
+    const subsHere = j.active.filter(isSub);
+    if (j.need == null) { j.spare = subsHere; continue; }
+    const take = subsHere.slice(0, Math.max(0, left[j.job]));
+    left[j.job] -= take.length;
+    take.forEach(w => j.chosen.add(w));
+    j.spare = subsHere.slice(take.length);
+  }
+  for (const t of TYPES) out[t.id].forEach(j => { j.names = j.active.filter(w => j.chosen.has(w)); delete j.chosen; delete j.active; });
+  // 3) الخانات الفاضية على كشف الأساسي (حتى لو الوظيفة كلها موسمي، أو مفيش عليها حد خالص)
+  for (const job of Object.keys(plan)) {
+    const need = needOf(job);
+    if (need == null) continue;
+    const rest = job in left ? left[job] : need;
+    if (rest <= 0) continue;
+    let j = out.basic.find(x => x.job === job);
+    if (!j) { j = { job, need, all: [], names: [], extra: [], excluded: [], spare: [], blanks: 0 }; out.basic.push(j); }
+    j.blanks = rest;
+  }
+  for (const t of TYPES) {
+    out[t.id] = out[t.id].filter(j => j.names.length || j.blanks || j.all.some(w => !isSub(w)))
+      .sort((a, b) => (b.names.length + b.blanks) - (a.names.length + a.blanks));
+  }
+  return out;
+}
+
+// تقسيم أسماء وظيفة على صفحات حسب الفواصل اليدوية وقاعدة 30/35
 function chunk(rows, isBreak) {
   const segs = [];
   let cur = [];
-  rows.forEach(r => { cur.push(r); if (r.w && isBreak(r.w)) { segs.push({ rows: cur, manual: true }); cur = []; } });
-  if (cur.length) segs.push({ rows: cur, manual: false });
+  rows.forEach(r => { cur.push(r); if (isBreak(r.w)) { segs.push({ rows: cur, manual: true }); cur = []; } });
+  if (cur.length || !segs.length) segs.push({ rows: cur, manual: false });
   const pages = [];
   segs.forEach(s => {
     const limit = s.manual ? MAX_ROWS : AUTO_ROWS;
@@ -57,65 +124,103 @@ function chunk(rows, isBreak) {
   return pages;
 }
 
-// الصفحات لنوع واحد (أساسي أو موسمي). كل صفحة: { jobs, part, parts, rows:[{w}|{band}], over }
-export function paginate(workers, type, order) {
+const contentRows = s => s.rows.filter(r => !r.blank).length;
+const rowMm = s => BODY_MM / Math.max(AUTO_ROWS, contentRows(s));
+// كام خانة فاضية تدخل في الصفحة دي (بأصغر مقاس)
+const blankRoom = s => Math.max(0, Math.floor((FREE_MM - contentRows(s) * rowMm(s)) / SPILL_MM + 1e-6) - s.rows.filter(r => r.blank).length);
+
+// الصفحات لكشف واحد. كل صفحة: { jobs, part, parts, rows:[{w,n}|{band,need}|{blank,n}], over }
+export function paginate(jobs, order) {
   const breaks = new Set(order?.breaks || []);
   const isBreak = w => breaks.has(keyOf(w));
-  const jobs = orderedJobs(workers, type, order);
   const sheets = [];
   const small = [];
-  jobs.forEach(([job, ws]) => {
-    if (ws.length < OWN_PAGE_MIN) { small.push([job, ws]); return; }
-    const pages = chunk(ws.map(w => ({ w })), isBreak);
-    pages.forEach((p, i) => sheets.push({ jobs: [job], part: i + 1, parts: pages.length, rows: p.rows, over: p.over }));
+  jobs.forEach(j => {
+    if (j.names.length + j.blanks < OWN_PAGE_MIN) { small.push(j); return; }
+    const pages = chunk(j.names.map((w, i) => ({ w, n: i + 1 })), isBreak)
+      .map(p => ({ jobs: [j.job], need: j.need, rows: p.rows, over: p.over }));
+    // الخانات الفاضية بعد آخر اسم، وتصغر عشان تدخل؛ صفحة زيادة بس لو مفيش مكان حتى بأصغر مقاس
+    let n = j.names.length, b = j.blanks;
+    while (b > 0) {
+      const last = pages[pages.length - 1];
+      const room = blankRoom(last);
+      const put = Math.min(b, room);
+      for (let i = 0; i < put; i++) last.rows.push({ blank: true, n: ++n });
+      b -= put;
+      if (b > 0) pages.push({ jobs: [j.job], need: j.need, rows: [], over: false });
+    }
+    pages.forEach((p, i) => sheets.push({ ...p, part: i + 1, parts: pages.length }));
   });
-  let cur = null;
-  const open = () => { cur = { jobs: [], part: 1, parts: 1, rows: [], over: false }; sheets.push(cur); };
-  small.forEach(([job, ws]) => {
-    if (!cur || (cur.rows.length && cur.rows.length + 1 + ws.length > AUTO_ROWS)) open();
-    cur.jobs.push(job); cur.rows.push({ band: job });
-    ws.forEach((w, i) => {
-      cur.rows.push({ w });
-      if (isBreak(w) && i < ws.length - 1) { open(); cur.jobs.push(job); cur.rows.push({ band: job }); }
-      else if (isBreak(w)) cur = null;
+  let cur = null, units = 0;
+  const open = () => { cur = { jobs: [], part: 1, parts: 1, rows: [], over: false }; units = 0; sheets.push(cur); };
+  small.forEach(j => {
+    const size = 1 + j.names.length + j.blanks * BLANK_UNIT;
+    if (!cur || (cur.rows.length && units + size > AUTO_ROWS)) open();
+    cur.jobs.push(j.job); cur.rows.push({ band: j.job, need: j.need }); units += 1;
+    j.names.forEach((w, i) => {
+      cur.rows.push({ w, n: i + 1 }); units += 1;
+      if (isBreak(w) && (i < j.names.length - 1 || j.blanks)) { open(); cur.jobs.push(j.job); cur.rows.push({ band: j.job, need: j.need }); units += 1; }
     });
+    for (let i = 0; i < j.blanks; i++) { cur.rows.push({ blank: true, n: j.names.length + i + 1 }); units += BLANK_UNIT; }
+    if (j.names.length && isBreak(j.names[j.names.length - 1]) && !j.blanks) cur = null;
   });
   return sheets;
 }
 
-// ملخص للشاشة: عدد السطور في كل صفحة ومين عدّى 35
-export function pageSummary(workers, type, order) {
-  return paginate(workers, type, order).map(s => ({ rows: s.rows.length, over: s.over, jobs: s.jobs }));
+// ملخص للشاشة: عدد الأسماء في كل صفحة ومين عدّى 35
+export function pageSummary(jobs, order) {
+  return paginate(jobs, order).map(s => ({ rows: s.rows.filter(r => r.w).length, over: s.over || contentRows(s) > MAX_ROWS + 2, jobs: s.jobs }));
+}
+
+// ارتفاعات الخانات الفاضية: عادي لو فيه مكان، وإلا بتصغر بالتدريج وآخر واحدة بأصغر مقاس
+export function blankHeights(count, room) {
+  if (!count) return [];
+  room = room * 0.995;
+  if (count * ROW_MM <= room) return Array(count).fill(ROW_MM);
+  if (count === 1) return [Math.max(Math.min(ROW_MM, room), 0.5)];
+  let h0 = Math.min(ROW_MM, 2 * room / count - MIN_MM), h1;
+  if (h0 < MIN_MM) {                                  // زحمة جداً: نفس الفكرة بس بأصغر من العادي
+    const end = Math.max(0.5, room / count * 0.6), start = 2 * room / count - end;
+    return Array.from({ length: count }, (_, i) => start + (end - start) * i / (count - 1));
+  }
+  h1 = 2 * room / count - h0;                         // = أصغر مقاس، إلا لو البداية اتحدّت بالصف العادي
+  return Array.from({ length: count }, (_, i) => h0 + (h1 - h0) * i / (count - 1));
 }
 
 // ---------------------------------------------------------------- الكشف (HTML)
-export function sheetsHtml({ site, roster, order, plan, month, year }) {
+export function sheetsHtml({ site, roster, subs, order, plan, month, year }) {
   const monthName = new Date(year, month - 1, 1).toLocaleDateString("ar-EG", { month: "long", year: "numeric" });
+  const layout = buildJobs(roster, order, plan, subs);
   let html = "";
   for (const t of TYPES) {
-    const ws = roster.filter(w => typeOf(w) === t.id);
-    if (!ws.length) continue;
-    const sheets = paginate(ws, t.id, order);
-    html += sheets.map((s, p) => pageHtml(s, p, sheets.length, site, t.label, plan || {}, monthName, month, year)).join("");
+    if (!layout[t.id].length) continue;
+    const sheets = paginate(layout[t.id], order);
+    html += sheets.map((s, p) => pageHtml(s, p, sheets.length, site, t.title, monthName, month, year)).join("");
   }
   return html;
 }
 
-function pageHtml(s, p, total, site, typeLabel, plan, monthName, month, year) {
-  const R = Math.max(AUTO_ROWS, s.rows.length);           // صفوف الصفحة (الفاضي بيكمّل لحد 30)
-  const rh = (180 / R).toFixed(2);                         // ارتفاع الصف بالملّي: 6 عند 30، و5.1 عند 35
-  let rows = "", n = 0, count = 0;
-  for (let r = 0; r < R; r++) {
-    const it = s.rows[r];
-    if (it?.band) rows += `<tr class="band"><td colspan="6">${esc(it.band)}${plan[it.band] != null ? " — المطلوب " + plan[it.band] : ""}</td></tr>`;
-    else if (it) { n++; count++; rows += `<tr><td class="n">${n}</td><td class="nm">${esc(it.w.name)}</td><td class="nid">${esc(it.w.nid)}</td><td class="sig"></td><td class="sig"></td><td></td></tr>`; }
-    else rows += `<tr><td class="n"></td><td></td><td></td><td class="sig"></td><td class="sig"></td><td></td></tr>`;
+const needTxt = n => (n != null ? `<span class="scr"> — المطلوب ${n}</span>` : "");
+
+function pageHtml(s, p, total, site, typeTitle, monthName, month, year) {
+  const rh = rowMm(s);
+  const content = contentRows(s);
+  const hs = blankHeights(s.rows.filter(r => r.blank).length, BODY_MM - content * rh);
+  let rows = "", count = 0, bi = 0;
+  for (const it of s.rows) {
+    if (it.band) rows += `<tr class="band"><td colspan="6">${esc(it.band)}${needTxt(it.need)}</td></tr>`;
+    else if (it.w) { count++; rows += `<tr><td class="n">${it.n}</td><td class="nm">${esc(it.w.name)}</td><td class="nid">${esc(it.w.nid)}</td><td class="sig"></td><td class="sig"></td><td></td></tr>`; }
+    else {
+      const h = hs[bi++];
+      const fs = Math.max(3.5, Math.min(9, h * 2.1)).toFixed(1);
+      rows += `<tr class="bl" style="--rh:${h.toFixed(2)}mm;--fs:${fs}pt"><td class="n">${it.n}</td><td></td><td></td><td class="sig"></td><td class="sig"></td><td></td></tr>`;
+    }
   }
   const jobLabel = s.jobs.length > 1 ? "الوظائف" : "الوظيفة";
   const part = s.parts > 1 ? ` (${s.part} من ${s.parts})` : "";
-  const need = s.jobs.length === 1 && plan[s.jobs[0]] != null ? ` &nbsp; المطلوب للوظيفة (أساسي + موسمي): <b>${plan[s.jobs[0]]}</b>` : "";
-  return `<section class="page${R > AUTO_ROWS ? " dense" : ""}" style="--rh:${rh}mm">
-    <div class="head"><div><div class="title">كشف حضور ${esc(site)} — ${typeLabel}</div>
+  const need = s.jobs.length === 1 && s.need != null ? `<span class="scr"> &nbsp; المطلوب للوظيفة: <b>${s.need}</b></span>` : "";
+  return `<section class="page${content > AUTO_ROWS ? " dense" : ""}" style="--rh:${rh.toFixed(2)}mm">
+    <div class="head"><div><div class="title">كشف حضور ${esc(site)}${typeTitle}</div>
       <div class="meta">${jobLabel}: <b>${esc(s.jobs.join("، "))}</b>${part}${need}</div><div class="meta">شهر <b>${monthName}</b></div></div>
       <div class="pagebox"><small>صفحة</small><span>${p + 1} / ${total}</span></div></div>
     <div class="datebar">التاريخ: <span dir="ltr" class="fixed"><span class="slot"></span> / ${month} / ${year}</span><span style="margin-inline-start:auto">اليوم: <span class="slot" style="width:28mm"></span></span></div>
@@ -151,6 +256,8 @@ const PRINT_CSS = `
 #pv th{font-size:10pt;font-weight:600;height:8mm;border:1.2px solid #000;}
 #pv td{height:var(--rh,6mm);border:0.8px solid #000;font-size:10.5pt;padding:0 1mm;white-space:nowrap;overflow:hidden;}
 #pv .dense td{font-size:9.5pt;}
+#pv tr.bl td{height:var(--rh);line-height:1;padding-top:0;padding-bottom:0;font-size:var(--fs,9pt);}
+#pv .scr{color:#c0392b;}
 #pv td.n,#pv td.nid{text-align:center;font-variant-numeric:tabular-nums;}#pv td.n{font-size:9pt;}#pv td.nid{font-size:9.5pt;}
 #pv th.sig,#pv td.sig{border-left:2px solid #000;border-right:2px solid #000;}
 #pv tr.band td{background:#000;color:#fff;font-weight:600;font-size:10pt;text-align:center;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
@@ -167,6 +274,7 @@ const PRINT_CSS = `
   body > *:not(#pv){display:none !important;}
   #pv{position:static;overflow:visible;background:#fff;}
   #pv .pv-bar{display:none !important;}
+  #pv .scr{display:none !important;}
   #pv .pv-pages{padding:0;zoom:1;}
   #pv .page{margin:0;break-after:page;}
 }`;
@@ -187,6 +295,30 @@ function fitNames(root) {
   });
 }
 
+// الخانات الفاضية بتاخد المساحة الفاضية الحقيقية تحت الجدول (بتتقاس بعد الرسم)
+function fitBlanks(root) {
+  root.querySelectorAll(".page").forEach(page => {
+    const bl = [...page.querySelectorAll("tr.bl")];
+    if (!bl.length) return;
+    const mm = page.getBoundingClientRect().width / 210;           // px لكل ملّي (حتى لو الصفحة متصغّرة على الموبايل)
+    const table = page.querySelector("table"), foot = page.querySelector(".foot");
+    const gap = () => (foot.getBoundingClientRect().top - table.getBoundingClientRect().bottom) / mm;
+    const set = room => blankHeights(bl.length, room).forEach((h, i) => {
+      bl[i].style.setProperty("--rh", h.toFixed(2) + "mm");
+      bl[i].style.setProperty("--fs", Math.max(3.5, Math.min(9, h * 2.1)).toFixed(1) + "pt");
+    });
+    let room = bl.reduce((a, tr) => a + tr.getBoundingClientRect().height / mm, 0) + gap() - 1;
+    // الحد الأقصى: الصف العادي — مفيش داعي تكبر عن الأسماء
+    room = Math.min(room, bl.length * ROW_MM + 0.01);
+    for (let k = 0; k < 4; k++) {                                   // البوردر بيزوّد شوية — بنظبط لحد ما تدخل
+      set(room);
+      const g = gap();
+      if (g >= 0) break;
+      room += g - 0.3;
+    }
+  });
+}
+
 // ---------------------------------------------------------------- عرض الكشف + طباعة + PDF
 export async function openPrintView(opts) {
   ensureCss();
@@ -204,6 +336,7 @@ export async function openPrintView(opts) {
   const close = () => { pv.remove(); document.body.style.overflow = prevOverflow; };
   try { await (document.fonts?.ready || Promise.resolve()); } catch (e) {}
   fitNames(pv);
+  fitBlanks(pv);
   pv.querySelector(".pv-bar").addEventListener("click", async e => {
     const act = e.target.closest("button")?.dataset.act;
     if (act === "close") close();
@@ -248,7 +381,8 @@ async function savePdf(pv, opts) {
   try {
     const pdf = new JsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
     for (let i = 0; i < pages.length; i++) {
-      const canvas = await h2c(pages[i], { scale: 2, backgroundColor: "#ffffff", useCORS: true, logging: false });
+      const canvas = await h2c(pages[i], { scale: 2, backgroundColor: "#ffffff", useCORS: true, logging: false,
+                                           ignoreElements: el => el.classList?.contains("scr") });   // «المطلوب» مش على الورق
       if (i) pdf.addPage("a4", "portrait");
       pdf.addImage(canvas.toDataURL("image/jpeg", 0.9), "JPEG", 0, 0, 210, 297, undefined, "FAST");
     }
@@ -282,24 +416,28 @@ const ORDER_CSS = `
 #so li .new{font-size:11px;background:#eef4fb;color:#185fa5;border-radius:999px;padding:0 7px;}
 #so li button{border:1px solid #e5e5e5;background:#fafafa;border-radius:7px;cursor:pointer;font-size:12px;padding:3px 7px;color:#555;}
 #so li button.cut.on{background:#c0392b;border-color:#c0392b;color:#fff;}
+#so li.off .nm{color:#aaa;text-decoration:line-through;}
+#so li .tag{font-size:11px;background:#fcebeb;color:#a32d2d;border-radius:999px;padding:0 7px;white-space:nowrap;}
+#so li button.rm{color:#a32d2d;}#so li button.rm.on{color:#185fa5;}
 #so .sortable-ghost{opacity:.35;}
 #so .pg-mark{font-size:11px;color:#c0392b;text-align:center;padding:2px 0;}
 `;
 
-// opts: { site, roster, order, canEdit, onSave(doc) → Promise, lastChange: "نص" }
+// opts: { site, roster, subs, order, plan, canEdit, onSave(doc) → Promise, lastChange: "نص" }
 export async function openOrderEditor(opts) {
   if (!document.getElementById("so-style")) {
     const s = document.createElement("style"); s.id = "so-style"; s.textContent = ORDER_CSS; document.head.appendChild(s);
   }
   document.getElementById("so")?.remove();
-  // الحالة: لكل نوع ← لكل وظيفة ← مفاتيح العمال بالترتيب، والفواصل
+  // الحالة: لكل كشف ← لكل وظيفة ← مفاتيح العمال بالترتيب، والفواصل، واللي اتشالوا من الكشف
   const known = new Set();
   (opts.order?.groups || []).forEach(g => g.keys.forEach(k => known.add(k)));
-  const state = { breaks: new Set(opts.order?.breaks || []), lists: {} };
-  const byKey = new Map(opts.roster.map(w => [keyOf(w), w]));
-  const types = TYPES.filter(t => opts.roster.some(w => typeOf(w) === t.id));
+  const everyone = sheetWorkers(opts.roster, opts.subs);
+  const byKey = new Map(everyone.map(w => [keyOf(w), w]));
+  const state = { breaks: new Set(opts.order?.breaks || []), excluded: new Set((opts.order?.excluded || []).filter(k => byKey.has(k))), lists: {} };
+  const types = TYPES.filter(t => everyone.some(w => typeOf(w) === t.id));
   types.forEach(t => {
-    state.lists[t.id] = orderedJobs(opts.roster.filter(w => typeOf(w) === t.id), t.id, opts.order)
+    state.lists[t.id] = orderedJobs(everyone.filter(w => typeOf(w) === t.id), t.id, opts.order)
       .map(([job, ws]) => ({ job, keys: ws.map(keyOf) }));
   });
   let tab = types[0]?.id;
@@ -315,45 +453,61 @@ export async function openOrderEditor(opts) {
   const asOrder = () => ({
     groups: Object.entries(state.lists).flatMap(([type, jobs]) => jobs.map(j => ({ type, job: j.job, keys: j.keys.slice() }))),
     breaks: [...state.breaks].filter(k => byKey.has(k)),
+    excluded: [...state.excluded].filter(k => byKey.has(k)),
   });
-  const workersOf = type => state.lists[type].flatMap(j => j.keys.map(k => byKey.get(k)));
 
-  function summaryHtml() {
+  function summaryHtml(layout) {
+    const o = asOrder();
     return types.map(t => {
-      const pages = pageSummary(workersOf(t.id), t.id, asOrder());
-      const bad = pages.filter(p => p.over || p.rows > MAX_ROWS).length;
-      return `${t.label}: ${pages.length} صفحة (${pages.map(p => p.rows).join("، ")} سطر)` +
-        (bad ? ` <span class="bad">⚠ فيه صفحة أكتر من ${MAX_ROWS} سطر — حط فاصل قبل كده</span>` : "");
+      const pages = pageSummary(layout[t.id], o);
+      const bad = pages.filter(p => p.over).length;
+      return `${t.label}: ${pages.length} صفحة (${pages.map(p => p.rows).join("، ")} اسم)` +
+        (bad ? ` <span class="bad">⚠ فيه صفحة أكتر من ${MAX_ROWS} اسم — حط فاصل قبل كده</span>` : "");
     }).join(" &nbsp;·&nbsp; ");
   }
 
   function render() {
     if (!tab) { so.innerHTML = `<div class="so-in"><p>كشف الموقع فاضي.</p><button class="btn sec" data-act="close">رجوع</button></div>`; return; }
+    const layout = buildJobs(opts.roster, asOrder(), opts.plan, opts.subs);
+    const info = new Map(layout[tab].map(j => [j.job, j]));
+    const overJobs = Object.values(layout).flat().filter(j => j.extra.length);
     const jobs = state.lists[tab];
     so.innerHTML = `<div class="so-in">
       <div class="so-top">
         <h2>ترتيب كشف ${esc(opts.site)}</h2>
-        <div class="muted">اسحب الاسم لفوق أو لتحت (أو ▲▼) جوه وظيفته. ✂ = فاصل صفحة بعد الاسم ده. ${esc(opts.lastChange || "")}</div>
+        <div class="muted">اسحب الاسم لفوق أو لتحت (أو ▲▼) جوه وظيفته. ✂ = فاصل صفحة بعد الاسم ده. «شيل» = الاسم مايتطبعش في الكشف. ${esc(opts.lastChange || "")}</div>
         <div class="so-tabs">${types.map(t => `<button data-tab="${t.id}" class="${t.id === tab ? "on" : ""}">${t.label}</button>`).join("")}</div>
-        <div class="so-sum">${summaryHtml()}</div>
+        <div class="so-sum">${summaryHtml(layout)}</div>
+        ${overJobs.length ? `<div class="so-sum"><span class="bad">⚠ زيادة عن المطلوب: ${overJobs.map(j => `${esc(j.job)} (${j.extra.length})`).join("، ")} — دوس «شيل» على اللي مش في الكشف، وإلا اللي في آخر الوظيفة مش هيتطبع</span></div>` : ""}
         <div class="so-acts">
           ${opts.canEdit ? `<button class="btn" data-act="save">حفظ الترتيب</button>` : ""}
           <button class="btn sec" data-act="close">${dirty ? "إلغاء" : "رجوع"}</button>
         </div>
         <div class="msg" id="so-msg"></div>
       </div>
-      ${jobs.map((j, ji) => `<div class="so-job"><div class="so-band">${esc(j.job || "بدون وظيفة")} (${j.keys.length})</div>
+      ${jobs.map((j, ji) => {
+        const L = info.get(j.job) || { names: [], extra: [], spare: [], need: null, blanks: 0 };
+        const printed = new Set(L.names.map(keyOf)), extra = new Set(L.extra.map(keyOf)), spare = new Set(L.spare.map(keyOf));
+        const subsIn = L.names.filter(isSub).length;
+        const needLine = L.need != null ? ` — المطلوب ${L.need}، هيتطبع ${L.names.length} اسم${subsIn ? ` (منهم ${subsIn} بديل راحات)` : ""}${L.blanks ? ` + ${L.blanks} خانة فاضية` : ""}` : "";
+        let n = 0;
+        return `<div class="so-job"><div class="so-band">${esc(j.job || "بدون وظيفة")} (${j.keys.length})${needLine}</div>
         <ul data-job="${ji}">${j.keys.map((k, i) => {
           const w = byKey.get(k);
           const isNew = opts.order && !known.has(k);
-          return `<li data-k="${esc(k)}" class="${state.breaks.has(k) ? "brk" : ""}">
-            <span class="h" title="اسحب">☰</span><span class="i">${i + 1}</span>
+          const out = state.excluded.has(k), over = extra.has(k);
+          const sub = isSub(w), noRoom = spare.has(k);
+          const canCut = L.extra.length > 0 || out || sub;
+          return `<li data-k="${esc(k)}" class="${state.breaks.has(k) ? "brk" : ""}${out || over || noRoom ? " off" : ""}">
+            <span class="h" title="اسحب">☰</span><span class="i">${printed.has(k) ? ++n : "—"}</span>
             <span class="nm"><bdi>${esc(w.name)}</bdi><small dir="ltr">…${esc(String(w.nid || "").slice(-4))}</small></span>
-            ${isNew ? '<span class="new">جديد</span>' : ""}
-            ${opts.canEdit ? `<button data-mv="-1" aria-label="لفوق">▲</button><button data-mv="1" aria-label="لتحت">▼</button>
+            ${sub ? '<span class="new">بديل راحات</span>' : isNew ? '<span class="new">جديد</span>' : ""}${out ? '<span class="tag">متشال</span>' : over ? '<span class="tag">زيادة — مش هيتطبع</span>' : noRoom ? '<span class="tag">مفيش مكان في المطلوب</span>' : ""}
+            ${opts.canEdit ? `${canCut ? `<button class="rm${out ? " on" : ""}" data-rm="1">${out ? "رجّع" : "شيل"}</button>` : ""}
+            <button data-mv="-1" aria-label="لفوق">▲</button><button data-mv="1" aria-label="لتحت">▼</button>
             <button class="cut ${state.breaks.has(k) ? "on" : ""}" data-cut="1" title="فاصل صفحة بعده">✂</button>` : ""}
           </li>`;
-        }).join("")}</ul></div>`).join("")}
+        }).join("")}</ul></div>`;
+      }).join("")}
     </div>`;
     if (opts.canEdit && window.Sortable) {
       so.querySelectorAll("ul[data-job]").forEach(ul => {
@@ -397,6 +551,7 @@ export async function openOrderEditor(opts) {
       [list[i], list[j]] = [list[j], list[i]]; dirty = true; render();
     }
     if (b.dataset.cut) { state.breaks.has(k) ? state.breaks.delete(k) : state.breaks.add(k); dirty = true; render(); }
+    if (b.dataset.rm) { state.excluded.has(k) ? state.excluded.delete(k) : state.excluded.add(k); dirty = true; render(); }
   });
 
   if (opts.canEdit) { try { await loadLib("sortable"); } catch (e) { /* ▲▼ لسه شغالين */ } }
