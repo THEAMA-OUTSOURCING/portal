@@ -695,12 +695,13 @@ $("order").addEventListener("click", async () => {
   const site = S.site;
   const order = await loadOrder(site);
   await openOrderEditor({
-    site, roster: S.roster, subs: restSubs(), order, plan: S.plan, canEdit: true, lastChange: orderNote(order),
+    site, roster: S.roster, subs: restSubs(), order, plan: S.plan, canEdit: true, canAdmin: S.admin, lastChange: orderNote(order),
     onSave: async o => {
       const u = auth.currentUser;
       // آخر حفظ هو اللي بيمشي، ومين غيّر وإمتى بيتسجلوا مع الترتيب
       await setDoc(doc(db, "sheet_order", site), {
         site, groups: o.groups, breaks: o.breaks, excluded: o.excluded,
+        ...(o.sections ? { sections: o.sections, secNeed: o.secNeed, secOrder: o.secOrder, pageGroups: o.pageGroups } : {}),
         updated_by: u.uid, updated_email: u.email || "", updated_at: serverTimestamp(),
       });
     },

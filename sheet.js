@@ -12,6 +12,9 @@
 //  - فاصل صفحة يدوي بعد أي اسم. من غير فاصل: الصفحة 30 اسم. الصفحة اللي قبل فاصل يدوي تاخد لحد 35.
 //  - الخانات الفاضية ماتقسمش الكشف: لو الصفحة زحمت بتصغر بالتدريج تحت آخر اسم، وآخر خانة أصغر حاجة،
 //    والأسماء بحجمها العادي. «المطلوب» بيظهر على الشاشة بس، مش على الورق ولا الـ PDF.
+//  - الأقسام (لو الموقع ليه أقسام، زي مصنع العامرية): كل قسم ليه صفحاته، وتحته وظايفه. الوظيفة اللي مش هتكفي
+//    في باقي الصفحة بتبدأ صفحة جديدة. الأقسام اللي في «pageGroups» بتتجمع في صفحة واحدة لو العدد يسمح.
+//    المطلوب لكل قسم/وظيفة من «secNeed» (بدل مطلوب الوظيفة في الخطة). كله محفوظ في sheet_order/{site}.
 
 export const AUTO_ROWS = 30, MAX_ROWS = 35, OWN_PAGE_MIN = 13;
 const BODY_MM = 180, ROW_MM = 6, MIN_MM = 2.5, BLANK_UNIT = 0.5;   // جسم الجدول (30 صف × 6 مم)، والصف العادي، وأصغر خانة فاضية عادةً
@@ -21,6 +24,35 @@ export const isSalesJob = job => /مساعد\S*\s+(ال)?بيع/.test(String(job
 // الكشف اللي العامل بيتطبع فيه: الموسمي في كشف لوحده لمساعدين البيع بس
 export const typeOf = w => (w.type === "موسمي" && isSalesJob(w.job) ? "seasonal" : "basic");
 export const keyOf = w => String(w.code || ("N" + (w.nid || "")));
+
+// ---------------------------------------------------------------- الأقسام
+// الوظيفة جوه القسم بتتكتب «القسم|الوظيفة». order.sections = { مفتاح العامل: القسم }، order.secNeed = { "القسم|الوظيفة": العدد }
+export const SEC_SEP = "|";
+export const splitJob = j => { const s = String(j ?? ""), i = s.indexOf(SEC_SEP); return i < 0 ? { sec: "", job: s } : { sec: s.slice(0, i), job: s.slice(i + 1) }; };
+export const isSecJob = j => String(j ?? "").includes(SEC_SEP);
+export const jobLabel = j => { const x = splitJob(j); return x.sec ? `${x.sec} ▸ ${x.job}` : x.job; };
+export const hasSections = order => !!(order?.sections && Object.keys(order.sections).length) || !!(order?.secNeed && Object.keys(order.secNeed).length);
+const secOfWorker = (w, sm) => sm[keyOf(w)] || (w.nid ? sm["N" + w.nid] : "") || "";
+// بيحوّل وظيفة كل عامل لـ «القسم|الوظيفة» وبيبدّل مطلوب الوظايف المتقسمة بمطلوب الأقسام
+export function applySections(workers, order, plan) {
+  plan = plan || {};
+  if (!hasSections(order)) return { workers, plan };
+  const sm = order.sections || {}, need = order.secNeed || {};
+  const ws = workers.map(w => { const sec = secOfWorker(w, sm); return sec ? { ...w, job: sec + SEC_SEP + (w.job || "") } : w; });
+  const split = new Set(Object.keys(need).map(k => splitJob(k).job));
+  ws.forEach(w => { if (isSecJob(w.job)) split.add(splitJob(w.job).job); });
+  const p = {};
+  Object.entries(plan).forEach(([j, n]) => { if (!split.has(j)) p[j] = n; });
+  Object.entries(need).forEach(([k, n]) => { p[k] = n; });
+  return { workers: ws, plan: p };
+}
+export function sectionList(order) {
+  const out = [...(order?.secOrder || [])];
+  Object.values(order?.sections || {}).forEach(s => { if (s && !out.includes(s)) out.push(s); });
+  Object.keys(order?.secNeed || {}).forEach(k => { const s = splitJob(k).sec; if (s && !out.includes(s)) out.push(s); });
+  return out;
+}
+const secRank = order => { const l = sectionList(order); return s => (s ? (l.indexOf(s) < 0 ? 900 : l.indexOf(s)) : 999); };
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -60,8 +92,8 @@ export function sheetWorkers(roster, subs) {
 // تخطيط الكشف كله: { basic: [job], seasonal: [job] }
 // job = { job, need, all:[w], names:[w] (اللي هيتطبعوا), extra:[w] (زيادة مش هتتطبع), excluded:[w], spare:[w] (بدلاء مالهمش مكان), blanks }
 export function buildJobs(roster, order, plan, subs) {
-  plan = plan || {};
-  const workers = sheetWorkers(roster, subs);
+  let workers;
+  ({ workers, plan } = applySections(sheetWorkers(roster, subs), order, plan));
   const excl = new Set(order?.excluded || []);
   const left = {};                                   // المطلوب اللي لسه فاضل لكل وظيفة (الأساسي بياخد الأول، والبدلاء آخر حاجة)
   const needOf = job => (plan[job] != null && Number(plan[job]) >= 0 ? Number(plan[job]) : null);
@@ -102,9 +134,10 @@ export function buildJobs(roster, order, plan, subs) {
     if (!j) { j = { job, need, all: [], names: [], extra: [], excluded: [], spare: [], blanks: 0 }; out.basic.push(j); }
     j.blanks = rest;
   }
+  const rank = secRank(order);
   for (const t of TYPES) {
     out[t.id] = out[t.id].filter(j => j.names.length || j.blanks || j.all.some(w => !isSub(w)))
-      .sort((a, b) => (b.names.length + b.blanks) - (a.names.length + a.blanks));
+      .sort((a, b) => rank(splitJob(a.job).sec) - rank(splitJob(b.job).sec) || (b.names.length + b.blanks) - (a.names.length + a.blanks));
   }
   return out;
 }
@@ -134,6 +167,7 @@ export function paginate(jobs, order) {
   const breaks = new Set(order?.breaks || []);
   const isBreak = w => breaks.has(keyOf(w));
   if (!jobs.length) return [];
+  if (jobs.some(j => isSecJob(j.job))) return paginateSections(jobs, order, isBreak);
   // 1) الكشف كله صغير (35 سطر أو أقل بالشرايط والخانات الفاضية) ومفيش فواصل يدوية: صفحة واحدة، وكل السطور بنفس المقاس
   const total = jobs.reduce((a, j) => a + j.names.length + j.blanks, 0) + (jobs.length > 1 ? jobs.length : 0);
   if (total <= MAX_ROWS && !jobs.some(j => j.names.some(isBreak))) {
@@ -195,6 +229,53 @@ export function paginate(jobs, order) {
   return sheets;
 }
 
+// الكشف بالأقسام: كل قسم صفحاته، والوظيفة اللي مش هتكفي في باقي الصفحة تبدأ صفحة جديدة (من غير «تكملة»).
+// الأقسام اللي في نفس المجموعة (order.pageGroups) بتتجمع في صفحة لو كلها تدخل في 30 سطر. كل السطور بنفس المقاس.
+function paginateSections(jobs, order, isBreak) {
+  const secs = [];
+  jobs.forEach(j => { const sec = splitJob(j.job).sec; let s = secs.find(x => x.sec === sec); if (!s) secs.push(s = { sec, jobs: [] }); s.jobs.push(j); });
+  const items = j => [...j.names.map((w, i) => ({ w, n: i + 1 })), ...Array.from({ length: j.blanks }, (_, i) => ({ blank: true, n: j.names.length + i + 1 }))];
+  const units = s => s.jobs.reduce((a, j) => a + j.names.length + j.blanks + (s.jobs.length > 1 ? 1 : 0), 0);
+  const pages = [];
+  const page = secList => { const p = { secs: secList, jobs: [], rows: [], over: false, uniform: true }; pages.push(p); return p; };
+  const addJob = (p, j) => { if (!p.jobs.includes(j.job)) p.jobs.push(j.job); };
+  const own = s => {
+    const band = s.jobs.length > 1;
+    let p = page([s.sec]);
+    s.jobs.forEach(j => {
+      const its = items(j);
+      if (p.rows.length && p.rows.length + (band ? 1 : 0) + its.length > AUTO_ROWS) p = page([s.sec]);
+      const start = () => { addJob(p, j); if (band) p.rows.push({ band: j.job, need: j.need, job: true }); };
+      start();
+      its.forEach((it, i) => {
+        if (p.rows.length >= AUTO_ROWS) { p = page([s.sec]); start(); }
+        p.rows.push(it);
+        if (it.w && isBreak(it.w) && i < its.length - 1) { p = page([s.sec]); start(); }
+      });
+    });
+  };
+  const groups = order?.pageGroups || [];
+  const done = new Set();
+  secs.forEach(s => {
+    if (done.has(s.sec)) return;
+    const g = groups.find(x => x.includes(s.sec));
+    const members = g ? secs.filter(x => g.includes(x.sec) && !done.has(x.sec)) : [s];
+    const fits = members.length > 1 && members.reduce((a, m) => a + 1 + units(m), 0) <= AUTO_ROWS
+      && !members.some(m => m.jobs.some(j => j.names.slice(0, -1).some(isBreak)));
+    if (!fits) { own(s); done.add(s.sec); return; }
+    const p = page(members.map(m => m.sec));
+    members.forEach(m => {
+      done.add(m.sec);
+      p.rows.push({ band: m.sec || "بدون قسم", sec: true });
+      m.jobs.forEach(j => { addJob(p, j); if (m.jobs.length > 1) p.rows.push({ band: j.job, need: j.need, job: true }); p.rows.push(...items(j)); });
+    });
+  });
+  // رقم الصفحة جوه القسم (1 من 2)
+  pages.forEach(p => { const same = pages.filter(x => x.secs.length === 1 && p.secs.length === 1 && x.secs[0] === p.secs[0]); p.parts = same.length || 1; p.part = same.indexOf(p) + 1 || 1;
+    p.need = p.jobs.length === 1 ? (jobs.find(j => j.job === p.jobs[0])?.need ?? null) : null; });
+  return pages;
+}
+
 // ملخص للشاشة: عدد الأسماء في كل صفحة ومين عدّى 35
 export function pageSummary(jobs, order) {
   return paginate(jobs, order).map(s => ({ rows: s.rows.filter(r => r.w).length, over: s.over || contentRows(s) > MAX_ROWS + 2, jobs: s.jobs }));
@@ -240,7 +321,7 @@ function pageHtml(s, p, total, site, typeTitle, monthName, month, year) {
   const fill = Math.max(0, AUTO_ROWS - s.rows.length);
   let rows = "", count = 0, bi = 0;
   for (const it of s.rows) {
-    if (it.band) rows += `<tr class="band"><td colspan="6">${esc(it.band)}${needTxt(it.need)}</td></tr>`;
+    if (it.band) rows += `<tr class="band${it.job && s.secs ? " job" : ""}"><td colspan="6">${esc(it.sec ? "قسم " + it.band : splitJob(it.band).job)}${needTxt(it.need)}</td></tr>`;
     else if (it.w) { count++; rows += `<tr><td class="n">${it.n}</td><td class="nm">${esc(it.w.name)}</td><td class="nid">${esc(it.w.nid)}</td><td class="sig"></td><td class="sig"></td><td></td></tr>`; }
     else {
       const h = hs[bi++];
@@ -249,12 +330,14 @@ function pageHtml(s, p, total, site, typeTitle, monthName, month, year) {
     }
   }
   for (let i = 0; i < fill; i++) rows += `<tr class="fill"><td class="n"></td><td></td><td></td><td class="sig"></td><td class="sig"></td><td></td></tr>`;
-  const jobLabel = s.jobs.length > 1 ? "الوظائف" : "الوظيفة";
-  const part = s.parts > 1 && s.jobs.length === 1 ? ` (${s.part} من ${s.parts})` : "";
+  const jobs = [...new Set(s.jobs.map(j => splitJob(j).job))];
+  const jl = jobs.length > 1 ? "الوظائف" : "الوظيفة";
+  const part = s.parts > 1 && (s.secs ? s.secs.length === 1 : s.jobs.length === 1) ? ` (${s.part} من ${s.parts})` : "";
   const need = s.jobs.length === 1 && s.need != null ? `<span class="scr"> &nbsp; المطلوب للوظيفة: <b>${s.need}</b></span>` : "";
+  const secLine = s.secs ? `${s.secs.length > 1 ? "الأقسام" : "القسم"}: <b>${esc(s.secs.map(x => x || "بدون قسم").join("، "))}</b> &nbsp;·&nbsp; ` : "";
   return `<section class="page${(s.uniform ? s.rows.length : content) > AUTO_ROWS ? " dense" : ""}${s.uniform ? " uni" : ""}" style="--rh:${rh.toFixed(2)}mm">
     <div class="head"><div><div class="title">كشف حضور ${esc(site)}${typeTitle}</div>
-      <div class="meta">${jobLabel}: <b>${esc(s.jobs.join("، "))}</b>${part}${need}</div><div class="meta">شهر <b>${monthName}</b></div></div>
+      <div class="meta">${secLine}${jl}: <b>${esc(jobs.join("، "))}</b>${part}${need}</div><div class="meta">شهر <b>${monthName}</b></div></div>
       <div class="pagebox"><small>صفحة</small><span>${p + 1} / ${total}</span></div></div>
     <div class="datebar">التاريخ: <span dir="ltr" class="fixed"><span class="slot"></span> / ${month} / ${year}</span><span style="margin-inline-start:auto">اليوم: <span class="slot" style="width:28mm"></span></span></div>
     <table><colgroup><col style="width:5%"><col style="width:34%"><col style="width:18%"><col style="width:10%"><col style="width:10%"><col style="width:23%"></colgroup>
@@ -294,6 +377,7 @@ const PRINT_CSS = `
 #pv td.n,#pv td.nid{text-align:center;font-variant-numeric:tabular-nums;}#pv td.n{font-size:9pt;}#pv td.nid{font-size:9.5pt;}
 #pv th.sig,#pv td.sig{border-left:2px solid #000;border-right:2px solid #000;}
 #pv tr.band td{background:#000;color:#fff;font-weight:600;font-size:10pt;text-align:center;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+#pv tr.band.job td{background:#e3e3e3;color:#000;}
 #pv .foot{margin-top:auto;padding-top:3mm;}#pv .counts{display:flex;gap:6mm;font-size:11pt;}
 #pv .count-box{border:1.5px solid #000;padding:1.5mm 4mm;display:flex;gap:3mm;align-items:center;}
 #pv .count-box .blank{display:inline-block;width:14mm;border-bottom:1px solid #000;height:5mm;}
@@ -454,9 +538,17 @@ const ORDER_CSS = `
 #so li button.rm{color:#a32d2d;}#so li button.rm.on{color:#185fa5;}
 #so .sortable-ghost{opacity:.35;}
 #so .pg-mark{font-size:11px;color:#c0392b;text-align:center;padding:2px 0;}
+#so li input.pos{width:42px;text-align:center;font:inherit;font-size:13px;padding:2px;border:1px solid #ccc;border-radius:7px;font-variant-numeric:tabular-nums;}
+#so li input.pos:focus{outline:2px solid #185fa5;border-color:#185fa5;}
+#so li button.tb{color:#185fa5;border-color:#c9dbef;background:#f2f7fc;}
+#so li select.sec{font:inherit;font-size:12px;padding:2px;border:1px solid #ddd;border-radius:7px;max-width:110px;}
+#so li.flash{background:#fff3c4;}
+#so .paste{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:8px;margin-top:8px;}
+#so .paste textarea{width:100%;min-height:90px;font:12px monospace;direction:ltr;}
+@media (max-width:560px){#so li button.mv,#so li .nm small{display:none;}}
 `;
 
-// opts: { site, roster, subs, order, plan, canEdit, onSave(doc) → Promise, lastChange: "نص" }
+// opts: { site, roster, subs, order, plan, canEdit, canAdmin (الأقسام ولصق ترتيب جاهز), onSave(doc) → Promise, lastChange: "نص" }
 export async function openOrderEditor(opts) {
   if (!document.getElementById("so-style")) {
     const s = document.createElement("style"); s.id = "so-style"; s.textContent = ORDER_CSS; document.head.appendChild(s);
@@ -465,16 +557,24 @@ export async function openOrderEditor(opts) {
   // الحالة: لكل كشف ← لكل وظيفة ← مفاتيح العمال بالترتيب، والفواصل، واللي اتشالوا من الكشف
   const known = new Set();
   (opts.order?.groups || []).forEach(g => g.keys.forEach(k => known.add(k)));
-  const everyone = sheetWorkers(opts.roster, opts.subs);
-  const byKey = new Map(everyone.map(w => [keyOf(w), w]));
-  const state = { breaks: new Set(opts.order?.breaks || []), excluded: new Set((opts.order?.excluded || []).filter(k => byKey.has(k))), lists: {} };
+  const base = sheetWorkers(opts.roster, opts.subs);
+  const byKey = new Map(base.map(w => [keyOf(w), w]));
+  const O = opts.order || {};
+  const sectioned = hasSections(O);
+  const state = { breaks: new Set(O.breaks || []), excluded: new Set((O.excluded || []).filter(k => byKey.has(k))), lists: {},
+                  sections: { ...(O.sections || {}) } };
+  const everyone = applySections(base, { sections: state.sections, secNeed: O.secNeed }, {}).workers;
   const types = TYPES.filter(t => everyone.some(w => typeOf(w) === t.id));
+  const rank = secRank(O);
   types.forEach(t => {
-    state.lists[t.id] = orderedJobs(everyone.filter(w => typeOf(w) === t.id), t.id, opts.order)
-      .map(([job, ws]) => ({ job, keys: ws.map(keyOf) }));
+    state.lists[t.id] = orderedJobs(everyone.filter(w => typeOf(w) === t.id), t.id, O)
+      .map(([job, ws]) => ({ job, keys: ws.map(keyOf) }))
+      .sort((a, b) => rank(splitJob(a.job).sec) - rank(splitJob(b.job).sec));
   });
+  const secNames = sectionList(O);
   let tab = types[0]?.id;
-  let dirty = false;
+  let dirty = !!opts.startDirty;
+  let flash = null, pasteOpen = false;
 
   const so = document.createElement("div");
   so.id = "so";
@@ -487,7 +587,28 @@ export async function openOrderEditor(opts) {
     groups: Object.entries(state.lists).flatMap(([type, jobs]) => jobs.map(j => ({ type, job: j.job, keys: j.keys.slice() }))),
     breaks: [...state.breaks].filter(k => byKey.has(k)),
     excluded: [...state.excluded].filter(k => byKey.has(k)),
+    ...(sectioned ? { sections: { ...state.sections }, secNeed: O.secNeed || {}, secOrder: O.secOrder || [], pageGroups: O.pageGroups || [] } : {}),
   });
+  // نقل اسم لمكان معيّن جوه وظيفته (pos من 1)
+  const moveTo = (list, k, pos) => {
+    const i = list.indexOf(k); pos = Math.max(1, Math.min(list.length, pos)) - 1;
+    if (i < 0 || i === pos) return false;
+    list.splice(i, 1); list.splice(pos, 0, k); flash = k; dirty = true; return true;
+  };
+  // تغيير قسم عامل: بيروح آخر نفس الوظيفة في القسم الجديد
+  const changeSection = (k, sec) => {
+    const w = byKey.get(k); if (!w) return;
+    const type = typeOf(w);
+    const lists = state.lists[type];
+    lists.forEach(j => { const i = j.keys.indexOf(k); if (i >= 0) j.keys.splice(i, 1); });
+    if (sec) state.sections[k] = sec; else delete state.sections[k];
+    const job = sec ? sec + SEC_SEP + (w.job || "") : (w.job || "");
+    let target = lists.find(j => j.job === job);
+    if (!target) { lists.push(target = { job, keys: [] }); lists.sort((a, b) => rank(splitJob(a.job).sec) - rank(splitJob(b.job).sec)); }
+    target.keys.push(k);
+    for (let i = lists.length - 1; i >= 0; i--) if (!lists[i].keys.length) lists.splice(i, 1);
+    flash = k; dirty = true;
+  };
 
   function summaryHtml(layout) {
     const o = asOrder();
@@ -508,14 +629,17 @@ export async function openOrderEditor(opts) {
     so.innerHTML = `<div class="so-in">
       <div class="so-top">
         <h2>ترتيب كشف ${esc(opts.site)}</h2>
-        <div class="muted">اسحب الاسم لفوق أو لتحت (أو ▲▼) جوه وظيفته. ✂ = فاصل صفحة بعد الاسم ده. «شيل» = الاسم مايتطبعش في الكشف. ${esc(opts.lastChange || "")}</div>
+        <div class="muted">اكتب رقم المكان في الخانة اللي جنب الاسم (مثلاً 1) ودوس Enter، أو ⤒ لأول الوظيفة و⤓ لآخرها. السحب و▲▼ شغالين برده. ✂ = فاصل صفحة بعد الاسم ده. «شيل» = الاسم مايتطبعش في الكشف. ${esc(opts.lastChange || "")}</div>
         <div class="so-tabs">${types.map(t => `<button data-tab="${t.id}" class="${t.id === tab ? "on" : ""}">${t.label}</button>`).join("")}</div>
         <div class="so-sum">${summaryHtml(layout)}</div>
         ${overJobs.length ? `<div class="so-sum"><span class="bad">⚠ زيادة عن المطلوب: ${overJobs.map(j => `${esc(j.job)} (${j.extra.length})`).join("، ")} — دوس «شيل» على اللي مش في الكشف، وإلا اللي في آخر الوظيفة مش هيتطبع</span></div>` : ""}
         <div class="so-acts">
           ${opts.canEdit ? `<button class="btn" data-act="save">حفظ الترتيب</button>` : ""}
           <button class="btn sec" data-act="close">${dirty ? "إلغاء" : "رجوع"}</button>
+          ${opts.canEdit && opts.canAdmin ? `<button class="btn sec" data-act="paste">لصق ترتيب جاهز</button>` : ""}
         </div>
+        ${pasteOpen ? `<div class="paste"><div class="muted">الصق هنا كود الترتيب اللي بيجهزه Claude (بيغيّر الترتيب على الشاشة بس — راجعه وبعدين دوس «حفظ الترتيب»).</div>
+          <textarea id="so-paste" spellcheck="false"></textarea><div class="so-acts"><button class="btn" data-act="apply">تطبيق</button><button class="btn sec" data-act="paste">إلغاء</button></div></div>` : ""}
         <div class="msg" id="so-msg"></div>
       </div>
       ${jobs.map((j, ji) => {
@@ -524,24 +648,31 @@ export async function openOrderEditor(opts) {
         const subsIn = L.names.filter(isSub).length;
         const needLine = L.need != null ? ` — المطلوب ${L.need}، هيتطبع ${L.names.length} اسم${subsIn ? ` (منهم ${subsIn} بديل راحات)` : ""}${L.blanks ? ` + ${L.blanks} خانة فاضية` : ""}` : "";
         let n = 0;
-        return `<div class="so-job"><div class="so-band">${esc(j.job || "بدون وظيفة")} (${j.keys.length})${needLine}</div>
+        return `<div class="so-job"><div class="so-band">${esc(jobLabel(j.job) || "بدون وظيفة")} (${j.keys.length})${needLine}</div>
         <ul data-job="${ji}">${j.keys.map((k, i) => {
           const w = byKey.get(k);
           const isNew = opts.order && !known.has(k);
           const out = state.excluded.has(k), over = extra.has(k);
           const sub = isSub(w), noRoom = spare.has(k);
           const canCut = L.extra.length > 0 || out || sub;
-          return `<li data-k="${esc(k)}" class="${state.breaks.has(k) ? "brk" : ""}${out || over || noRoom ? " off" : ""}">
-            <span class="h" title="اسحب">☰</span><span class="i">${printed.has(k) ? ++n : "—"}</span>
+          return `<li data-k="${esc(k)}" class="${state.breaks.has(k) ? "brk" : ""}${out || over || noRoom ? " off" : ""}${k === flash ? " flash" : ""}">
+            <span class="h" title="اسحب">☰</span>${opts.canEdit ? `<input class="pos" type="number" inputmode="numeric" min="1" max="${j.keys.length}" value="${i + 1}" aria-label="المكان" title="${printed.has(k) ? "رقمه في الكشف " + (++n) : "مش هيتطبع"}">` : `<span class="i">${printed.has(k) ? ++n : "—"}</span>`}
             <span class="nm"><bdi>${esc(w.name)}</bdi><small dir="ltr">…${esc(String(w.nid || "").slice(-4))}</small></span>
             ${sub ? '<span class="new">بديل راحات</span>' : isNew ? '<span class="new">جديد</span>' : ""}${out ? '<span class="tag">متشال</span>' : over ? '<span class="tag">زيادة — مش هيتطبع</span>' : noRoom ? '<span class="tag">مفيش مكان في المطلوب</span>' : ""}
-            ${opts.canEdit ? `${canCut ? `<button class="rm${out ? " on" : ""}" data-rm="1">${out ? "رجّع" : "شيل"}</button>` : ""}
-            <button data-mv="-1" aria-label="لفوق">▲</button><button data-mv="1" aria-label="لتحت">▼</button>
+            ${opts.canEdit ? `${sectioned && opts.canAdmin ? `<select class="sec" data-sec="1" title="القسم"><option value="">بدون قسم</option>${secNames.map(x => `<option ${state.sections[k] === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select>` : ""}
+            ${canCut ? `<button class="rm${out ? " on" : ""}" data-rm="1">${out ? "رجّع" : "شيل"}</button>` : ""}
+            <button class="tb" data-to="top" title="أول الوظيفة">⤒</button><button class="tb" data-to="end" title="آخر الوظيفة">⤓</button>
+            <button class="mv" data-mv="-1" aria-label="لفوق">▲</button><button class="mv" data-mv="1" aria-label="لتحت">▼</button>
             <button class="cut ${state.breaks.has(k) ? "on" : ""}" data-cut="1" title="فاصل صفحة بعده">✂</button>` : ""}
           </li>`;
         }).join("")}</ul></div>`;
       }).join("")}
     </div>`;
+    if (flash) {
+      const el = [...so.querySelectorAll("li[data-k]")].find(li => li.dataset.k === flash);
+      if (el) { el.scrollIntoView({ block: "center" }); setTimeout(() => el.classList.remove("flash"), 900); }
+      flash = null;
+    }
     if (opts.canEdit && window.Sortable) {
       so.querySelectorAll("ul[data-job]").forEach(ul => {
         window.Sortable.create(ul, {
@@ -563,6 +694,17 @@ export async function openOrderEditor(opts) {
       if (dirty && !confirm("فيه تعديلات مااتحفظتش — تخرج من غير حفظ؟")) return;
       close(); return;
     }
+    if (b.dataset.act === "paste") { pasteOpen = !pasteOpen; render(); return; }
+    if (b.dataset.act === "apply") {
+      const m = so.querySelector("#so-msg");
+      let d;
+      try { d = JSON.parse(so.querySelector("#so-paste").value); } catch (err) { m.className = "msg show err"; m.textContent = "الكود مش سليم — انسخه تاني كامل"; return; }
+      if (d.site && d.site !== opts.site) { m.className = "msg show err"; m.textContent = `الكود ده لـ «${d.site}» مش «${opts.site}»`; return; }
+      const cur = asOrder(), merged = { ...cur };
+      ["groups", "breaks", "excluded", "sections", "secNeed", "secOrder", "pageGroups"].forEach(f => { if (d[f] != null) merged[f] = d[f]; });
+      close();
+      return openOrderEditor({ ...opts, order: { ...O, ...merged }, startDirty: true });
+    }
     if (b.dataset.act === "save") {
       b.disabled = true;
       const m = so.querySelector("#so-msg");
@@ -578,6 +720,7 @@ export async function openOrderEditor(opts) {
     const li = b.closest("li"); if (!li) return;
     const k = li.dataset.k;
     const list = state.lists[tab][Number(li.parentElement.dataset.job)].keys;
+    if (b.dataset.to) { if (moveTo(list, k, b.dataset.to === "top" ? 1 : list.length)) render(); return; }
     if (b.dataset.mv) {
       const i = list.indexOf(k), j = i + Number(b.dataset.mv);
       if (j < 0 || j >= list.length) return;
@@ -586,6 +729,18 @@ export async function openOrderEditor(opts) {
     if (b.dataset.cut) { state.breaks.has(k) ? state.breaks.delete(k) : state.breaks.add(k); dirty = true; render(); }
     if (b.dataset.rm) { state.excluded.has(k) ? state.excluded.delete(k) : state.excluded.add(k); dirty = true; render(); }
   });
+
+  const posCommit = inp => {
+    const li = inp.closest("li"), k = li.dataset.k;
+    const list = state.lists[tab][Number(li.parentElement.dataset.job)].keys;
+    const v = parseInt(inp.value, 10);
+    if (v && moveTo(list, k, v)) render(); else inp.value = list.indexOf(k) + 1;
+  };
+  so.addEventListener("change", e => {
+    if (e.target.matches("input.pos")) posCommit(e.target);
+    if (e.target.matches("select.sec")) { changeSection(e.target.closest("li").dataset.k, e.target.value); render(); }
+  });
+  so.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.matches("input.pos")) { e.preventDefault(); posCommit(e.target); } });
 
   if (opts.canEdit) { try { await loadLib("sortable"); } catch (e) { /* ▲▼ لسه شغالين */ } }
   render();
