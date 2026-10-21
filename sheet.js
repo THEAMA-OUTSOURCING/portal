@@ -46,6 +46,8 @@ export function applySections(workers, order, plan) {
   Object.entries(need).forEach(([k, n]) => { p[k] = n; });
   return { workers: ws, plan: p };
 }
+// Firestore مابيقبلش array جوه array: المجموعة بتتحفظ نص «قسم|قسم» (وبنقبل الشكلين)
+export const pageGroupsOf = order => (order?.pageGroups || []).map(g => (Array.isArray(g) ? g : String(g).split(SEC_SEP)).map(x => String(x).trim()).filter(Boolean));
 export function sectionList(order) {
   const out = [...(order?.secOrder || [])];
   Object.values(order?.sections || {}).forEach(s => { if (s && !out.includes(s)) out.push(s); });
@@ -254,7 +256,7 @@ function paginateSections(jobs, order, isBreak) {
       });
     });
   };
-  const groups = order?.pageGroups || [];
+  const groups = pageGroupsOf(order);
   const done = new Set();
   secs.forEach(s => {
     if (done.has(s.sec)) return;
@@ -587,7 +589,7 @@ export async function openOrderEditor(opts) {
     groups: Object.entries(state.lists).flatMap(([type, jobs]) => jobs.map(j => ({ type, job: j.job, keys: j.keys.slice() }))),
     breaks: [...state.breaks].filter(k => byKey.has(k)),
     excluded: [...state.excluded].filter(k => byKey.has(k)),
-    ...(sectioned ? { sections: { ...state.sections }, secNeed: O.secNeed || {}, secOrder: O.secOrder || [], pageGroups: O.pageGroups || [] } : {}),
+    ...(sectioned ? { sections: { ...state.sections }, secNeed: O.secNeed || {}, secOrder: O.secOrder || [], pageGroups: pageGroupsOf(O).map(g => g.join(SEC_SEP)) } : {}),
   });
   // نقل اسم لمكان معيّن جوه وظيفته (pos من 1)
   const moveTo = (list, k, pos) => {
