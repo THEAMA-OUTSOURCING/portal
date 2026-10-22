@@ -303,7 +303,8 @@ body.view-only .vo-txt{display:inline;}
         <div class="grid-form">
           <label>الإيميل<input type="email" id="ac-email" placeholder="name@theama-egy.com" dir="ltr"></label>
           <label>الدور<select id="ac-role"><option value="supervisor">مشرف / إقليمي</option><option value="hr">HR</option><option value="accountant">محاسب</option><option value="viewer">مشاهد (عرض بس)</option></select></label>
-          <label class="wide">المواقع (للمشرف بس — من غير مواقع = الحساب المشترك)<span id="ac-sites" class="row" style="gap:12px;color:#222;"></span></label>
+          <label class="wide">المواقع (المشرف: من غير مواقع = الحساب المشترك — HR والمحاسب: من غير مواقع = كل الفروع ومعاها الشرقية)<span id="ac-sites" class="row" style="gap:12px;color:#222;"></span></label>
+          <label class="row hidden" id="ac-payroll-box" style="flex-direction:row;gap:6px;color:#222;"><input type="checkbox" id="ac-payroll"> رفع المرتبات الشهرية (للمحاسب)</label>
           <label class="row" style="flex-direction:row;gap:6px;color:#222;"><input type="checkbox" id="ac-disabled"> الحساب متوقف</label>
           <div><button class="btn" id="ac-save">حفظ</button></div>
         </div>
@@ -873,7 +874,11 @@ function waitTask(ref, timeoutMs) {
 
 function initAccounts() {
   $("ac-sites").innerHTML = SUP_SITES.map(s => `<label class="row" style="flex-direction:row;gap:4px;font-size:13px;color:#222;"><input type="checkbox" value="${esc(s)}"> ${esc(s)}</label>`).join("");
-  $("ac-role").addEventListener("change", () => { $("ac-sites").style.opacity = $("ac-role").value === "supervisor" ? 1 : .4; });
+  $("ac-role").addEventListener("change", () => {
+    const r = $("ac-role").value;
+    $("ac-sites").style.opacity = ["supervisor", "hr", "accountant"].includes(r) ? 1 : .4;
+    $("ac-payroll-box").classList.toggle("hidden", r !== "accountant");
+  });
   onSnapshot(doc(db, "staff_accounts", "all"), snap => {
     const d = snap.exists() ? snap.data() : null;
     STAFF = d?.accounts || [];
@@ -886,7 +891,13 @@ function initAccounts() {
     if (ok) hide($("ac-server")); else show($("ac-server"), "warn", "السيرفر واقف — الطلبات هتستنى لحد ما يشتغل.");
   });
 }
-function sitesText(a) { return a.role === "supervisor" ? ((a.sites || []).join("، ") || "الكل ما عدا مواقع الحضور") : "—"; }
+// HR والمحاسب: من غير مواقع = كل الفروع (ومعاها الشرقية)
+function sitesText(a) {
+  const pay = a.role === "accountant" && a.payroll ? " + رفع المرتبات" : "";
+  if (a.role === "supervisor") return (a.sites || []).join("، ") || "الكل ما عدا مواقع الحضور";
+  if (a.role === "hr" || a.role === "accountant") return ((a.sites || []).join("، ") || "كل الفروع") + pay;
+  return "—";
+}
 function renderAccounts() {
   const by = Object.fromEntries(STAFF.map(a => [String(a.email).toLowerCase(), a]));
   $("ac-plan").innerHTML = PLANNED.map(p => {
@@ -904,6 +915,7 @@ function fillForm(a) {
   $("ac-email").value = a.email; $("ac-role").value = a.role in ROLE_AR && a.role !== "admin" ? a.role : "supervisor";
   $("ac-sites").querySelectorAll("input").forEach(i => i.checked = (a.sites || []).includes(i.value));
   $("ac-disabled").checked = !!a.disabled;
+  $("ac-payroll").checked = !!a.payroll;
   $("ac-role").dispatchEvent(new Event("change"));
   $("ac-email").scrollIntoView({ behavior: "smooth", block: "center" });
 }
@@ -920,11 +932,12 @@ $("ac-save").addEventListener("click", () => saveAccount());
 $("ac-copy").addEventListener("click", () => navigator.clipboard?.writeText($("ac-secret-val").textContent));
 function saveAccount() {
   const email = $("ac-email").value.trim().toLowerCase(), role = $("ac-role").value;
-  const sites = role === "supervisor" ? [...$("ac-sites").querySelectorAll("input:checked")].map(i => i.value) : [];
+  const sites = ["supervisor", "hr", "accountant"].includes(role) ? [...$("ac-sites").querySelectorAll("input:checked")].map(i => i.value) : [];
+  const payroll = role === "accountant" && $("ac-payroll").checked;
   if (!email || !email.includes("@")) return show($("ac-msg"), "err", "اكتب الإيميل.");
   if (role === "supervisor" && !sites.length && email !== SHARED_EMAIL
       && !confirm("مشرف من غير مواقع = نفس صلاحيات الحساب المشترك (كل العمال ما عدا مواقع الحضور). متأكد؟")) return;
-  return runAccountTask("account_save", { email, role, sites, disabled: $("ac-disabled").checked });
+  return runAccountTask("account_save", { email, role, sites, payroll, disabled: $("ac-disabled").checked });
 }
 async function runAccountTask(type, extra) {
   const msg = $("ac-msg"); $("ac-secret").classList.add("hidden");
