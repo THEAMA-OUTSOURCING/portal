@@ -536,13 +536,14 @@ function needsReview(r) { return !r || r.s === "U" || r.conf === "L" || r.match 
 
 // بدلاء الراحات المطبوعين في الكشف: مش في قائمة عمال الموقع، فالسيرفر بيرجّع صفهم من غير code.
 // بنطابق رقمهم القومي على قائمة البدلاء (pools) — مطابق تمام، أو فرق رقمين بالكتير لو عامل واحد بس قريب.
+// اليومية مش بيتطبعوا في الكشف، بس ممكن يبقوا في ورقة قديمة اتطبعت قبل التعديل: بيتطابقوا بالرقم القومي بالظبط بس.
 const subKey = p => "R" + (p.nid || p.code);
 function subOf(r) {
   const nid = String(r.nid || "").replace(/\D/g, "");
   if (nid.length !== 14) return null;
-  const pool = (S.pool || []).filter(p => /راحات/.test(p.type || "") && /^\d{14}$/.test(String(p.nid || "")));
-  const exact = pool.find(p => p.nid === nid);
+  const exact = (S.pool || []).find(p => String(p.nid || "") === nid);
   if (exact) return { p: exact, fuzzy: false };
+  const pool = (S.pool || []).filter(p => /راحات/.test(p.type || "") && /^\d{14}$/.test(String(p.nid || "")));
   const near = pool.filter(p => [...p.nid].filter((c, i) => c !== nid[i]).length <= 2);
   return near.length === 1 ? { p: near[0], fuzzy: true } : null;
 }
@@ -673,13 +674,19 @@ function render() {
     .map(([v, l]) => `<div class="stat"><div class="v">${fmt(v)}</div><div class="l">${l}</div></div>`).join("");
 
   // صفوف من غير عامل معروف + المكتوبة بخط اليد
+  // الغايب في صف مطبوع لعامل مش في الكشف دلوقتي (غالباً مشي، والورقة اتطبعت قبل التعديل): مش محتاج حاجة، فبيتعدّ بس
   const loose = [];
+  let goneAbs = 0;
   S.pages.filter(p => p.status === "done").forEach(p => {
-    (p.result?.rows || []).filter(r => !r.code && !subOf(r)).forEach(r => loose.push(`صف ${esc(r.n)}: رقم قومي ${esc(r.nid || "مش مقروء")} — ${r.s === "P" ? "حاضر" : r.s === "A" ? "غايب" : "مش واضح"}`));
+    (p.result?.rows || []).filter(r => !r.code && !subOf(r)).forEach(r => {
+      if (r.s === "A" && /^\d{14}$/.test(String(r.nid || "").replace(/\D/g, ""))) { goneAbs++; return; }
+      loose.push(`صف ${esc(r.n)}: رقم قومي ${esc(r.nid || "مش مقروء")} — ${r.s === "P" ? "حاضر" : r.s === "A" ? "غايب" : "مش واضح"}`);
+    });
     (p.result?.extra || []).filter(x => !matchExtra(x) && !poolOfExtra(x)).forEach(x => loose.push(`بخط اليد: ${esc(x.name || "اسم مش مقروء")}${x.nid ? " — " + esc(x.nid) : ""}${x.note ? " — " + esc(x.note) : ""} <button class="btn sec small" data-addnew="1">إضافة بالبطاقة</button>`));
   });
-  $("extra-card").classList.toggle("hidden", !loose.length);
-  $("extras").innerHTML = loose.map(t => `<div class="muted" style="padding:4px 0;border-bottom:1px solid #f0efe9;">${t}</div>`).join("");
+  $("extra-card").classList.toggle("hidden", !loose.length && !goneAbs);
+  $("extras").innerHTML = loose.map(t => `<div class="muted" style="padding:4px 0;border-bottom:1px solid #f0efe9;">${t}</div>`).join("")
+    + (goneAbs ? `<div class="muted" style="padding:6px 0;">${fmt(goneAbs)} صف غايب لناس مش في الكشف دلوقتي (غالباً مشيوا). مش محتاجين أي حاجة، والورقة دي قديمة: اطبع الكشف من جديد.</div>` : "");
 
   const msgs = [];
   if (busy) msgs.push(`فيه ${fmt(busy)} صورة لسه بتتقري.`);
