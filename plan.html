@@ -419,10 +419,13 @@ $("d-out").addEventListener("click", () => signOut(auth));
 onAuthStateChanged(auth, async user => {
   ["login", "denied", "app"].forEach(id => $(id).classList.add("hidden"));
   if (!user) { $("login").classList.remove("hidden"); return; }
-  let role = null;
-  try { role = (await user.getIdTokenResult()).claims.role || null; } catch (e) {}
+  let role = null, claims = {};
+  try { claims = (await user.getIdTokenResult()).claims || {}; role = claims.role || null; } catch (e) {}
   if (!["admin", "hr", "accountant", "viewer"].includes(role)) { $("denied").classList.remove("hidden"); return; }
   S.role = role;
+  // HR أو محاسب ليه فروع: بيانات العمال لفروعه بس
+  S.scoped = ["hr", "accountant"].includes(role) && Array.isArray(claims.sites) && claims.sites.length ? claims.sites : null;
+  if (S.scoped) W_SITES = SUP_SITES.filter(s => S.scoped.includes(s));
   document.body.classList.toggle("view-only", role === "viewer");
   document.querySelectorAll(".admin-only").forEach(el => el.classList.toggle("hidden", role !== "admin"));
   $("who").textContent = (user.email || "") + " — " + ({ admin: "أدمن", hr: "HR", accountant: "محاسب", viewer: "مشاهد (عرض بس)" }[role]);
@@ -962,7 +965,9 @@ document.querySelectorAll("[data-n]").forEach(n => {
 });
 ["w-q", "w-site"].forEach(id => document.getElementById(id)?.addEventListener("input", () => { document.querySelector('[data-fold="w-list"]').open = true; }));
 // ===== بيانات العمال (الأدمن وHR والمحاسب) =====
-const W_SITES = SUP_SITES;
+let W_SITES = SUP_SITES;
+// قوايم العمال (تعديلات / جداد / اتشالوا من الكشف): اللي ليه فروع بيقرا فروعه بس (الـ Rules بتطلب كده)
+const bySites = name => S.scoped ? query(collection(db, name), where("site", "in", W_SITES)) : collection(db, name);
 const WS = { base: [], ovr: {}, edit: null, pending: [] };
 const arNorm = s => String(s ?? "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/\s+/g, " ").trim();
 const typeLabel = t => ({ "اساسي": "أساسي" }[t] || t || "—");
@@ -974,12 +979,12 @@ async function initWorkers() {
   WS.base = [];
   snaps.forEach((sn, i) => { if (sn?.exists()) (sn.data().workers || []).forEach(w => WS.base.push({ ...w, site: W_SITES[i] })); });
   $("w-jobs").innerHTML = [...new Set(WS.base.map(w => w.job).filter(Boolean))].sort().map(j => `<option value="${esc(j)}">`).join("");
-  onSnapshot(collection(db, "roster_overrides"), snap => {
+  onSnapshot(bySites("roster_overrides"), snap => {
     WS.ovr = {}; snap.forEach(d => WS.ovr[d.id] = d.data());
     renderWorkers(); renderOverrides();
   }, err => show($("w-msg"), "err", "مش قادر أقرا التعديلات: " + err.message));
   renderWorkers();
-  onSnapshot(collection(db, "new_workers"), snap => {
+  onSnapshot(bySites("new_workers"), snap => {
     WS.newAll = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     const rows = WS.newAll.filter(x => x.status !== "rejected")
       .sort((a, b) => (b.at?.seconds || 0) - (a.at?.seconds || 0));
@@ -990,14 +995,14 @@ async function initWorkers() {
       : `<tr><td colspan="9" class="muted">مفيش.</td></tr>`;
     renderRem();
   }, () => {});
-  onSnapshot(collection(db, "sheet_removals"), snap => {
+  onSnapshot(bySites("sheet_removals"), snap => {
     WS.rem = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderRem();
   }, () => {});
 }
 // ===== البلاك ليست =====
 function initBlacklist() {
-  // الإضافة والشيل للأدمن والـ HR بس (زي الـ Rules)، والمحاسب بيشوف القايمة بس
-  const canBL = S.role === "admin" || S.role === "hr";
+  // الإضافة والشيل للأدمن وHR اللي ليه كل الفروع بس (زي الـ Rules)، والباقي بيشوف القايمة بس
+  const canBL = S.role === "admin" || (S.role === "hr" && !S.scoped);
   $("bl-form").classList.toggle("hidden", !canBL);
   onSnapshot(collection(db, "blacklist_info"), snap => {
     const rows = snap.docs.map(d => d.data()).sort((a, b) => (b.at?.seconds || 0) - (a.at?.seconds || 0));

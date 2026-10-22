@@ -227,7 +227,7 @@ input[type=file]{width:100%;padding:8px;cursor:pointer;font-size:13px;border:1px
     <!-- أزرار الصفحات (حسب الدور) — بتترسم من shared.js -->
     <nav id="pnav" class="pnav" aria-label="صفحات البوابة"></nav>
     <div style="text-align:left;margin-bottom:10px;"><a href="#" onclick="adminLogout();return false;" style="font-size:13px;color:#c0392b;text-decoration:none;"><i class="ti ti-logout" style="font-size:15px;vertical-align:-2px;margin-left:4px;"></i>خروج الإدارة</a></div>
-    <div class="card admin-only">
+    <div class="card payroll-only">
       <p style="font-size:14px;font-weight:500;color:#222;margin-bottom:12px;"><i class="ti ti-upload" style="font-size:16px;vertical-align:-2px;margin-left:6px;color:#c0392b;"></i>رفع شيت الرواتب الجديد</p>
       <input type="file" id="admin-excel" accept=".xlsx,.xls" style="margin-bottom:6px;" onchange="resetPayReview()"/>
       <p style="font-size:12px;color:#888;margin-bottom:12px;">كل شركة في تابة لوحدها (بيبسي، شيبسي، سويفل، الشرقية 1، الشرقية 2...) — المراجعة بتطلع إجمالي كل تابة لوحدها.</p>
@@ -483,11 +483,13 @@ onAuthStateChanged(auth, async (user)=>{
   const uploadBox = document.getElementById('admin-upload-box');
   if(!loginBox || !uploadBox) return;
   let role = null;
-  let userSites = null;
+  let userSites = null, canPayroll = false;
   if(user){
     try{
       const tok = await user.getIdTokenResult();
       role = tok.claims.role || null;
+      // رفع المرتبات: الأدمن، أو محاسب معاه صلاحية «رفع المرتبات»
+      canPayroll = role === 'admin' || (role === 'accountant' && tok.claims.payroll === true);
       userSites = Array.isArray(tok.claims.sites) ? tok.claims.sites : null;
     }catch(e){ console.error('role read error:', e); }
   }
@@ -512,6 +514,9 @@ onAuthStateChanged(auth, async (user)=>{
     document.querySelectorAll('.admin-only').forEach(el=>{
       el.style.display = isAdmin ? '' : 'none';
     });
+    document.querySelectorAll('.payroll-only').forEach(el=>{
+      el.style.display = canPayroll ? '' : 'none';
+    });
     document.querySelectorAll('.staff-only').forEach(el=>{
       el.style.display = isStaffRole ? '' : 'none';
     });
@@ -522,9 +527,9 @@ onAuthStateChanged(auth, async (user)=>{
     document.querySelectorAll('.card-look').forEach(el=>{
       el.style.display = (isStaffRole || isViewer || role === 'hr') ? '' : 'none';
     });
-    // المرتبات: الأدمن والمشاهد والمحاسب (قراية بس)
+    // المرتبات: الأدمن والمشاهد واللي بيرفع المرتبات (المحاسبين التانيين المرتبات مقفولة عليهم — زي الـ Rules)
     document.querySelectorAll('.salary-look').forEach(el=>{
-      el.style.display = (isAdmin || isViewer || role === 'accountant') ? '' : 'none';
+      el.style.display = (isViewer || canPayroll) ? '' : 'none';
     });
     const isAttRole = (role === 'admin' || (role === 'supervisor' && userSites && userSites.length));
     document.querySelectorAll('.rep-only').forEach(el=>{

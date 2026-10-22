@@ -58,7 +58,7 @@ label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#777;}
 
   <div id="app" class="hidden">
     <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px;">
-      <div><h1>اعتماد الحالات (إجازات / مرضي / استقالات)</h1><div class="muted" id="who"></div></div>
+      <div><h1>اعتماد الحالات (إجازات / مرضي / استقالات)</h1><div class="muted" id="who"></div><div class="muted" id="scope-note"></div></div>
       <div class="row"><button class="btn sec small" id="logout">خروج</button></div>
     </div>
     <nav id="pnav" class="pnav" aria-label="صفحات البوابة"></nav>
@@ -75,7 +75,7 @@ label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#777;}
         <button class="btn sec" id="lk-exp">تنزيل الإجازات</button><input type="file" id="lk-file" accept=".xlsx,.xls" style="max-width:300px"><button class="btn" id="lk-save" disabled>احفظ التصحيح</button></div>
       <div class="msg" id="lk-msg" style="white-space:pre-line;"></div>
     </div>
-    <div class="card no-view">
+    <div class="card no-view" id="client-card">
       <h2>مرحلة العميل (بيبسي والإمداد / شيبسي)</h2>
       <p class="muted" style="margin-bottom:8px;">اللي HR تيما وافق عليه لعمال بيبسي والإمداد وشيبسي بيستنى هنا رد العميل. وتقدر كمان تسجّل قرار العميل يدوي على كل حالة تحت.</p>
       <h2 style="margin-top:6px;">المرضي</h2>
@@ -111,7 +111,7 @@ label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#777;}
 <script type="module">
 import { getFirestore, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail } from './shared.js';
+import { db, auth, actorEmail, SUP_SITES } from './shared.js';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
@@ -155,7 +155,7 @@ async function loadDecided() {
   if (st === "pending" || st === "client_wait") { DECIDED.clear(); LOADED_ST = st; return rebuild(); }
   show($("msg"), "info", "بيحمّل...");
   try {
-    const sn = await getDocs(st ? query(collection(db, "hr_events"), where("status", "==", st)) : collection(db, "hr_events"));
+    const sn = await getDocs(st ? evQ(where("status", "==", st)) : evQ());
     DECIDED.clear(); sn.forEach(d => DECIDED.set(d.id, { id: d.id, ...d.data() }));
     LOADED_ST = st; $("msg").className = "msg"; rebuild();
   } catch (e) { show($("msg"), "err", "مش قادر أحمّل الحالات: " + e.message); }
@@ -176,6 +176,9 @@ function toISO(v) {
   if ((m = t.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/))) return m[3] + "-" + pad2(m[2]) + "-" + pad2(m[1]);   // يوم/شهر/سنة
   return "";
 }
+// اسم الموقع في الإكسيل ← فرع من البوابة (بعد توحيد الحروف والمسافات)
+const siteKey = t => anorm(t).replace(/ى/g, "ي").replace(/ة/g, "ه");
+const siteOfLoc = loc => SUP_SITES.find(s => siteKey(s) === siteKey(loc)) || "";
 // النوع من الإكسيل: بدون أجر = خ، أي إجازة تانية (سنوي / عارضة / إجازة) = ج
 const kindOf = t => /اصاب|إصاب/.test(t) ? ["sick", "", "injury"] : /مرض/.test(t) ? ["sick", "", "sick"] : /بدون/.test(t) ? ["leave", "unpaid"] : /سنو|عارض|اجاز|إجاز/.test(t) ? ["leave", "annual"] : [null, null];
 function workDays(f, t) { let n = 0; for (let d = new Date(f + "T00:00"); d <= new Date(t + "T00:00"); d.setDate(d.getDate() + 1)) if (d.getDay() !== 5) n++; return n; }
@@ -193,10 +196,14 @@ $("xf").onchange = async () => {
       const row = { source: "excel_hr", company: String(r[0]).trim(), loc: String(r[1]).trim(), nid, code, name: String(r[4]).trim(), type, kind, type_ar: sk === "injury" ? "إصابة عمل" : TY[type],
         from, to, days: String(workDays(from, to)), reason: String(r[8]).trim() };
       if (type === "sick") Object.assign(row, { sick_kind: sk, cause, hospital });
+      // الموقع لو هو اسم فرع من البوابة بيتسجل site (عشان HR الفرع يشوفه). HR بفروع: فروعه بس
+      const site = siteOfLoc(row.loc);
+      if (site) row.site = site;
       // المرضي اللي HR بيرفعه بيعدّي على العميل على طول — فلازم السبب والمستشفى عشان شيت العميل
       const toCl = type === "sick" && needsClient(row);
       const why = (!nid && !code) ? "مفيش رقم قومي ولا كود" : (nid && nid.length !== 14) ? "الرقم القومي مش 14 رقم" : !type ? "النوع مش مفهوم" : !from ? "تاريخ «من» مش مفهوم" : to < from ? "«لحد» قبل «من»"
-        : toCl && !cause ? "سبب الحالة فاضي" : toCl && !hospital ? "المستشفى فاضي" : "";
+        : toCl && !cause ? "سبب الحالة فاضي" : toCl && !hospital ? "المستشفى فاضي"
+        : SCOPED && !SCOPED.includes(site) ? `الموقع «${row.loc}» مش من فروعك (اكتب اسم الفرع زي البوابة بالظبط)` : "";
       if (why) return bad.push(`سطر ${i + 2}: ${why}`);
       XROWS.push(row);
     });
@@ -452,7 +459,7 @@ let LKROWS = [];
 async function leavesIn(f, t) {
   const out = [];
   for (const st of ["approved", "client_wait"]) {
-    const sn = await getDocs(query(collection(db, "hr_events"), where("status", "==", st), where("type", "==", "leave")));
+    const sn = await getDocs(evQ(where("status", "==", st), where("type", "==", "leave")));
     sn.forEach(d => { const e = { id: d.id, ...d.data() }; if (e.from && e.from <= t && (e.to || e.from) >= f) out.push(e); });
   }
   return out.sort((a, b) => placeOf(a).localeCompare(placeOf(b)) || String(a.name).localeCompare(String(b.name)) || String(a.from).localeCompare(String(b.from)));
@@ -513,22 +520,29 @@ $("lk-save").onclick = async () => {
 };
 
 let VIEW = false;   // المشاهد: عرض بس
+// HR ليه فروع: حالات فروعه بس — كل قراية لازم تبقى بالفروع دي (الـ Rules بترفض غير كده).
+// الحالات اللي مالهاش فرع (الشرقية والإكسيل القديم) ومرحلة العميل لـ HR اللي ليه كل الفروع.
+let SCOPED = null;
+function evQ(...w) { return SCOPED ? query(collection(db, "hr_events"), ...w, where("site", "in", SCOPED)) : query(collection(db, "hr_events"), ...w); }
 $("l-btn").onclick = async () => { try { await signInWithEmailAndPassword(auth, $("l-email").value.trim(), $("l-pass").value); } catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); } };
 $("logout").onclick = () => signOut(auth); $("d-out").onclick = () => signOut(auth);
 onAuthStateChanged(auth, async user => {
   ["login", "denied", "app"].forEach(i => $(i).classList.add("hidden"));
   if (!user) return $("login").classList.remove("hidden");
-  let role = null; try { role = (await user.getIdTokenResult()).claims.role || null; } catch (e) {}
+  let role = null, claims = {}; try { claims = (await user.getIdTokenResult()).claims || {}; role = claims.role || null; } catch (e) {}
   if (!["admin", "hr", "viewer"].includes(role)) return $("denied").classList.remove("hidden");
+  SCOPED = role === "hr" && Array.isArray(claims.sites) && claims.sites.length ? claims.sites : null;
+  $("client-card").classList.toggle("hidden", !!SCOPED);
+  if (SCOPED) $("scope-note").textContent = "حسابك ليه الفروع دي بس: " + SCOPED.join("، ") + ".";
   // المشاهد (viewer): يشوف الحالات وصورها بس — من غير رفع ولا اعتماد ولا تصدير للعميل
   VIEW = role === "viewer";
   if (VIEW) { document.querySelectorAll(".no-view").forEach(el => el.classList.add("hidden")); document.querySelector("#app h1").textContent = "الحالات (إجازات / مرضي / استقالات)"; }
   $("who").textContent = user.email; $("app").classList.remove("hidden");
   const onErr = err => show($("msg"), "err", "مش قادر أقرا الحالات: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : err.message));
   const fill = (map, snap) => { map.clear(); snap.forEach(d => map.set(d.id, { id: d.id, ...d.data() })); };
-  onSnapshot(query(collection(db, "hr_events"), where("status", "==", "pending")), snap => { fill(LIVE_P, snap); ALL_LOADED = true; rebuild(); }, onErr);
-  onSnapshot(query(collection(db, "hr_events"), where("changed", "==", true)), snap => { fill(LIVE_C, snap); rebuild(); }, onErr);
-  onSnapshot(query(collection(db, "hr_events"), where("status", "==", "client_wait")), snap => { fill(LIVE_W, snap); rebuild(); }, onErr);
+  onSnapshot(evQ(where("status", "==", "pending")), snap => { fill(LIVE_P, snap); ALL_LOADED = true; rebuild(); }, onErr);
+  onSnapshot(evQ(where("changed", "==", true)), snap => { fill(LIVE_C, snap); rebuild(); }, onErr);
+  onSnapshot(evQ(where("status", "==", "client_wait")), snap => { fill(LIVE_W, snap); rebuild(); }, onErr);
   try { const s = await getDoc(doc(db, "admin_tasks_status", "sharqia_sync")); const t = s.data()?.last_run?.toDate?.(); if (t) $("sync").textContent = "آخر تحديث للشرقية: " + t.toLocaleString("ar-EG"); } catch (e) {}
 });
 $("f-st").onchange = loadDecided; $("f-ty").onchange = render; $("f-gr").onchange = render; $("f-q").oninput = render;

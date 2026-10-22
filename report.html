@@ -171,7 +171,10 @@ onAuthStateChanged(auth, async user => {
   S.role = c.role;
   // المشاهد (viewer) بيشوف زي المكتب، بس من غير اعتماد أو تعديل
   S.view = c.role === "viewer";
-  if (["admin", "hr", "accountant", "viewer"].includes(c.role)) { S.sites = [...ATT_SITES, ...XL_SITES]; S.office = true; }
+  // HR أو محاسب ليه فروع: فروعه بس (والـ Rules بترفض أي حاجة برّاها)
+  S.scoped = ["hr", "accountant"].includes(c.role) && Array.isArray(c.sites) && c.sites.length ? c.sites : null;
+  if (S.scoped) { S.sites = S.scoped; S.office = true; }
+  else if (["admin", "hr", "accountant", "viewer"].includes(c.role)) { S.sites = [...ATT_SITES, ...XL_SITES]; S.office = true; }
   else if (c.role === "supervisor" && Array.isArray(c.sites) && c.sites.length) S.sites = c.sites;
   else return $("denied").classList.remove("hidden");
   $("who").textContent = user.email;
@@ -242,7 +245,7 @@ async function siteDays(site, from, to) {
 // ===== جلب أيام الحضور =====
 async function fetchDays(from, to, site) {
   let docs = [];
-  if (S.office && (!site || site === "*")) {
+  if (S.office && !S.scoped && (!site || site === "*")) {
     // المكتب، كل المواقع: الفترة بس
     const sn = await getDocs(query(collection(db, "att_days"), where("date", ">=", from), where("date", "<=", to)));
     sn.forEach(d => docs.push({ id: d.id, ...d.data() }));
@@ -264,13 +267,17 @@ function period() {
 // ===== الحالات المعتمدة من الـ HR (إجازة / مرضي / استقالة): الشرقية من Drive، وطلبات المشرفين، وإكسيل الـ HR =====
 // واللي مستني رد العميل (بيبسي والإمداد / شيبسي) بيظهر «م؟» أو «ج؟» أو «خ؟» — مش غياب ومش معتمد
 const SHARQIA = "الشرقية للدخان";
+// حالات HR بحالة معيّنة — HR/المحاسب اللي ليه فروع بيقرا حالات فروعه بس (الـ Rules بتطلب كده)
+const evQuery = st => S.scoped
+  ? query(collection(db, "hr_events"), where("status", "==", st), where("site", "in", S.scoped))
+  : query(collection(db, "hr_events"), where("status", "==", st));
 async function applySharqiaEvents(list, from, to) {
   const rows = list; if (!rows.length) return;
   let codes = {}, evs = [];
   try { const m = await getDoc(doc(db, "sharqia_map", "codes")); codes = m.exists() ? m.data().codes || {} : {}; } catch (e) {}
   try {
     // المستني العميل الأول، والمعتمد بعده عشان يكسب لو الاتنين على نفس اليوم
-    const [w, a] = await Promise.all(["client_wait", "approved"].map(st => getDocs(query(collection(db, "hr_events"), where("status", "==", st)))));
+    const [w, a] = await Promise.all(["client_wait", "approved"].map(st => getDocs(evQuery(st))));
     w.forEach(d => evs.push(d.data())); a.forEach(d => evs.push(d.data()));
   } catch (e) {}
   const byCode = {}, byNid = {};
@@ -322,7 +329,7 @@ async function leaveReport(from, to, site, jobF, kind) {
       try { const r = await getDoc(doc(db, "rosters", s)); (r.exists() ? r.data().workers : []).forEach(w => put(s, w.code, w.nid, w.name, w.job)); } catch (e) {}
     }
     const evs = [];
-    const sn = await getDocs(query(collection(db, "hr_events"), where("status", "==", "approved")));
+    const sn = await getDocs(evQuery("approved"));
     sn.forEach(d => evs.push(d.data()));
     const isFri = d => new Date(d + "T00:00").getDay() === 5;
     const list = [];
