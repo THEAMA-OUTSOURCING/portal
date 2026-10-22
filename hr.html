@@ -70,8 +70,19 @@ label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#777;}
     </div>
     <div class="card no-view">
       <h2>مرحلة العميل (بيبسي والإمداد / شيبسي)</h2>
-      <p class="muted" style="margin-bottom:8px;">اللي HR تيما وافق عليه لعمال بيبسي والإمداد وشيبسي بيستنى هنا رد العميل. صدّر ملف لكل عميل وابعته، ولما يرجّعه مالي عمود القرار (وتعديل المدة لو فيه)، ارفعه هنا. وتقدر كمان تسجّل قرار العميل يدوي على كل حالة تحت.</p>
-      <div class="row"><button class="btn sec" id="cl-exp-pepsi">تصدير بيبسي والإمداد</button><button class="btn sec" id="cl-exp-chipsy">تصدير شيبسي</button><span class="muted" id="cl-count"></span></div>
+      <p class="muted" style="margin-bottom:8px;">اللي HR تيما وافق عليه لعمال بيبسي والإمداد وشيبسي بيستنى هنا رد العميل. وتقدر كمان تسجّل قرار العميل يدوي على كل حالة تحت.</p>
+      <h2 style="margin-top:6px;">المرضي</h2>
+      <p class="muted" style="margin-bottom:6px;">1) صدّر شيت المرضي وابعته للعميل. 2) لما العميل يرد، نزّل «شيت الرد» وعدّل فيه «الأيام المعتمدة» للحالات اللي العميل غيّرها بس (والـ Limit لو باعته)، واكتب الإجمالي اللي في إيميله وارفعه.
+        لو العامل ليه أكتر من فترة، اكتب الإجمالي في أول سطر وفضّي الباقي — بيتوزّع من الأقدم. الأيام المعتمدة = م، والباقي = خ.</p>
+      <div class="row"><button class="btn sec" id="sk-exp-pepsi">تصدير مرضي بيبسي والإمداد</button><button class="btn sec" id="sk-exp-chipsy">تصدير مرضي شيبسي</button>
+        <button class="btn sec" id="sk-rep-pepsi">شيت الرد — بيبسي والإمداد</button><button class="btn sec" id="sk-rep-chipsy">شيت الرد — شيبسي</button></div>
+      <div class="row" style="margin-top:8px;"><input type="file" id="sk-file" accept=".xlsx,.xls" style="max-width:300px">
+        <label class="f">إجمالي الأيام المعتمدة في إيميل العميل<input type="number" id="sk-total" min="0" style="width:120px;"></label>
+        <button class="btn" id="sk-save" disabled>احفظ رد العميل</button></div>
+      <div class="msg" id="sk-msg" style="white-space:pre-line;"></div>
+      <h2 style="margin-top:14px;">الإجازات</h2>
+      <p class="muted" style="margin-bottom:6px;">صدّر ملف لكل عميل وابعته، ولما يرجّعه مالي عمود القرار (وتعديل المدة لو فيه)، ارفعه هنا.</p>
+      <div class="row"><button class="btn sec" id="cl-exp-pepsi">تصدير إجازات بيبسي والإمداد</button><button class="btn sec" id="cl-exp-chipsy">تصدير إجازات شيبسي</button><span class="muted" id="cl-count"></span></div>
       <div class="row" style="margin-top:8px;"><input type="file" id="cl-file" accept=".xlsx,.xls" style="max-width:320px"><button class="btn" id="cl-save" disabled>احفظ قرارات العميل</button></div>
       <div class="msg" id="cl-msg" style="white-space:pre-line;"></div>
     </div>
@@ -101,6 +112,9 @@ const TY = { sick: "مرضي", leave: "إجازة", resign: "استقالة" };
 const ST = { pending: "مستني HR تيما", client_wait: "مستني رد العميل", approved: "معتمد", rejected: "مرفوض" };
 const SRC = { supervisor: "طلب مشرف", excel_hr: "إكسيل", sharqia_drive: "تطبيق الشرقية" };
 // مرضي نوعين: مرضى عادى (بيتحسب من الـ 10 أيام في السنة) وإصابة عمل (ملهاش حد) — sick_kind = sick / injury
+// المرضي اللي العميل اعتمد منه جزء أو رفضه بيتقفل «معتمد» بعدد أيام — فبنوضّح ده في الشارة
+const stTxt = e => e.status === "approved" && e.type === "sick" && e.approved_days != null && +e.approved_days < +e.days
+  ? (+e.approved_days === 0 ? "العميل رفض — خ" : `معتمد ${e.approved_days} من ${e.days}`) : (ST[e.status] || e.status);
 const tyTxt = e => e.type === "sick" && e.sick_kind === "injury" ? "إصابة عمل" : TY[e.type];
 // الرموز الموحدة: ج إجازة، خ إجازة بدون أجر، م مرضي (العارضة القديمة بتتعرض ج)
 const KINDS = { annual: "ج إجازة", casual: "ج إجازة", unpaid: "خ بدون أجر" };
@@ -125,8 +139,8 @@ function rebuild() {
   const m = new Map(DECIDED);
   LIVE_C.forEach((v, k) => m.set(k, v)); LIVE_W.forEach((v, k) => m.set(k, v)); LIVE_P.forEach((v, k) => m.set(k, v));
   ALL = [...m.values()];
-  const w = [...LIVE_W.values()], np = w.filter(e => groupOf(e) === "pepsi").length, nc = w.filter(e => groupOf(e) === "chipsy").length;
-  $("cl-count").textContent = `مستني العميل: بيبسي والإمداد ${np} — شيبسي ${nc}`;
+  const w = [...LIVE_W.values()], cnt = (g, t) => w.filter(e => groupOf(e) === g && (t === "sick" ? e.type === "sick" : e.type !== "sick")).length;
+  $("cl-count").textContent = `مستني العميل — مرضي: بيبسي والإمداد ${cnt("pepsi", "sick")}، شيبسي ${cnt("chipsy", "sick")} — إجازات: بيبسي والإمداد ${cnt("pepsi")}، شيبسي ${cnt("chipsy")}`;
   render();
 }
 async function loadDecided() {
@@ -224,15 +238,15 @@ $("xsave").onclick = async () => {
 const CL_HEAD = ["رقم الطلب", "الاسم", "الرقم القومي", "الكود", "الوظيفة", "الفرع", "النوع", "من", "لحد", "عدد الأيام",
   "قرار العميل (موافق / مرفوض)", "من (لو اتعدلت)", "لحد (لو اتعدلت)", "ملاحظة العميل"];
 async function exportClient(g) {
-  const list = [...LIVE_W.values()].filter(e => groupOf(e) === g).sort((a, b) => placeOf(a).localeCompare(placeOf(b)) || String(a.name).localeCompare(String(b.name)) || String(a.from).localeCompare(String(b.from)));
-  if (!list.length) return show($("cl-msg"), "info", `مفيش حالات مستنية رد ${GROUP_AR[g]}.`);
+  const list = [...LIVE_W.values()].filter(e => groupOf(e) === g && e.type !== "sick").sort((a, b) => placeOf(a).localeCompare(placeOf(b)) || String(a.name).localeCompare(String(b.name)) || String(a.from).localeCompare(String(b.from)));
+  if (!list.length) return show($("cl-msg"), "info", `مفيش إجازات مستنية رد ${GROUP_AR[g]}.`);
   const ws = XLSX.utils.aoa_to_sheet([CL_HEAD, ...list.map(e => [e.id, e.name || "", String(e.nid || ""), String(e.code || ""), e.job || "", placeOf(e),
     TY[e.type] || "", e.from || "", e.to || "", Number(e.days) || "", "", "", "", ""])]);
   ws["!cols"] = CL_HEAD.map((h, i) => i === 0 ? { hidden: true, wch: 30 } : { wch: i === 1 ? 28 : i === 10 ? 24 : i === 13 ? 26 : 14 });
   const wb = XLSX.utils.book_new(); wb.Workbook = { Views: [{ RTL: true }] };
   XLSX.utils.book_append_sheet(wb, ws, "إجازات ومرضي");
   const today = new Date().toISOString().slice(0, 10);
-  XLSX.writeFile(wb, `إجازات ومرضي ${GROUP_AR[g]} ${today}.xlsx`);
+  XLSX.writeFile(wb, `إجازات ${GROUP_AR[g]} ${today}.xlsx`);
   // نعلّم إنها اتبعتت (أول مرة بس) عشان يبان في الكارت إمتى اتبعتت للعميل
   const notSent = list.filter(e => !e.sent_at);
   try {
@@ -265,6 +279,7 @@ $("cl-file").onchange = async () => {
       if (seen.has(id)) return bad.push(`${line}: الحالة متكررة في الملف`); seen.add(id);
       const ev = LIVE_W.get(id);
       if (!ev) return bad.push(`${line}: الحالة دي مش مستنية رد العميل (اتسجل قرارها قبل كده أو اترجعت)`);
+      if (ev.type === "sick") return bad.push(`${line}: دي حالة مرضي — رد المرضي بيترفع من «شيت الرد» فوق`);
       const f2 = iF >= 0 ? toISO(r[iF]) : "", t2 = iT >= 0 ? toISO(r[iT]) : "", note = iN >= 0 ? String(r[iN]).trim() : "";
       let dec = decOf(String(r[iDec]).trim());
       if (!dec && (f2 || t2)) dec = "approved";
@@ -293,6 +308,133 @@ $("cl-save").onclick = async () => {
     for (const x of CROWS) { await updateDoc(doc(db, "hr_events", x.id), clientUpd(x.ev, x.dec, x.from, x.to, x.note)); n++; }
     show($("cl-msg"), "ok", `اتسجل قرار العميل على ${n} حالة.`); CROWS = []; $("cl-file").value = "";
   } catch (e) { show($("cl-msg"), "err", `اتسجل ${n} ووقف عند خطأ: ` + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : e.message)); }
+};
+
+// ===== المرضي: شيت للعميل بنفس شكله، وشيت رد بالأيام المعتمدة =====
+// القاعدة عند العميل: 10 أيام مرضى في السنة، وإصابة العمل ملهاش حد. العميل بيرد بالاستثناءات بس.
+const branchOf = e => e.site || e.loc || e.company || "";
+const dmy = iso => iso ? iso.slice(8, 10) + "/" + iso.slice(5, 7) + "/" + iso.slice(0, 4) : "";
+const skTxt = e => e.sick_kind === "injury" ? "اصابة عمل" : "مرضى";
+const wKey = e => e.nid || "c:" + (e.code || e.id);
+const sickWaiting = g => [...LIVE_W.values()].filter(e => e.type === "sick" && groupOf(e) === g)
+  .sort((a, b) => branchOf(a).localeCompare(branchOf(b)) || String(a.name).localeCompare(String(b.name)) || String(a.from).localeCompare(String(b.from)));
+function sheetOut(aoa, cols, name, fname) {
+  const ws = XLSX.utils.aoa_to_sheet(aoa); ws["!cols"] = cols.map(w => ({ wch: w }));
+  const wb = XLSX.utils.book_new(); wb.Workbook = { Views: [{ RTL: true }] }; XLSX.utils.book_append_sheet(wb, ws, name);
+  XLSX.writeFile(wb, fname);
+}
+const SK_HEAD = ["رقم الطلب", "المورد", "اسم المريض", "الفرع", "الوظيفة", "سبب الحالة المرضية", "تاريخ التعيين", "من", "الى", "عدد الايام", "المستشفى", "الرقم القومى", "نوع الحالة", "ملاحظات"];
+async function exportSick(g) {
+  const list = sickWaiting(g);
+  if (!list.length) return show($("sk-msg"), "info", `مفيش مرضي مستني رد ${GROUP_AR[g]}.`);
+  const miss = list.filter(e => !e.cause || !e.hospital);
+  const total = list.reduce((t, e) => t + (+e.days || 0), 0);
+  const rows = list.map(e => [e.id, "تيما", e.name || "", branchOf(e), e.job || "", e.cause || "", dmy(e.hire_date || ""), dmy(e.from), dmy(e.to || e.from),
+    +e.days || 0, e.hospital || "", String(e.nid || ""), skTxt(e), e.sick_kind === "injury" ? "اصابة عمل بمحضر مختوم" : (e.reason || "")]);
+  const today = new Date().toISOString().slice(0, 10);
+  sheetOut([SK_HEAD, ...rows, ["", "", "", "", "", "", "", "", "الاجمالى", total]], [12, 7, 30, 14, 14, 34, 12, 11, 11, 9, 16, 17, 11, 22], "المرضى", `مرضى ${GROUP_AR[g]} ${today}.xlsx`);
+  const notSent = list.filter(e => !e.sent_at);
+  try {
+    for (let i = 0; i < notSent.length; i += 400) {
+      const b = writeBatch(db);
+      notSent.slice(i, i + 400).forEach(e => b.update(doc(db, "hr_events", e.id), { sent_at: serverTimestamp(), sent_email: auth.currentUser.email || "" }));
+      await b.commit();
+    }
+    show($("sk-msg"), miss.length ? "err" : "ok", `اتصدّر ${list.length} حالة مرضي لـ ${GROUP_AR[g]} — ${total} يوم.`
+      + (miss.length ? `\nخلي بالك: ${miss.length} حالة ناقصها السبب أو المستشفى: ` + miss.slice(0, 10).map(e => e.name).join("، ") : ""));
+  } catch (e) { show($("sk-msg"), "err", "الملف اتصدّر، بس ماتعلّمتش إنها اتبعتت: " + e.message); }
+}
+const SKR_HEAD = ["رقم الطلب", "اسم المريض", "الرقم القومى", "الفرع", "من", "الى", "نوع الحالة", "عدد الايام", "Limit", "الايام المعتمدة"];
+function replySheet(g) {
+  const list = sickWaiting(g);
+  if (!list.length) return show($("sk-msg"), "info", `مفيش مرضي مستني رد ${GROUP_AR[g]}.`);
+  const total = list.reduce((t, e) => t + (+e.days || 0), 0);
+  const rows = list.map(e => [e.id, e.name || "", String(e.nid || ""), branchOf(e), dmy(e.from), dmy(e.to || e.from), skTxt(e), +e.days || 0, "", +e.days || 0]);
+  sheetOut([SKR_HEAD, ...rows, ["", "", "", "", "", "", "الاجمالى", total, "", total]], [12, 30, 17, 14, 11, 11, 11, 9, 8, 12], "رد العميل", `رد مرضى ${GROUP_AR[g]} ${new Date().toISOString().slice(0, 10)}.xlsx`);
+  show($("sk-msg"), "info", `نزل شيت الرد (${list.length} حالة). عدّل «الأيام المعتمدة» للحالات اللي في رد العميل بس، وارفعه.`);
+}
+$("sk-exp-pepsi").onclick = () => exportSick("pepsi");
+$("sk-exp-chipsy").onclick = () => exportSick("chipsy");
+$("sk-rep-pepsi").onclick = () => replySheet("pepsi");
+$("sk-rep-chipsy").onclick = () => replySheet("chipsy");
+// الأيام المعتمدة لكل عامل = مجموع اللي مكتوب في سطوره، وبتتوزّع على فتراته من الأقدم
+function spread(evs, total) {
+  let left = total; const out = new Map();
+  [...evs].sort((a, b) => String(a.from).localeCompare(String(b.from))).forEach(e => { const a = Math.min(left, +e.days || 0); out.set(e.id, a); left -= a; });
+  return out;
+}
+let SKROWS = [];
+const numOf = v => { const t = String(v ?? "").trim().replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d)); return t === "" ? null : /^\d+$/.test(t) ? +t : NaN; };
+function skCheck() {
+  const t = numOf($("sk-total").value);
+  const sum = SKROWS.reduce((s, x) => s + x.a, 0);
+  $("sk-save").disabled = !SKROWS.length || t == null || isNaN(t) || t !== sum;
+  return { t, sum };
+}
+$("sk-total").oninput = () => {
+  if (!SKROWS.length) return;
+  const { t, sum } = skCheck();
+  if (t != null && !isNaN(t)) show($("sk-msg"), t === sum ? "ok" : "err", (t === sum ? "الإجمالي مطابق ✓ — دوس «احفظ رد العميل»." : `الإجمالي مش مطابق: الشيت ${sum} وإيميل العميل ${t} — الفرق ${sum - t}.`) + "\n" + SKSUM);
+};
+let SKSUM = "";
+$("sk-file").onchange = async () => {
+  SKROWS = []; SKSUM = ""; $("sk-save").disabled = true;
+  const f = $("sk-file").files[0]; if (!f) return;
+  try {
+    const wb = XLSX.read(await f.arrayBuffer());
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: "" });
+    const H = (rows[0] || []).map(h => anorm(h));
+    const col = re => H.findIndex(h => re.test(h));
+    const iId = col(/رقم الطلب/), iA = col(/الايام المعتمد/), iL = col(/^limit$/i);
+    if (iId < 0 || iA < 0) return show($("sk-msg"), "err", "ده مش شيت الرد اللي نزل من هنا (مش لاقي «رقم الطلب» أو «الايام المعتمدة»).");
+    const bad = [], seen = new Set(), groups = new Map();
+    rows.slice(1).forEach((r, i) => {
+      const id = String(r[iId] || "").trim(); if (!id) return;   // سطر الإجمالي
+      const line = `سطر ${i + 2}`;
+      if (seen.has(id)) return bad.push(`${line}: الحالة متكررة`); seen.add(id);
+      const ev = LIVE_W.get(id);
+      if (!ev) return bad.push(`${line}: الحالة دي مش مستنية رد العميل (اتسجل ردها قبل كده أو اترجعت)`);
+      if (ev.type !== "sick") return bad.push(`${line}: دي مش حالة مرضي`);
+      const a = numOf(r[iA]), lim = iL >= 0 ? numOf(r[iL]) : null;
+      if (Number.isNaN(a)) return bad.push(`${line}: «الأيام المعتمدة» لازم رقم صحيح`);
+      if (Number.isNaN(lim)) return bad.push(`${line}: الـ Limit لازم رقم (أو فاضي)`);
+      const k = wKey(ev); if (!groups.has(k)) groups.set(k, { evs: [], vals: [], lim: null });
+      const gr = groups.get(k); gr.evs.push(ev); gr.vals.push(a); if (lim != null) gr.lim = lim;
+    });
+    for (const gr of groups.values()) {
+      const name = gr.evs[0].name, max = gr.evs.reduce((t, e) => t + (+e.days || 0), 0);
+      if (gr.vals.every(v => v == null)) { bad.push(`${name}: «الأيام المعتمدة» فاضية`); continue; }
+      const T = gr.vals.reduce((t, v) => t + (v || 0), 0);
+      if (T > max) { bad.push(`${name}: معتمد ${T} وهو طالب ${max} بس`); continue; }
+      spread(gr.evs, T).forEach((a, id) => { const ev = gr.evs.find(e => e.id === id); SKROWS.push({ ev, a, lim: gr.lim }); });
+    }
+    if (bad.length) { SKROWS = []; return show($("sk-msg"), "err", `الشيت فيه ${bad.length} مشكلة — صلّحها وارفعه تاني (مفيش حاجة اتحفظت):\n` + bad.slice(0, 25).join("\n")); }
+    const full = SKROWS.filter(x => x.a === +x.ev.days).length, zero = SKROWS.filter(x => x.a === 0).length, part = SKROWS.length - full - zero;
+    const req = SKROWS.reduce((t, x) => t + (+x.ev.days || 0), 0), sum = SKROWS.reduce((t, x) => t + x.a, 0);
+    SKSUM = `${SKROWS.length} حالة: ${full} معتمدة كاملة — ${part} جزئي — ${zero} مرفوضة. المطلوب ${req} يوم، والمعتمد ${sum} يوم (خ ${req - sum} يوم).`;
+    const { t } = skCheck();
+    show($("sk-msg"), t != null && t === sum ? "ok" : "info", SKSUM + (t == null ? "\nاكتب الإجمالي اللي في إيميل العميل عشان تقدر تحفظ." : t !== sum ? `\nالإجمالي مش مطابق: الشيت ${sum} وإيميل العميل ${t}.` : "\nالإجمالي مطابق ✓"));
+  } catch (e) { show($("sk-msg"), "err", "الملف ماتقراش: " + e.message); }
+};
+// رد العميل على حالة مرضي: بتتقفل «معتمد» بعدد الأيام المعتمدة (حتى لو 0) عشان باقي الأيام تتسجل خ في الحضور
+function sickClientUpd(ev, a, lim, note) {
+  const u = auth.currentUser, d = +ev.days || 0;
+  const upd = { status: "approved", approved_days: a, decided_by: u.uid, decided_email: u.email || "", decided_at: serverTimestamp(),
+    client: { decision: a >= d ? "approved" : a === 0 ? "rejected" : "partial", approved_days: a, note: note || "", by_email: u.email || "" } };
+  if (lim != null) upd.client_limit = lim;
+  return upd;
+}
+$("sk-save").onclick = async () => {
+  const { t, sum } = skCheck(); if (t !== sum) return;
+  $("sk-save").disabled = true; let n = 0;
+  try {
+    for (let i = 0; i < SKROWS.length; i += 400) {
+      const b = writeBatch(db);
+      SKROWS.slice(i, i + 400).forEach(x => b.update(doc(db, "hr_events", x.ev.id), sickClientUpd(x.ev, x.a, x.lim, "")));
+      await b.commit(); n += Math.min(400, SKROWS.length - i);
+    }
+    show($("sk-msg"), "ok", `اتسجل رد العميل على ${n} حالة مرضي — ${sum} يوم معتمد.`); SKROWS = []; $("sk-file").value = ""; $("sk-total").value = "";
+  } catch (e) { show($("sk-msg"), "err", `اتسجل ${n} ووقف عند خطأ: ` + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : e.message)); }
 };
 
 let VIEW = false;   // المشاهد: عرض بس
@@ -326,7 +468,7 @@ function changedHtml(e) {
   return rows.length ? `<ul style="margin:4px 18px 0 0;padding:0;">${rows.join("")}</ul>` : "";
 }
 const tsTxt = t => t?.toDate ? t.toDate().toLocaleDateString("ar-EG") : "";
-const CDEC = { approved: "وافق", modified: "وافق وعدّل المدة", rejected: "رفض" };
+const CDEC = { approved: "وافق", modified: "وافق وعدّل المدة", rejected: "رفض", partial: "اعتمد جزء" };
 // المرضي: HR تيما بيكتب السبب والمستشفى وهو بيوافق (لازمين لشيت العميل)، ويقدر يغيّر مرضى ↔ إصابة عمل
 const sickFields = e => e.type !== "sick" ? "" : `<div class="row" style="width:100%;gap:6px;">
   <select data-sk="${e.id}" style="padding:4px 6px;font-size:12px;"><option value="sick" ${e.sick_kind !== "injury" ? "selected" : ""}>مرضى</option><option value="injury" ${e.sick_kind === "injury" ? "selected" : ""}>إصابة عمل</option></select>
@@ -347,7 +489,7 @@ function render() {
       <div class="ph" ${e.image ? `data-zoom="${e.id}"` : ""}>${e.image ? `<img src="${esc(e.image)}" alt="">` : `<span class="muted">${e.image_path ? "الصورة اتنقلت لسيرفر الشركة" : e.type === "leave" ? "الإجازة مالهاش صورة" : e.image_missing ? "الصورة مش لاقيها على Drive" : "مفيش صورة"}</span>`}</div>
       ${e.image2 ? `<div class="ph" style="height:120px;border-top:1px solid #e5e5e5;" data-zoom2="${e.id}" title="المحضر المختوم"><img src="${esc(e.image2)}" alt="المحضر"></div>` : e.sick_kind === "injury" && e.source === "supervisor" ? `<div class="warn" style="margin:6px 12px 0;">مفيش صورة المحضر</div>` : ""}
       <div class="bd">
-        <div class="row" style="justify-content:space-between;align-items:center;"><span class="nm">${esc(e.name)}</span><span><span class="pill t-${e.type}">${tyTxt(e)}${e.kind ? " " + (KINDS[e.kind] || "") : ""}</span> <span class="pill s-${e.status}">${ST[e.status] || e.status}</span></span></div>
+        <div class="row" style="justify-content:space-between;align-items:center;"><span class="nm">${esc(e.name)}</span><span><span class="pill t-${e.type}">${tyTxt(e)}${e.kind ? " " + (KINDS[e.kind] || "") : ""}</span> <span class="pill s-${e.status}">${stTxt(e)}</span></span></div>
         <div style="margin-top:4px;"><span class="pill g">${GROUP_AR[groupOf(e)]}</span> <span class="muted">${SRC[e.source] || ""}</span></div>
         <dl>
           <dt>الكود</dt><dd>${esc(e.code)}${e.nid ? ` — <span dir="ltr">${esc(e.nid)}</span>` : ""}</dd>
@@ -380,6 +522,8 @@ function render() {
         <div class="row"><button class="btn ok small" data-csave="${e.id}">سجّل</button><button class="btn sec small" data-ccancel="1">إلغاء</button></div></div>` : ""}
       ${VIEW ? "" : `<div class="ft">${e.status === "pending" || e.changed
         ? `${kindSel(e)}${sickFields(e)}<input placeholder="ملاحظة (اختياري)" data-note="${e.id}" style="flex:1;min-width:120px;"><button class="btn ok small" data-ap="${e.id}">${toClient && e.type !== "resign" ? "موافقة ← للعميل" : "اعتماد"}</button><button class="btn sec small" data-ed="${e.id}">تعديل</button><button class="btn sec small" data-rj="${e.id}">رفض</button>`
+        : e.status === "client_wait" && e.type === "sick"
+        ? `<input placeholder="ملاحظة العميل (اختياري)" data-note="${e.id}" style="flex:1;min-width:110px;"><label class="f" style="flex-direction:row;align-items:center;gap:4px;">الأيام المعتمدة<input type="number" min="0" max="${esc(e.days)}" value="${esc(e.days)}" data-sa="${e.id}" style="width:64px;padding:4px 6px;"></label><button class="btn ok small" data-sok="${e.id}">سجّل رد العميل</button><button class="btn sec small" data-back="${e.id}">رجّعها لتيما</button>`
         : e.status === "client_wait"
         ? `<input placeholder="ملاحظة العميل (اختياري)" data-note="${e.id}" style="flex:1;min-width:120px;"><button class="btn ok small" data-cok="${e.id}">العميل وافق</button><button class="btn sec small" data-ced="${e.id}">وافق بمدة تانية</button><button class="btn sec small" data-crj="${e.id}">العميل رفض</button><button class="btn sec small" data-back="${e.id}">رجّعها لتيما</button>`
         : `<button class="btn sec small" data-back="${e.id}">رجّعها مستنية</button>`}</div>`}
@@ -439,10 +583,15 @@ $("list").onclick = async e => {
     if (!f || !t || t < f) return show($("msg"), "err", "التواريخ مش مظبوطة.");
     return save(id, clientUpd(ev, "approved", f, t, note), "اتسجل إن العميل وافق بالمدة الجديدة.");
   }
-  const id = ds.ap || ds.rj || ds.back || ds.cok || ds.crj; if (!id) return;
+  const id = ds.ap || ds.rj || ds.back || ds.cok || ds.crj || ds.sok; if (!id) return;
   const u = auth.currentUser, note = document.querySelector(`[data-note="${id}"]`)?.value.trim() || "";
   const ev = ALL.find(x => x.id === id);
-  if (ds.back) return save(id, { status: "pending", decided_by: null, decided_email: null, decided_at: null, hr_ok_by: null, hr_ok_email: null, hr_ok_at: null, client: null }, "رجعت «مستني HR تيما».");
+  if (ds.sok) {
+    const a = numOf(document.querySelector(`[data-sa="${id}"]`)?.value);
+    if (a == null || Number.isNaN(a) || a > +ev.days) return show($("msg"), "err", `الأيام المعتمدة لازم من 0 لحد ${ev.days}.`);
+    return save(id, sickClientUpd(ev, a, null, note), a >= +ev.days ? "اتسجل إن العميل اعتمدها كاملة." : a === 0 ? "اتسجل إن العميل رفضها — أيامها هتبقى خ." : `اتسجل إن العميل اعتمد ${a} من ${ev.days} — الباقي خ.`);
+  }
+  if (ds.back) return save(id, { status: "pending", decided_by: null, decided_email: null, decided_at: null, hr_ok_by: null, hr_ok_email: null, hr_ok_at: null, client: null, approved_days: null, client_limit: null }, "رجعت «مستني HR تيما».");
   if (ds.cok) return save(id, clientUpd(ev, "approved", ev.from, ev.to, note), "اتسجل إن العميل وافق.");
   if (ds.crj) { if (!note && !confirm("ترفض من غير ملاحظة؟")) return; return save(id, clientUpd(ev, "rejected", "", "", note), "اتسجل إن العميل رفض."); }
   if (ds.rj) {
