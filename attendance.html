@@ -239,7 +239,7 @@ img[data-zoom]{cursor:zoom-in;}
     <input type="search" id="lv-q" placeholder="اكتب اسم العامل أو الكود" autocomplete="off" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:10px;">
     <div id="lv-hits" class="m-hits"></div>
     <div id="lv-picked" class="m-picked hidden"></div>
-    <label style="display:block;margin:8px 0;"><span class="muted">النوع</span><select id="lv-type"><option value="sick">مرضي</option><option value="leave">إجازة</option></select></label>
+    <label style="display:block;margin:8px 0;"><span class="muted">النوع</span><select id="lv-type"><option value="sick">مرضي</option><option value="injury">إصابة عمل</option><option value="leave">إجازة</option></select></label>
     <div class="row">
       <label class="grow"><span class="muted">من</span><input type="date" id="lv-from"></label>
       <label class="grow"><span class="muted">لحد</span><input type="date" id="lv-to"></label>
@@ -249,8 +249,14 @@ img[data-zoom]{cursor:zoom-in;}
       <div class="row" style="margin-top:4px;"><label class="btn sec small" for="lv-cam">صوّر</label><label class="btn sec small" for="lv-file">من المعرض</label></div>
       <img id="lv-img" class="hidden" data-zoom alt="صورة الطلب" title="دوس تكبّر" style="width:100%;max-height:240px;object-fit:contain;margin-top:8px;border:1px solid #eee;border-radius:10px;">
     </div>
+    <div id="lv-inj" class="hidden" style="margin-top:10px;"><span class="muted">صورة المحضر المختوم (لازم لإصابة العمل)</span>
+      <div class="row" style="margin-top:4px;"><label class="btn sec small" for="lv-cam2">صوّر</label><label class="btn sec small" for="lv-file2">من المعرض</label></div>
+      <img id="lv-img2" class="hidden" data-zoom alt="صورة المحضر" title="دوس تكبّر" style="width:100%;max-height:240px;object-fit:contain;margin-top:8px;border:1px solid #eee;border-radius:10px;">
+    </div>
     <input type="file" id="lv-cam" accept="image/*" capture="environment" class="hidden">
     <input type="file" id="lv-file" accept="image/*" class="hidden">
+    <input type="file" id="lv-cam2" accept="image/*" capture="environment" class="hidden">
+    <input type="file" id="lv-file2" accept="image/*" class="hidden">
     <button class="btn block" id="lv-send" style="margin-top:12px;" disabled>ابعت الطلب</button>
     <div class="msg" id="lv-m"></div>
   </div>
@@ -1138,8 +1144,10 @@ $("fm-send").addEventListener("click", async () => {
 
 // ===== طلبات الإجازة والمرضي (المشرف بيرفع ← HR تيما ← العميل) =====
 // الطلب بيتسجل في hr_events (source = supervisor) بنفس شكل حالات الشرقية والإكسيل، فصفحة hr.html والتقارير بيقروه زيهم.
-const LV = { who: null, img: "", list: [], unsub: null, site: "" };
+const LV = { who: null, img: "", img2: "", list: [], unsub: null, site: "" };
 const LV_TY = { sick: "مرضي", leave: "إجازة" };
+// إصابة العمل: النوع sick وsick_kind = injury، ومعاها صورة المحضر المختوم (image2) إجباري
+const lvTyTxt = e => e.type === "sick" && e.sick_kind === "injury" ? "إصابة عمل" : (LV_TY[e.type] || "");
 const LV_ST = { pending: ["مستني الـ HR", "p-wait"], client_wait: ["مستني اعتماد العميل", "p-warn"], approved: ["اتعتمد", "p-ok"], rejected: ["اترفض", "p-err"] };
 const lvWorkDays = (f, t) => { let n = 0; for (let d = new Date(f + "T00:00"); d <= new Date(t + "T00:00"); d.setDate(d.getDate() + 1)) if (d.getDay() !== 5) n++; return n; };
 function lvWatch() {
@@ -1163,12 +1171,13 @@ function renderLvList() {
       ? `<div class="muted">اتعدلت من ${esc(e.original.from)} → ${esc(e.original.to)}</div>` : "";
     const why = e.status === "rejected" && e.note ? `<div class="muted">السبب: ${esc(e.note)}</div>` : "";
     return `<div style="border-bottom:1px solid #eee;padding:8px 0;"><div class="row" style="justify-content:space-between;">
-      <b>${esc(e.name)}</b><span><span class="pill p-grey">${LV_TY[e.type] || ""}</span> <span class="pill ${cls}">${st}</span></span></div>
-      <div class="muted">من ${esc(e.from)} لحد ${esc(e.to)} — ${esc(e.days)} يوم</div>${moved}${why}</div>`;
+      <b>${esc(e.name)}</b><span><span class="pill p-grey">${lvTyTxt(e)}</span> <span class="pill ${cls}">${st}</span></span></div>
+      <div class="muted">من ${esc(e.from)} لحد ${esc(e.to)} — ${esc(e.days)} يوم${e.approved_days != null && +e.approved_days < +e.days ? ` (العميل اعتمد ${esc(e.approved_days)})` : ""}</div>${moved}${why}</div>`;
   }).join("") : `<div class="muted">مفيش طلبات في آخر 60 يوم.</div>`;
 }
 function lvReset() {
-  LV.who = null; LV.img = ""; $("lv-q").value = ""; $("lv-type").value = "sick";
+  LV.who = null; LV.img = ""; LV.img2 = ""; $("lv-q").value = ""; $("lv-type").value = "sick"; lvTypeUi();
+  $("lv-img2").classList.add("hidden"); $("lv-img2").src = "";
   const t = ymd(new Date()); $("lv-from").value = t; $("lv-to").value = t;
   $("lv-img").classList.add("hidden"); $("lv-img").src = ""; hide($("lv-m")); lvPick(""); lvCheck();
 }
@@ -1200,10 +1209,13 @@ function lvCheck() {
   else if (t < f) err = "«لحد» قبل «من»";
   $("lv-days").textContent = err || `${lvWorkDays(f, t)} يوم (الجمعة مش بتتحسب)`;
   const ov = !err && LV.who ? lvOverlap(LV.who, f, t) : null;
-  if (ov) show($("lv-m"), "warn", `فيه طلب تاني لنفس العامل في الأيام دي (${LV_TY[ov.type]} من ${ov.from} لحد ${ov.to} — ${(LV_ST[ov.status] || [ov.status])[0]}).`);
+  if (ov) show($("lv-m"), "warn", `فيه طلب تاني لنفس العامل في الأيام دي (${lvTyTxt(ov)} من ${ov.from} لحد ${ov.to} — ${(LV_ST[ov.status] || [ov.status])[0]}).`);
   else if ($("lv-m").classList.contains("warn")) hide($("lv-m"));
-  $("lv-send").disabled = !!err || !LV.who || !LV.img || !!ov;
+  const inj = $("lv-type").value === "injury";
+  $("lv-send").disabled = !!err || !LV.who || !LV.img || (inj && !LV.img2) || !!ov;
 }
+function lvTypeUi() { $("lv-inj").classList.toggle("hidden", $("lv-type").value !== "injury"); }
+$("lv-type").addEventListener("change", () => { lvTypeUi(); lvCheck(); });
 $("lv-from").addEventListener("change", () => { if ($("lv-to").value < $("lv-from").value) $("lv-to").value = $("lv-from").value; lvCheck(); });
 $("lv-to").addEventListener("change", lvCheck);
 async function onLvImg(e) {
@@ -1216,19 +1228,31 @@ async function onLvImg(e) {
 }
 $("lv-cam").addEventListener("change", onLvImg);
 $("lv-file").addEventListener("change", onLvImg);
+async function onLvImg2(e) {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try {
+    LV.img2 = await compressCard(f, 380000);   // صورتين في نفس الـ doc: لازم المجموع يفضل تحت 1MB
+    $("lv-img2").src = "data:image/jpeg;base64," + LV.img2; $("lv-img2").classList.remove("hidden"); hide($("lv-m"));
+  } catch (err) { LV.img2 = ""; show($("lv-m"), "err", err.message); }
+  lvCheck();
+}
+$("lv-cam2").addEventListener("change", onLvImg2);
+$("lv-file2").addEventListener("change", onLvImg2);
 $("lv-send").addEventListener("click", async () => {
-  const w = LV.who, f = $("lv-from").value, t = $("lv-to").value, type = $("lv-type").value, site = $("site").value;
-  if (!w || !LV.img || !f || t < f) return;
+  const w = LV.who, f = $("lv-from").value, t = $("lv-to").value, pick = $("lv-type").value, site = $("site").value;
+  const inj = pick === "injury", type = inj ? "sick" : pick;
+  if (!w || !LV.img || (inj && !LV.img2) || !f || t < f) return;
   $("lv-send").disabled = true; show($("lv-m"), "info", "بيرفع...");
   try {
     const u = auth.currentUser;
     await addDoc(collection(db, "hr_events"), {
       source: "supervisor", site, nid: String(w.nid || ""), code: String(w.code || ""), name: w.name || "", job: w.job || "",
-      type, type_ar: LV_TY[type], from: f, to: t, days: String(lvWorkDays(f, t)),
-      image: "data:image/jpeg;base64," + LV.img, status: "pending", entry_date: ymd(new Date()),
+      type, type_ar: inj ? "إصابة عمل" : LV_TY[type], ...(type === "sick" ? { sick_kind: inj ? "injury" : "sick" } : {}),
+      from: f, to: t, days: String(lvWorkDays(f, t)),
+      image: "data:image/jpeg;base64," + LV.img, ...(inj ? { image2: "data:image/jpeg;base64," + LV.img2 } : {}), status: "pending", entry_date: ymd(new Date()),
       by_email: u.email || "", uploaded_by: u.uid, created_at: serverTimestamp() });
     $("lvm").classList.add("hidden");
-    show($("lv-msg"), "ok", `الطلب اتبعت للـ HR — ${LV_TY[type]} ${w.name} من ${f} لحد ${t}.`);
+    show($("lv-msg"), "ok", `الطلب اتبعت للـ HR — ${inj ? "إصابة عمل" : LV_TY[type]} ${w.name} من ${f} لحد ${t}.`);
   } catch (err) {
     $("lv-send").disabled = false;
     show($("lv-m"), "err", "ماترفعش: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : err.message));

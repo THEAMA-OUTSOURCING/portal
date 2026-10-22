@@ -100,6 +100,8 @@ function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
 const TY = { sick: "مرضي", leave: "إجازة", resign: "استقالة" };
 const ST = { pending: "مستني HR تيما", client_wait: "مستني رد العميل", approved: "معتمد", rejected: "مرفوض" };
 const SRC = { supervisor: "طلب مشرف", excel_hr: "إكسيل", sharqia_drive: "تطبيق الشرقية" };
+// مرضي نوعين: مرضى عادى (بيتحسب من الـ 10 أيام في السنة) وإصابة عمل (ملهاش حد) — sick_kind = sick / injury
+const tyTxt = e => e.type === "sick" && e.sick_kind === "injury" ? "إصابة عمل" : TY[e.type];
 // الرموز الموحدة: ج إجازة، خ إجازة بدون أجر، م مرضي (العارضة القديمة بتتعرض ج)
 const KINDS = { annual: "ج إجازة", casual: "ج إجازة", unpaid: "خ بدون أجر" };
 // ===== العميل: الشرقية بتخلص من HR تيما، وبيبسي والإمداد وشيبسي بيستنوا رد العميل =====
@@ -138,10 +140,10 @@ async function loadDecided() {
   } catch (e) { show($("msg"), "err", "مش قادر أحمّل الحالات: " + e.message); }
 }
 // ===== رفع إكسيل =====
-const HEAD = ["الشركة", "الموقع", "الرقم القومي", "الكود", "الاسم", "النوع (إجازة / بدون أجر / مرضي)", "من", "لحد", "ملاحظات"];
+const HEAD = ["الشركة", "الموقع", "الرقم القومى", "الكود", "الاسم", "النوع (إجازة / بدون أجر / مرضى / إصابة عمل)", "من", "لحد", "ملاحظات", "سبب الحالة المرضية", "المستشفى"];
 $("tpl").onclick = () => {
-  const ws = XLSX.utils.aoa_to_sheet([HEAD, ["شيبسي", "قطامية", "29001010101010", "", "مثال — امسح السطر ده", "إجازة", "2026-10-20", "2026-10-22", ""]]);
-  ws["!cols"] = HEAD.map((h, i) => ({ wch: i === 4 ? 30 : i === 5 ? 34 : 16 }));
+  const ws = XLSX.utils.aoa_to_sheet([HEAD, ["شيبسي", "قطامية", "29001010101010", "", "مثال — امسح السطر ده", "مرضى", "2026-10-20", "2026-10-22", "", "التهاب حاد بالحلق", "مستشفى الصفا"]]);
+  ws["!cols"] = HEAD.map((h, i) => ({ wch: i === 4 ? 30 : i === 5 ? 40 : i === 9 ? 34 : 16 }));
   const wb = XLSX.utils.book_new(); wb.Workbook = { Views: [{ RTL: true }] }; XLSX.utils.book_append_sheet(wb, ws, "إجازات ومرضي");
   XLSX.writeFile(wb, "شكل رفع الإجازات والمرضي.xlsx");
 };
@@ -154,7 +156,7 @@ function toISO(v) {
   return "";
 }
 // النوع من الإكسيل: بدون أجر = خ، أي إجازة تانية (سنوي / عارضة / إجازة) = ج
-const kindOf = t => /مرض/.test(t) ? ["sick", ""] : /بدون/.test(t) ? ["leave", "unpaid"] : /سنو|عارض|اجاز|إجاز/.test(t) ? ["leave", "annual"] : [null, null];
+const kindOf = t => /اصاب|إصاب/.test(t) ? ["sick", "", "injury"] : /مرض/.test(t) ? ["sick", "", "sick"] : /بدون/.test(t) ? ["leave", "unpaid"] : /سنو|عارض|اجاز|إجاز/.test(t) ? ["leave", "annual"] : [null, null];
 function workDays(f, t) { let n = 0; for (let d = new Date(f + "T00:00"); d <= new Date(t + "T00:00"); d.setDate(d.getDate() + 1)) if (d.getDay() !== 5) n++; return n; }
 $("xf").onchange = async () => {
   XROWS = []; $("xsave").disabled = true;
@@ -165,11 +167,17 @@ $("xf").onchange = async () => {
     const bad = [];
     rows.forEach((r, i) => {
       if (!r.some(v => String(v).trim())) return;
-      const nid = String(r[2]).replace(/\D/g, ""), code = String(r[3]).trim(), [type, kind] = kindOf(String(r[5])), from = toISO(r[6]), to = toISO(r[7]) || from;
-      const why = (!nid && !code) ? "مفيش رقم قومي ولا كود" : (nid && nid.length !== 14) ? "الرقم القومي مش 14 رقم" : !type ? "النوع مش مفهوم" : !from ? "تاريخ «من» مش مفهوم" : to < from ? "«لحد» قبل «من»" : "";
+      const nid = String(r[2]).replace(/\D/g, ""), code = String(r[3]).trim(), [type, kind, sk] = kindOf(String(r[5])), from = toISO(r[6]), to = toISO(r[7]) || from;
+      const cause = String(r[9] ?? "").trim(), hospital = String(r[10] ?? "").trim();
+      const row = { source: "excel_hr", company: String(r[0]).trim(), loc: String(r[1]).trim(), nid, code, name: String(r[4]).trim(), type, kind, type_ar: sk === "injury" ? "إصابة عمل" : TY[type],
+        from, to, days: String(workDays(from, to)), reason: String(r[8]).trim() };
+      if (type === "sick") Object.assign(row, { sick_kind: sk, cause, hospital });
+      // المرضي اللي HR بيرفعه بيعدّي على العميل على طول — فلازم السبب والمستشفى عشان شيت العميل
+      const toCl = type === "sick" && needsClient(row);
+      const why = (!nid && !code) ? "مفيش رقم قومي ولا كود" : (nid && nid.length !== 14) ? "الرقم القومي مش 14 رقم" : !type ? "النوع مش مفهوم" : !from ? "تاريخ «من» مش مفهوم" : to < from ? "«لحد» قبل «من»"
+        : toCl && !cause ? "سبب الحالة فاضي" : toCl && !hospital ? "المستشفى فاضي" : "";
       if (why) return bad.push(`سطر ${i + 2}: ${why}`);
-      XROWS.push({ source: "excel_hr", company: String(r[0]).trim(), loc: String(r[1]).trim(), nid, code, name: String(r[4]).trim(), type, kind, type_ar: TY[type],
-        from, to, days: String(workDays(from, to)), reason: String(r[8]).trim() });
+      XROWS.push(row);
     });
     show($("xmsg"), bad.length ? "err" : "ok", `${XROWS.length} سطر سليم` + (bad.length ? ` — و${bad.length} فيهم مشكلة ومش هيترفعوا:\n` + bad.slice(0, 20).join("\n") : ""));
     $("xsave").disabled = !XROWS.length;
@@ -177,7 +185,7 @@ $("xf").onchange = async () => {
 };
 $("xsave").onclick = async () => {
   if (!ALL_LOADED) return show($("xmsg"), "err", "لسه بيحمّل الحالات الموجودة — استنى ثانية وجرّب تاني.");
-  const u = auth.currentUser, today = new Date().toISOString().slice(0, 10); let n = 0, same = 0, upd = 0;
+  const u = auth.currentUser, today = new Date().toISOString().slice(0, 10); let n = 0, same = 0, upd = 0, nDirect = 0;
   $("xsave").disabled = true;
   // السطر اللي اترفع قبل كده (نفس العامل + نفس «من» + نفس النوع) مش بيتكتب فوقه، عشان قرار الـ HR ميرجعش «مستني».
   // لو اتغيّر فيه حاجة (زي «لحد»): لو لسه مستني بيتحدّث، ولو اتاخد فيه قرار بيتعلّم «اتعدل بعد القرار — راجعه».
@@ -188,14 +196,17 @@ $("xsave").onclick = async () => {
     const miss = [...new Set(XROWS.map(idOf))].filter(id => !byId.has(id));
     (await Promise.all(miss.map(id => getDoc(doc(db, "hr_events", id))))).forEach(sn => { if (sn.exists()) byId.set(sn.id, { id: sn.id, ...sn.data() }); });
   } catch (e) { $("xsave").disabled = false; return show($("xmsg"), "err", "مش قادر أتأكد من الحالات الموجودة: " + e.message); }
-  const FIELDS = ["company", "loc", "name", "to", "days", "reason"];
+  const FIELDS = ["company", "loc", "name", "to", "days", "reason", "sick_kind", "cause", "hospital"];
   try {
     for (const r of XROWS) {
       const id = idOf(r);
       const ex = byId.get(id);
       if (!ex) {
-        await setDoc(doc(db, "hr_events", id), { ...r, entry_date: today, status: "pending", by_email: u.email || "", uploaded_by: u.uid, created_at: serverTimestamp() });
-        byId.set(id, { id, ...r, status: "pending" }); n++;
+        // مرضي بيبسي والإمداد / شيبسي: معتمد من HR تيما على طول ← «مستني رد العميل». غير كده «مستني HR تيما» زي الأول
+        const direct = r.type === "sick" && needsClient(r);
+        const st = direct ? { status: "client_wait", hr_ok_by: u.uid, hr_ok_email: u.email || "", hr_ok_at: serverTimestamp(), client_group: groupOf(r) } : { status: "pending" };
+        await setDoc(doc(db, "hr_events", id), { ...r, entry_date: today, ...st, by_email: u.email || "", uploaded_by: u.uid, created_at: serverTimestamp() });
+        byId.set(id, { id, ...r, status: st.status }); n++; if (direct) nDirect++;
         continue;
       }
       const diff = {}; FIELDS.forEach(k => { if (String(ex[k] ?? "") !== String(r[k] ?? "")) diff[k] = r[k]; });
@@ -203,7 +214,7 @@ $("xsave").onclick = async () => {
       await updateDoc(doc(db, "hr_events", id), ex.status === "pending" ? diff : { changed: true, changed_data: diff });
       upd++;
     }
-    show($("xmsg"), "ok", `اترفع ${n} سطر جديد — هتلاقيهم تحت «مستني HR تيما».`
+    show($("xmsg"), "ok", `اترفع ${n} سطر جديد` + (nDirect ? ` — منهم ${nDirect} مرضي راحوا «مستني رد العميل» على طول، والباقي تحت «مستني HR تيما».` : ` — هتلاقيهم تحت «مستني HR تيما».`)
       + (upd ? ` و${upd} سطر اتغيّر عن المترفع قبل كده (اللي اتاخد فيه قرار متعلّم «راجعه»).` : "")
       + (same ? ` و${same} سطر زي ما هو.` : "")); $("xf").value = ""; XROWS = [];
   } catch (e) { show($("xmsg"), "err", `اترفع ${n} جديد و${upd} تعديل، ووقف عند خطأ: ` + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules." : e.message)); }
@@ -316,6 +327,11 @@ function changedHtml(e) {
 }
 const tsTxt = t => t?.toDate ? t.toDate().toLocaleDateString("ar-EG") : "";
 const CDEC = { approved: "وافق", modified: "وافق وعدّل المدة", rejected: "رفض" };
+// المرضي: HR تيما بيكتب السبب والمستشفى وهو بيوافق (لازمين لشيت العميل)، ويقدر يغيّر مرضى ↔ إصابة عمل
+const sickFields = e => e.type !== "sick" ? "" : `<div class="row" style="width:100%;gap:6px;">
+  <select data-sk="${e.id}" style="padding:4px 6px;font-size:12px;"><option value="sick" ${e.sick_kind !== "injury" ? "selected" : ""}>مرضى</option><option value="injury" ${e.sick_kind === "injury" ? "selected" : ""}>إصابة عمل</option></select>
+  <input data-cause="${e.id}" placeholder="سبب الحالة المرضية" value="${esc(e.cause || "")}" style="flex:2;min-width:150px;">
+  <input data-hosp="${e.id}" placeholder="المستشفى" value="${esc(e.hospital || "")}" style="flex:1;min-width:110px;"></div>`;
 const kindSel = e => e.type !== "leave" ? "" : `<select data-kind="${e.id}" style="padding:4px 6px;font-size:12px;"><option value="">نوع الإجازة…</option><option value="annual" ${e.kind === "annual" || e.kind === "casual" ? "selected" : ""}>ج — إجازة (ليه رصيد)</option><option value="unpaid" ${e.kind === "unpaid" ? "selected" : ""}>خ — بدون أجر (ملوش رصيد)</option></select>`;
 function render() {
   const st = $("f-st").value, ty = $("f-ty").value, gr = $("f-gr").value, q = $("f-q").value.trim();
@@ -329,14 +345,16 @@ function render() {
     return `
     <div class="ev">
       <div class="ph" ${e.image ? `data-zoom="${e.id}"` : ""}>${e.image ? `<img src="${esc(e.image)}" alt="">` : `<span class="muted">${e.image_path ? "الصورة اتنقلت لسيرفر الشركة" : e.type === "leave" ? "الإجازة مالهاش صورة" : e.image_missing ? "الصورة مش لاقيها على Drive" : "مفيش صورة"}</span>`}</div>
+      ${e.image2 ? `<div class="ph" style="height:120px;border-top:1px solid #e5e5e5;" data-zoom2="${e.id}" title="المحضر المختوم"><img src="${esc(e.image2)}" alt="المحضر"></div>` : e.sick_kind === "injury" && e.source === "supervisor" ? `<div class="warn" style="margin:6px 12px 0;">مفيش صورة المحضر</div>` : ""}
       <div class="bd">
-        <div class="row" style="justify-content:space-between;align-items:center;"><span class="nm">${esc(e.name)}</span><span><span class="pill t-${e.type}">${TY[e.type]}${e.kind ? " " + (KINDS[e.kind] || "") : ""}</span> <span class="pill s-${e.status}">${ST[e.status] || e.status}</span></span></div>
+        <div class="row" style="justify-content:space-between;align-items:center;"><span class="nm">${esc(e.name)}</span><span><span class="pill t-${e.type}">${tyTxt(e)}${e.kind ? " " + (KINDS[e.kind] || "") : ""}</span> <span class="pill s-${e.status}">${ST[e.status] || e.status}</span></span></div>
         <div style="margin-top:4px;"><span class="pill g">${GROUP_AR[groupOf(e)]}</span> <span class="muted">${SRC[e.source] || ""}</span></div>
         <dl>
           <dt>الكود</dt><dd>${esc(e.code)}${e.nid ? ` — <span dir="ltr">${esc(e.nid)}</span>` : ""}</dd>
           <dt>المكان</dt><dd>${esc([placeOf(e), e.job].filter(Boolean).join(" — "))}</dd>
           ${e.type === "resign" ? `<dt>السبب</dt><dd>${esc(e.reason)}</dd><dt>من تاريخ</dt><dd>${esc(e.entry_date)} (يوم التسجيل)</dd>`
-            : `<dt>من</dt><dd>${esc(e.from)} لحد ${esc(e.to)} — ${esc(e.days)} يوم</dd>`}
+            : `<dt>من</dt><dd>${esc(e.from)} لحد ${esc(e.to)} — ${esc(e.days)} يوم${e.approved_days != null && +e.approved_days < +e.days ? ` — <b>العميل اعتمد ${esc(e.approved_days)}</b>` : ""}</dd>`}
+          ${e.type === "sick" && (e.cause || e.hospital) ? `<dt>السبب</dt><dd>${esc(e.cause || "—")}</dd><dt>المستشفى</dt><dd>${esc(e.hospital || "—")}</dd>` : ""}
           <dt>اتسجل</dt><dd>${esc(e.entry_date)} — ${esc(e.by_email)}</dd>
           ${e.original && (e.edited || e.client) ? `<dt>الأصل</dt><dd>${esc(TY[e.original.type] || "")} ${esc(e.original.from || e.original.entry_date)}${e.original.to ? " → " + esc(e.original.to) : ""}</dd>` : ""}
           ${e.hr_ok_email ? `<dt>HR تيما</dt><dd>وافق — ${esc(e.hr_ok_email)} ${esc(tsTxt(e.hr_ok_at))}</dd>` : ""}
@@ -352,6 +370,7 @@ function render() {
         <label class="f">نوع الإجازة (لو إجازة)<select data-ek><option value="annual" ${e.kind !== "unpaid" ? "selected" : ""}>ج — إجازة (ليه رصيد)</option><option value="unpaid" ${e.kind === "unpaid" ? "selected" : ""}>خ — بدون أجر (ملوش رصيد)</option></select></label>
         <div class="row"><label class="f">من (أو تاريخ الاستقالة)<input type="date" data-ef value="${esc(e.type === "resign" ? e.entry_date : e.from)}"></label>
         <label class="f">لحد<input type="date" data-eto value="${esc(e.to || "")}"></label></div>
+        ${e.type === "sick" ? `<span class="muted" style="font-size:12px;">لو مرضي:</span>${sickFields(e)}` : ""}
         <input placeholder="سبب التعديل" data-note="${e.id}">
         <div class="row"><button class="btn ok small" data-esave="${e.id}">احفظ و${toClient ? "ابعت للعميل" : "اعتمد"}</button><button class="btn sec small" data-ecancel="1">إلغاء</button></div></div>` : ""}
       ${CEDIT === e.id ? `<div class="ft" style="flex-direction:column;align-items:stretch;background:#f4f8fd">
@@ -360,11 +379,19 @@ function render() {
         <input placeholder="ملاحظة العميل (اختياري)" data-cnote="${e.id}">
         <div class="row"><button class="btn ok small" data-csave="${e.id}">سجّل</button><button class="btn sec small" data-ccancel="1">إلغاء</button></div></div>` : ""}
       ${VIEW ? "" : `<div class="ft">${e.status === "pending" || e.changed
-        ? `${kindSel(e)}<input placeholder="ملاحظة (اختياري)" data-note="${e.id}" style="flex:1;min-width:120px;"><button class="btn ok small" data-ap="${e.id}">${toClient && e.type !== "resign" ? "موافقة ← للعميل" : "اعتماد"}</button><button class="btn sec small" data-ed="${e.id}">تعديل</button><button class="btn sec small" data-rj="${e.id}">رفض</button>`
+        ? `${kindSel(e)}${sickFields(e)}<input placeholder="ملاحظة (اختياري)" data-note="${e.id}" style="flex:1;min-width:120px;"><button class="btn ok small" data-ap="${e.id}">${toClient && e.type !== "resign" ? "موافقة ← للعميل" : "اعتماد"}</button><button class="btn sec small" data-ed="${e.id}">تعديل</button><button class="btn sec small" data-rj="${e.id}">رفض</button>`
         : e.status === "client_wait"
         ? `<input placeholder="ملاحظة العميل (اختياري)" data-note="${e.id}" style="flex:1;min-width:120px;"><button class="btn ok small" data-cok="${e.id}">العميل وافق</button><button class="btn sec small" data-ced="${e.id}">وافق بمدة تانية</button><button class="btn sec small" data-crj="${e.id}">العميل رفض</button><button class="btn sec small" data-back="${e.id}">رجّعها لتيما</button>`
         : `<button class="btn sec small" data-back="${e.id}">رجّعها مستنية</button>`}</div>`}
     </div>`; }).join("") : `<div class="card muted">مفيش حالات.</div>`;
+}
+// بيانات المرضي من الكارت: النوع والسبب والمستشفى — السبب والمستشفى لازمين لو الحالة رايحة للعميل
+function readSick(id, ev) {
+  const sk = document.querySelector(`[data-sk="${id}"]`)?.value || ev.sick_kind || "sick";
+  const cause = (document.querySelector(`[data-cause="${id}"]`)?.value ?? ev.cause ?? "").trim();
+  const hospital = (document.querySelector(`[data-hosp="${id}"]`)?.value ?? ev.hospital ?? "").trim();
+  if (needsClient(ev) && (!cause || !hospital)) return { err: `اكتب سبب الحالة والمستشفى لـ ${ev.name} قبل الموافقة (لازمين لشيت العميل).` };
+  return { v: { sick_kind: sk, type_ar: sk === "injury" ? "إصابة عمل" : TY.sick, cause, hospital } };
 }
 const errTxt = er => er.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : er.message;
 async function save(id, upd, okMsg) {
@@ -382,6 +409,8 @@ function hrOk(ev, extra) {
 $("list").onclick = async e => {
   const z = e.target.closest("[data-zoom]");
   if (z) { $("zoom-img").src = ALL.find(x => x.id === z.dataset.zoom).image; return $("zoom").classList.remove("hidden"); }
+  const z2 = e.target.closest("[data-zoom2]");
+  if (z2) { $("zoom-img").src = ALL.find(x => x.id === z2.dataset.zoom2).image2; return $("zoom").classList.remove("hidden"); }
   if (VIEW) return;   // المشاهد: تكبير الصورة بس
   const ds = e.target.dataset;
   if (ds.ed) { EDIT = ds.ed; CEDIT = null; return render(); }
@@ -397,6 +426,10 @@ $("list").onclick = async e => {
     if (type === "resign") Object.assign(extra, { entry_date: f, from: "", to: "", days: "", kind: "" });
     else Object.assign(extra, { from: f, to: t, days: String(workDays(f, t)), kind: type === "leave" ? box.querySelector("[data-ek]").value : "" });
     if (ev.changed && ev.changed_data) Object.keys(ev.changed_data).forEach(k => { if (!(k in extra)) extra[k] = ev.changed_data[k]; });
+    if (type === "sick") {   // حقول المرضي من صندوق التعديل (هو أول واحد في الصفحة)
+      const sf = readSick(id, { ...ev, ...extra }); if (sf.err) return show($("msg"), "err", sf.err);
+      Object.assign(extra, sf.v);
+    } else Object.assign(extra, { sick_kind: null, cause: null, hospital: null });
     const [upd, msg] = hrOk(ev, extra);
     return save(id, upd, "اتعدل — " + msg);
   }
@@ -421,6 +454,10 @@ $("list").onclick = async e => {
   // موافقة HR تيما — الإجازة لازم يتحدد نوعها: ج (ليه رصيد) أو خ (ملوش رصيد)
   const extra = { note };
   if (ev.changed && ev.changed_data) Object.assign(extra, ev.changed_data);
+  if ((extra.type || ev.type) === "sick") {
+    const sf = readSick(id, { ...ev, ...extra }); if (sf.err) return show($("msg"), "err", sf.err);
+    Object.assign(extra, sf.v);
+  }
   if ((extra.type || ev.type) === "leave") {
     const k = document.querySelector(`[data-kind="${id}"]`)?.value || "";
     if (!k) return show($("msg"), "err", `اختار نوع الإجازة لـ ${ev.name}: ج (ليه رصيد) ولا خ (ملوش رصيد).`);
