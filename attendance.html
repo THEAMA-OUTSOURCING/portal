@@ -149,9 +149,8 @@ img[data-zoom]{cursor:zoom-in;}
 
     <div class="card hidden" id="force-card">
       <h2>قوة الفرع</h2>
-      <p class="muted" style="margin-bottom:8px;">راجع الأسماء دي: اللي مشي شيله من «إدارة الكشف»، واللي جديد ضيفه بالبطاقة.</p>
+      <p class="muted" style="margin-bottom:8px;">الأسماء في «طباعة الكشف». اللي مشي شيله من «إدارة الكشف»، واللي جديد ضيفه بالبطاقة.</p>
       <div id="force-plan"></div>
-      <div id="force-list" style="margin-top:8px;"></div>
     </div>
 
     <div class="card" id="manage-card">
@@ -865,7 +864,6 @@ $("extras").addEventListener("click", e => { if (e.target.closest("[data-addnew]
 // قوة الفرع: الأسماء بالوظيفة والنوع، وعدد كل وظيفة قصاد المطلوب (أساسي + موسمي)
 function renderForce() {
   if (S.photo !== false) return;
-  const tl = t => ({ "اساسي": "أساسي", "جديد": "جديد (مستني HR)" }[t] || t || "");
   const perJob = {};
   S.roster.forEach(w => { perJob[w.job] = (perJob[w.job] || 0) + 1; });
   const jobsAll = [...new Set([...Object.keys(perJob), ...Object.keys(S.plan || {})])];
@@ -873,10 +871,6 @@ function renderForce() {
     jobsAll.map(j => { const n = perJob[j] || 0, p = S.plan?.[j];
       return `<tr><td>${esc(j)}</td><td class="n">${fmt(n)}</td><td class="n">${p != null ? fmt(p) : "—"}</td><td class="n">${p == null ? "" : n > p ? `<span class="pill p-err">زيادة ${fmt(n - p)}</span>` : n < p ? `<span class="pill p-grey">ناقص ${fmt(p - n)}</span>` : `<span class="pill p-ok">مطابق</span>`}</td></tr>`; }).join("") +
     `</tbody></table>` + (Object.keys(S.plan || {}).length ? "" : `<p class="muted" style="margin-top:6px;">مفيش عدد مطلوب متسجل للفرع ده.</p>`) : `<p class="muted">الكشف فاضي.</p>`;
-  const groups = {};
-  S.roster.forEach(w => { const g = (w.type === "موسمي" ? "موسمي — " : "") + w.job; (groups[g] ??= []).push(w); });
-  $("force-list").innerHTML = Object.entries(groups).map(([g, ws]) => `<div class="grp">${esc(g)} (${fmt(ws.length)})</div>` +
-    ws.map((w, i) => `<div class="w"><div class="nm"><b>${fmt(i + 1)}. ${esc(w.name)}</b><small dir="ltr" style="unicode-bidi:plaintext">${esc(w.nid || "")}${w.type && w.type !== "اساسي" && w.type !== "موسمي" ? " · " + esc(tl(w.type)) : ""}</small></div></div>`).join("")).join("");
 }
 function renderManage() {
   renderRmHits();

@@ -22,6 +22,13 @@ button:focus-visible{outline:2px solid #185fa5;outline-offset:2px;}
 .top .who{font-size:12px;color:#888;}
 .card{background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:1.1rem 1.25rem;margin-bottom:1rem;}
 .card h2{font-size:15px;font-weight:600;margin-bottom:10px;}
+details.fold>summary{list-style:none;cursor:pointer;user-select:none;}
+details.fold>summary::-webkit-details-marker{display:none;}
+details.fold>summary h2{display:flex;align-items:center;gap:6px;margin-bottom:0;}
+details.fold>summary h2::before{content:"";width:0;height:0;border-block:5px solid transparent;border-inline-end:7px solid currentColor;transition:transform .15s;}
+details.fold[open]>summary h2::before{transform:rotate(-90deg);}
+details.fold[open]>summary h2{margin-bottom:10px;}
+details.fold .fold-n{font-weight:400;font-size:13px;color:#888;}
 .muted{color:#888;font-size:13px;}
 .btn{padding:8px 16px;font-weight:500;cursor:pointer;background:#c0392b;color:#fff;border:none;border-radius:8px;}
 .btn:hover{background:#a93226;}
@@ -221,7 +228,7 @@ body.view-only .vo-txt{display:inline;}
     <!-- بيانات العمال -->
     <section data-panel="workers" class="hidden">
       <div class="card">
-        <h2>البلاك ليست (ممنوع تشغيلهم تاني)</h2>
+        <details class="fold" data-fold="bl-list"><summary><h2>البلاك ليست (ممنوع تشغيلهم تاني) <span class="fold-n" data-n="bl-list"></span></h2></summary>
         <p class="muted" style="margin-bottom:8px;">أي رقم قومي هنا، المشرف مش هيقدر يضيفه للكشف ولا كبديل، وبيوصل تنبيه للإدارة. السبب مبيظهرش للمشرفين.</p>
         <div class="row" id="bl-form">
           <input id="bl-nid" placeholder="الرقم القومي" dir="ltr" style="width:170px">
@@ -231,7 +238,7 @@ body.view-only .vo-txt{display:inline;}
           <button class="btn" id="bl-add">إضافة</button>
         </div>
         <div class="msg" id="bl-msg"></div>
-        <div class="tbl"><table><thead><tr><th>الاسم</th><th>الرقم القومي</th><th>السبب</th><th>بواسطة</th><th></th></tr></thead><tbody id="bl-list"></tbody></table></div>
+        <div class="tbl"><table><thead><tr><th>الاسم</th><th>الرقم القومي</th><th>السبب</th><th>بواسطة</th><th></th></tr></thead><tbody id="bl-list"></tbody></table></div></details>
       </div>
       <div class="card no-view">
         <h2>رفع تعديلات كتير من إكسيل</h2>
@@ -244,28 +251,28 @@ body.view-only .vo-txt{display:inline;}
         </div>
       </div>
       <div class="card">
-        <h2>التعديلات اللي لسه مش في شيت الرواتب</h2>
-        <div class="tbl"><table><thead><tr><th>الاسم</th><th>الكود</th><th>التعديل</th><th>ساري من</th><th>بواسطة</th><th></th></tr></thead><tbody id="w-ovr"></tbody></table></div>
+        <details class="fold" data-fold="w-ovr"><summary><h2>التعديلات اللي لسه مش في شيت الرواتب <span class="fold-n" data-n="w-ovr"></span></h2></summary>
+        <div class="tbl"><table><thead><tr><th>الاسم</th><th>الكود</th><th>التعديل</th><th>ساري من</th><th>بواسطة</th><th></th></tr></thead><tbody id="w-ovr"></tbody></table></div></details>
       </div>
       <div class="card">
-        <h2>أسماء المشرفين شالوها من الكشف</h2>
+        <details class="fold" data-fold="w-rem"><summary><h2>أسماء المشرفين شالوها من الكشف <span class="fold-n" data-n="w-rem"></span></h2></summary>
         <p class="muted" style="margin-bottom:8px;">دي اتشالت من الكشف المطبوع بس. لو العامل مشي فعلاً، سجّله "مشي" عشان يتشال من السجلات لحد شيت الرواتب الجاي.</p>
-        <div class="tbl"><table><thead><tr><th>الاسم</th><th>الكود</th><th>الموقع</th><th>السبب</th><th>بواسطة</th><th></th></tr></thead><tbody id="w-rem"></tbody></table></div>
+        <div class="tbl"><table><thead><tr><th>الاسم</th><th>الكود</th><th>الموقع</th><th>السبب</th><th>بواسطة</th><th></th></tr></thead><tbody id="w-rem"></tbody></table></div></details>
       </div>
       <div class="card">
-        <h2>عمال جداد اتضافوا من المواقع (بالبطاقة)</h2>
+        <details class="fold" data-fold="w-new"><summary><h2>عمال جداد اتضافوا من المواقع (بالبطاقة) <span class="fold-n" data-n="w-new"></span></h2></summary>
         <p class="muted" style="margin-bottom:8px;">حدد النوع للي اتضاف للكشف. لحد ما تحدده، بيظهر في الكشف "جديد". والبدلاء الجداد بيفضلوا في قايمة بدلاء موقعهم.</p>
-        <div class="tbl"><table><thead><tr><th>الاسم</th><th>الرقم القومي</th><th>الموقع</th><th>الوظيفة</th><th>اتضاف كـ</th><th>أول يوم</th><th>الفيش</th><th>النوع</th><th></th></tr></thead><tbody id="w-new"></tbody></table></div>
+        <div class="tbl"><table><thead><tr><th>الاسم</th><th>الرقم القومي</th><th>الموقع</th><th>الوظيفة</th><th>اتضاف كـ</th><th>أول يوم</th><th>الفيش</th><th>النوع</th><th></th></tr></thead><tbody id="w-new"></tbody></table></div></details>
       </div>
       <div class="card">
-        <h2>بيانات العمال في مواقع الحضور</h2>
+        <details class="fold" data-fold="w-list"><summary><h2>بيانات العمال في مواقع الحضور <span class="fold-n" data-n="w-list"></span></h2></summary>
         <p class="muted" style="margin-bottom:10px;">أي تعديل هنا بيسري على كشف الموقع خلال ثواني، من غير ما تستنى شيت الرواتب. ولما شيت الرواتب الجديد يبقى فيه نفس التعديل، التعديل اليدوي بيتشال لوحده.</p>
         <div class="row">
           <input type="text" id="w-q" placeholder="ابحث بالاسم أو الكود أو الرقم القومي" style="flex:1 1 260px;">
           <select id="w-site"><option value="">كل المواقع</option></select>
           <button class="btn sec" id="w-export" type="button">تصدير إكسيل</button>
         </div>
-        <div class="tbl" style="margin-top:10px;"><table><thead><tr><th>الاسم</th><th>الكود</th><th>الموقع</th><th>النوع</th><th>الوظيفة</th><th></th></tr></thead><tbody id="w-list"></tbody></table></div>
+        <div class="tbl" style="margin-top:10px;"><table><thead><tr><th>الاسم</th><th>الكود</th><th>الموقع</th><th>النوع</th><th>الوظيفة</th><th></th></tr></thead><tbody id="w-list"></tbody></table></div></details>
         <p class="muted" id="w-count" style="margin-top:6px;"></p>
       </div>
       <div class="card hidden" id="w-form">
@@ -934,6 +941,13 @@ async function runAccountTask(type, extra) {
   } catch (err) { show(msg, "err", err.code === "permission-denied" ? "مش مسموح — اتأكد إن الـ Rules الجديدة اتنشرت." : "خطأ: " + err.message); }
   document.querySelectorAll('[data-panel="accounts"] button').forEach(b => b.disabled = false);
 }
+// القوايم المقفولة: العدد جنب العنوان (صفوف فيها بيانات بس، مش «مفيش»)
+document.querySelectorAll("[data-n]").forEach(n => {
+  const tb = document.getElementById(n.dataset.n); if (!tb) return;
+  const upd = () => { const k = [...tb.rows].filter(r => !(r.cells.length === 1 && r.cells[0].colSpan > 1)).length; n.textContent = `(${k.toLocaleString("ar-EG")})`; };
+  new MutationObserver(upd).observe(tb, { childList: true }); upd();
+});
+["w-q", "w-site"].forEach(id => document.getElementById(id)?.addEventListener("input", () => { document.querySelector('[data-fold="w-list"]').open = true; }));
 // ===== بيانات العمال (الأدمن وHR والمحاسب) =====
 const W_SITES = SUP_SITES;
 const WS = { base: [], ovr: {}, edit: null, pending: [] };
