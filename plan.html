@@ -278,7 +278,7 @@ body.view-only .vo-txt{display:inline;}
       <div class="card hidden" id="w-form">
         <h2 id="w-title"></h2>
         <div class="grid-form">
-          <label>النوع<select id="w-type"><option value="اساسي">أساسي</option><option value="موسمي">موسمي</option><option value="يومية">يومية</option><option value="مشي">مشي</option></select></label>
+          <label>النوع<select id="w-type"><option value="اساسي">أساسي</option><option value="موسمي">موسمي</option><option value="بديل راحات">بديل راحات</option><option value="يومية">يومية</option><option value="مشي">مشي</option></select></label>
           <label>الوظيفة<input type="text" id="w-job" list="w-jobs"></label>
           <label>الموقع<select id="w-site2"></select></label>
           <label>ساري من<input type="date" id="w-from"></label>
@@ -1129,7 +1129,7 @@ $("w-list")?.addEventListener("click", e => {
   const w = current(WS.base.find(x => x.code === code));
   WS.edit = WS.base.find(x => x.code === code);
   $("w-title").textContent = `${w.name} — ${w.code}`;
-  $("w-type").value = ["اساسي", "موسمي", "يومية", "مشي"].includes(w.type) ? w.type : "يومية";
+  $("w-type").value = ["اساسي", "موسمي", "بديل راحات", "يومية", "مشي"].includes(w.type) ? w.type : "يومية";
   $("w-job").value = w.job || ""; $("w-site2").value = w.site; $("w-note").value = WS.ovr[code]?.note || "";
   $("w-from").value = WS.ovr[code]?.from || today();
   hide($("w-msg")); $("w-form").classList.remove("hidden"); $("w-form").scrollIntoView({ behavior: "smooth", block: "center" });
@@ -1172,7 +1172,7 @@ function nidCheck(nid) {
   if (age < 18) return `تحت السن القانوني (${age} سنة)`;
   return "";
 }
-const TYPE_IN = { "اساسي": "اساسي", "أساسي": "اساسي", "سنوي": "اساسي", "موسمي": "موسمي", "يوميه": "يومية", "يومية": "يومية", "مشي": "مشي", "حذف": "مشي" };
+const TYPE_IN = { "اساسي": "اساسي", "أساسي": "اساسي", "سنوي": "اساسي", "موسمي": "موسمي", "يوميه": "يومية", "يومية": "يومية", "بديل راحات": "بديل راحات", "بديل راحه": "بديل راحات", "مشي": "مشي", "حذف": "مشي" };
 $("w-file")?.addEventListener("change", async e => {
   hide($("w-up-msg")); $("w-preview").classList.add("hidden"); WS.pending = []; WS.pendingNew = [];
   const f = e.target.files[0]; if (!f) return;
