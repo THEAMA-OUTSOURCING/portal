@@ -354,7 +354,7 @@ body.view-only .vo-txt{display:inline;}
 <script type="module">
 import { getFirestore, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, ATT_SITES, SUP_SITES } from './shared.js';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES } from './shared.js';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====
@@ -659,7 +659,7 @@ $("a-save").addEventListener("click", async () => {
   try {
     await addDoc(collection(db, "plan_amendments"), {
       month: S.month, loc: e.loc, pos: e.pos, to, effective_date: date, reason,
-      created_by: auth.currentUser.uid, created_email: auth.currentUser.email || "", created_at: serverTimestamp()
+      created_by: auth.currentUser.uid, created_email: actorEmail(auth.currentUser), created_at: serverTimestamp()
     });
     $("a-to").value = ""; $("a-reason").value = "";
     S.amends = await loadAmends(S.month);
@@ -748,7 +748,7 @@ $("u-save").addEventListener("click", async () => {
   try {
     await setDoc(doc(db, "plans", PENDING.month), {
       month: PENDING.month, rows: PENDING.rows, file_name: PENDING.file_name, sheet_name: PENDING.sheet_name,
-      uploaded_by: auth.currentUser.uid, uploaded_email: auth.currentUser.email || "", uploaded_at: serverTimestamp()
+      uploaded_by: auth.currentUser.uid, uploaded_email: actorEmail(auth.currentUser), uploaded_at: serverTimestamp()
     });
     show($("u-msg"), "ok", `اتحفظ شيت ${monthLabel(PENDING.month)}.`);
     S.month = PENDING.month; PENDING = null; $("u-preview").classList.add("hidden"); $("u-file").value = ""; $("u-opts").classList.add("hidden");
@@ -858,7 +858,7 @@ async function createTask(type, extra) {
   const u = auth.currentUser;
   if (!u) throw new Error("انتهت الجلسة — ادخل تاني");
   return await addDoc(collection(db, "admin_tasks"), {
-    type, requested_by: u.uid, requested_email: u.email || "", status: "pending", created_at: serverTimestamp(), ...extra
+    type, requested_by: u.uid, requested_email: actorEmail(u), status: "pending", created_at: serverTimestamp(), ...extra
   });
 }
 function waitTask(ref, timeoutMs) {
@@ -999,7 +999,7 @@ function initBlacklist() {
       // الاتنين مع بعض: يا يتحفظوا الاتنين يا ولا واحد (عشان ميبقاش فيه عامل ممنوع ومش ظاهر في القايمة)
       const b = writeBatch(db);
       b.set(doc(db, "blacklist", nid), { on: true });
-      b.set(doc(db, "blacklist_info", nid), { nid, name, reason: $("bl-reason").value, note: $("bl-note").value.trim(), by: u.uid, by_email: u.email || "", at: serverTimestamp() });
+      b.set(doc(db, "blacklist_info", nid), { nid, name, reason: $("bl-reason").value, note: $("bl-note").value.trim(), by: u.uid, by_email: actorEmail(u), at: serverTimestamp() });
       await b.commit();
       ["bl-nid", "bl-name", "bl-note"].forEach(i => $(i).value = ""); show($("bl-msg"), "ok", "اتضاف.");
     } catch (e) { show($("bl-msg"), "err", "ماتضافش: " + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules." : e.message)); }
@@ -1138,7 +1138,7 @@ $("w-cancel")?.addEventListener("click", () => $("w-form").classList.add("hidden
 function ovrDoc(w, type, job, site, from, note) {
   const u = auth.currentUser;
   return { code: w.code, name: w.name || "", nid: w.nid || "", site: type === "مشي" ? (w.site || "") : site, job: job || w.job || "", type,
-    from: from || today(), note: note || "", by: u.uid, by_email: u.email || "", at: serverTimestamp() };
+    from: from || today(), note: note || "", by: u.uid, by_email: actorEmail(u), at: serverTimestamp() };
 }
 $("w-save")?.addEventListener("click", async () => {
   const w = WS.edit; if (!w) return;
@@ -1231,7 +1231,7 @@ $("w-apply")?.addEventListener("click", async () => {
     const u = auth.currentUser;
     for (const n of WS.pendingNew)
       await setDoc(doc(db, "new_workers", n.nid), { nid: n.nid, name: n.name, site: n.site, job: n.job, type: n.type, role: "roster",
-        no_card: true, first_day: today(), added_by: u.uid, added_email: u.email || "", at: serverTimestamp() });
+        no_card: true, first_day: today(), added_by: u.uid, added_email: actorEmail(u), at: serverTimestamp() });
     for (let i = 0; i < WS.pending.length; i += 400) {
       const b = writeBatch(db);
       WS.pending.slice(i, i + 400).forEach(p => b.set(doc(db, "roster_overrides", p.w.code), ovrDoc(p.w, p.type, p.job, p.site, p.from, p.note)));

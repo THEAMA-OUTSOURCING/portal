@@ -375,7 +375,7 @@ input[type=file]{width:100%;padding:8px;cursor:pointer;font-size:13px;border:1px
 <script type="module">
 import { getFirestore, collection, getDocs, addDoc, deleteDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth } from './shared.js';
+import { db, auth, actorEmail } from './shared.js';
 
 
 let loggedUser = null;
@@ -803,7 +803,7 @@ async function createTask(type, code){
   if(!u) throw new Error('انتهت الجلسة — ادخل تاني');
   return await addDoc(collection(db,'admin_tasks'), {
     type, code: code || '',
-    requested_by: u.uid, requested_email: u.email || '',
+    requested_by: u.uid, requested_email: actorEmail(u),
     status: 'pending', created_at: serverTimestamp()
   });
 }

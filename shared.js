@@ -100,6 +100,16 @@ export function renderNav(el, claims) {
   }
 }
 
+// ===== اسم اللي عمل التعديل =====
+// أي حاجة بيعملها حساب أدمن بتتسجل «ادمن» بدل الإيميل، عشان الإيميل مايظهرش لحد في السجلات.
+let ACTOR_ROLE = null;
+onAuthStateChanged(auth, async user => {
+  ACTOR_ROLE = null;
+  if (!user) return;
+  try { ACTOR_ROLE = (await user.getIdTokenResult()).claims.role || ""; } catch (e) { ACTOR_ROLE = ""; }
+});
+export const actorEmail = u => ACTOR_ROLE === "admin" ? "ادمن" : (u?.email || "");
+
 // بترسم الأزرار لوحدها في أي صفحة فيها <nav id="pnav"> بعد الدخول، وبتشيلها بعد الخروج
 onAuthStateChanged(auth, async user => {
   const el = document.getElementById("pnav");

@@ -69,6 +69,13 @@ label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#777;}
       <div class="msg" id="xmsg"></div>
     </div>
     <div class="card no-view">
+      <h2>تصحيح نوع الإجازة (ج / خ)</h2>
+      <p class="muted" style="margin-bottom:8px;">لحد ما يبقى فيه رصيد إجازات: أي إجازة بتتوافق بتتسجل ج. نزّل الإجازات في فترة، غيّر عمود «نوع الإجازة» لـ خ للي ملوش رصيد (أو العكس)، وارفع الشيت — اللي اتغيّر بس هو اللي بيتعدّل، والحضور بيتعدّل معاه.</p>
+      <div class="row"><label class="f">من<input type="date" id="lk-from"></label><label class="f">لحد<input type="date" id="lk-to"></label>
+        <button class="btn sec" id="lk-exp">تنزيل الإجازات</button><input type="file" id="lk-file" accept=".xlsx,.xls" style="max-width:300px"><button class="btn" id="lk-save" disabled>احفظ التصحيح</button></div>
+      <div class="msg" id="lk-msg" style="white-space:pre-line;"></div>
+    </div>
+    <div class="card no-view">
       <h2>مرحلة العميل (بيبسي والإمداد / شيبسي)</h2>
       <p class="muted" style="margin-bottom:8px;">اللي HR تيما وافق عليه لعمال بيبسي والإمداد وشيبسي بيستنى هنا رد العميل. وتقدر كمان تسجّل قرار العميل يدوي على كل حالة تحت.</p>
       <h2 style="margin-top:6px;">المرضي</h2>
@@ -104,7 +111,7 @@ label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#777;}
 <script type="module">
 import { getFirestore, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth } from './shared.js';
+import { db, auth, actorEmail } from './shared.js';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
@@ -218,8 +225,8 @@ $("xsave").onclick = async () => {
       if (!ex) {
         // مرضي بيبسي والإمداد / شيبسي: معتمد من HR تيما على طول ← «مستني رد العميل». غير كده «مستني HR تيما» زي الأول
         const direct = r.type === "sick" && needsClient(r);
-        const st = direct ? { status: "client_wait", hr_ok_by: u.uid, hr_ok_email: u.email || "", hr_ok_at: serverTimestamp(), client_group: groupOf(r) } : { status: "pending" };
-        await setDoc(doc(db, "hr_events", id), { ...r, entry_date: today, ...st, by_email: u.email || "", uploaded_by: u.uid, created_at: serverTimestamp() });
+        const st = direct ? { status: "client_wait", hr_ok_by: u.uid, hr_ok_email: actorEmail(u), hr_ok_at: serverTimestamp(), client_group: groupOf(r) } : { status: "pending" };
+        await setDoc(doc(db, "hr_events", id), { ...r, entry_date: today, ...st, by_email: actorEmail(u), uploaded_by: u.uid, created_at: serverTimestamp() });
         byId.set(id, { id, ...r, status: st.status }); n++; if (direct) nDirect++;
         continue;
       }
@@ -252,7 +259,7 @@ async function exportClient(g) {
   try {
     for (let i = 0; i < notSent.length; i += 400) {
       const b = writeBatch(db);
-      notSent.slice(i, i + 400).forEach(e => b.update(doc(db, "hr_events", e.id), { sent_at: serverTimestamp(), sent_email: auth.currentUser.email || "" }));
+      notSent.slice(i, i + 400).forEach(e => b.update(doc(db, "hr_events", e.id), { sent_at: serverTimestamp(), sent_email: actorEmail(auth.currentUser) }));
       await b.commit();
     }
     show($("cl-msg"), "ok", `اتصدّر ${list.length} حالة لـ ${GROUP_AR[g]}` + (notSent.length < list.length ? ` (منهم ${list.length - notSent.length} كانوا اتبعتوا قبل كده).` : "."));
@@ -296,8 +303,8 @@ $("cl-file").onchange = async () => {
 };
 function clientUpd(ev, dec, from, to, note) {
   const u = auth.currentUser, moved = dec === "approved" && (from !== ev.from || to !== ev.to);
-  const upd = { status: dec, decided_by: u.uid, decided_email: u.email || "", decided_at: serverTimestamp(),
-    client: { decision: moved ? "modified" : dec, from: dec === "approved" ? from : "", to: dec === "approved" ? to : "", note: note || "", by_email: u.email || "" } };
+  const upd = { status: dec, decided_by: u.uid, decided_email: actorEmail(u), decided_at: serverTimestamp(),
+    client: { decision: moved ? "modified" : dec, from: dec === "approved" ? from : "", to: dec === "approved" ? to : "", note: note || "", by_email: actorEmail(u) } };
   if (moved) Object.assign(upd, { from, to, days: String(workDays(from, to)),
     original: ev.original || { type: ev.type, from: ev.from || "", to: ev.to || "", entry_date: ev.entry_date || "" } });
   return upd;
@@ -337,7 +344,7 @@ async function exportSick(g) {
   try {
     for (let i = 0; i < notSent.length; i += 400) {
       const b = writeBatch(db);
-      notSent.slice(i, i + 400).forEach(e => b.update(doc(db, "hr_events", e.id), { sent_at: serverTimestamp(), sent_email: auth.currentUser.email || "" }));
+      notSent.slice(i, i + 400).forEach(e => b.update(doc(db, "hr_events", e.id), { sent_at: serverTimestamp(), sent_email: actorEmail(auth.currentUser) }));
       await b.commit();
     }
     show($("sk-msg"), miss.length ? "err" : "ok", `اتصدّر ${list.length} حالة مرضي لـ ${GROUP_AR[g]} — ${total} يوم.`
@@ -419,8 +426,8 @@ $("sk-file").onchange = async () => {
 // رد العميل على حالة مرضي: بتتقفل «معتمد» بعدد الأيام المعتمدة (حتى لو 0) عشان باقي الأيام تتسجل خ في الحضور
 function sickClientUpd(ev, a, lim, note) {
   const u = auth.currentUser, d = +ev.days || 0;
-  const upd = { status: "approved", approved_days: a, decided_by: u.uid, decided_email: u.email || "", decided_at: serverTimestamp(),
-    client: { decision: a >= d ? "approved" : a === 0 ? "rejected" : "partial", approved_days: a, note: note || "", by_email: u.email || "" } };
+  const upd = { status: "approved", approved_days: a, decided_by: u.uid, decided_email: actorEmail(u), decided_at: serverTimestamp(),
+    client: { decision: a >= d ? "approved" : a === 0 ? "rejected" : "partial", approved_days: a, note: note || "", by_email: actorEmail(u) } };
   if (lim != null) upd.client_limit = lim;
   return upd;
 }
@@ -435,6 +442,74 @@ $("sk-save").onclick = async () => {
     }
     show($("sk-msg"), "ok", `اتسجل رد العميل على ${n} حالة مرضي — ${sum} يوم معتمد.`); SKROWS = []; $("sk-file").value = ""; $("sk-total").value = "";
   } catch (e) { show($("sk-msg"), "err", `اتسجل ${n} ووقف عند خطأ: ` + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : e.message)); }
+};
+
+// ===== تصحيح نوع الإجازة: ج (ليه رصيد) / خ (ملوش رصيد) =====
+// بيشمل الإجازات المعتمدة واللي مستنية رد العميل، اللي أيامها داخلة في الفترة
+const LK_HEAD = ["رقم الطلب", "الاسم", "الرقم القومى", "الكود", "المكان", "من", "لحد", "عدد الايام", "الحالة", "نوع الإجازة (ج / خ)"];
+const kindCode = k => k === "unpaid" ? "خ" : "ج";
+let LKROWS = [];
+async function leavesIn(f, t) {
+  const out = [];
+  for (const st of ["approved", "client_wait"]) {
+    const sn = await getDocs(query(collection(db, "hr_events"), where("status", "==", st), where("type", "==", "leave")));
+    sn.forEach(d => { const e = { id: d.id, ...d.data() }; if (e.from && e.from <= t && (e.to || e.from) >= f) out.push(e); });
+  }
+  return out.sort((a, b) => placeOf(a).localeCompare(placeOf(b)) || String(a.name).localeCompare(String(b.name)) || String(a.from).localeCompare(String(b.from)));
+}
+$("lk-exp").onclick = async () => {
+  const f = $("lk-from").value, t = $("lk-to").value;
+  if (!f || !t || t < f) return show($("lk-msg"), "err", "حدد الفترة (من ولحد).");
+  show($("lk-msg"), "info", "بيحمّل...");
+  try {
+    const list = await leavesIn(f, t);
+    if (!list.length) return show($("lk-msg"), "info", "مفيش إجازات في الفترة دي.");
+    const rows = list.map(e => [e.id, e.name || "", String(e.nid || ""), String(e.code || ""), placeOf(e), dmy(e.from), dmy(e.to || e.from), +e.days || 0,
+      e.status === "approved" ? "معتمد" : "مستني العميل", kindCode(e.kind)]);
+    sheetOut([LK_HEAD, ...rows], [12, 30, 17, 10, 22, 11, 11, 9, 12, 16], "الإجازات", `نوع الإجازات ${f} الى ${t}.xlsx`);
+    const nU = list.filter(e => e.kind === "unpaid").length;
+    show($("lk-msg"), "ok", `نزل ${list.length} إجازة (ج ${list.length - nU} — خ ${nU}). غيّر عمود «نوع الإجازة» وارفعه.`);
+  } catch (e) { show($("lk-msg"), "err", "مش قادر أحمّل الإجازات: " + e.message); }
+};
+$("lk-file").onchange = async () => {
+  LKROWS = []; $("lk-save").disabled = true;
+  const file = $("lk-file").files[0]; if (!file) return;
+  try {
+    const wb = XLSX.read(await file.arrayBuffer());
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: "" });
+    const H = (rows[0] || []).map(h => anorm(h));
+    const iId = H.findIndex(h => /رقم الطلب/.test(h)), iK = H.findIndex(h => /نوع الاجاز/.test(h));
+    if (iId < 0 || iK < 0) return show($("lk-msg"), "err", "ده مش شيت الإجازات اللي نزل من هنا (مش لاقي «رقم الطلب» أو «نوع الإجازة»).");
+    const bad = [], ids = [];
+    rows.slice(1).forEach((r, i) => {
+      const id = String(r[iId] || "").trim(); if (!id) return;
+      const v = String(r[iK] || "").trim();
+      const kind = /^خ|بدون/.test(v) ? "unpaid" : /^ج|اجاز|إجاز|رصيد/.test(v) ? "annual" : "";
+      if (!kind) return bad.push(`سطر ${i + 2}: نوع الإجازة لازم ج أو خ`);
+      ids.push({ id, kind, line: i + 2 });
+    });
+    const snaps = await Promise.all(ids.map(x => getDoc(doc(db, "hr_events", x.id))));
+    snaps.forEach((sn, i) => {
+      const x = ids[i], e = sn.exists() ? sn.data() : null;
+      if (!e || e.type !== "leave") return bad.push(`سطر ${x.line}: الإجازة دي مش موجودة`);
+      if ((e.kind === "unpaid" ? "unpaid" : "annual") !== x.kind) LKROWS.push({ id: x.id, kind: x.kind, name: e.name });
+    });
+    const toU = LKROWS.filter(x => x.kind === "unpaid").length;
+    show($("lk-msg"), bad.length ? "err" : "ok", (LKROWS.length ? `${LKROWS.length} إجازة اتغيّر نوعها: ${toU} ← خ، و${LKROWS.length - toU} ← ج.` : "مفيش ولا إجازة اتغيّر نوعها.")
+      + (bad.length ? `\n${bad.length} سطر مش هيتسجلوا:\n` + bad.slice(0, 20).join("\n") : ""));
+    $("lk-save").disabled = !LKROWS.length;
+  } catch (e) { show($("lk-msg"), "err", "الملف ماتقراش: " + e.message); }
+};
+$("lk-save").onclick = async () => {
+  $("lk-save").disabled = true; let n = 0;
+  try {
+    for (let i = 0; i < LKROWS.length; i += 400) {
+      const b = writeBatch(db);
+      LKROWS.slice(i, i + 400).forEach(x => b.update(doc(db, "hr_events", x.id), { kind: x.kind, kind_by: actorEmail(auth.currentUser) }));
+      await b.commit(); n += Math.min(400, LKROWS.length - i);
+    }
+    show($("lk-msg"), "ok", `اتعدّل نوع ${n} إجازة.`); LKROWS = []; $("lk-file").value = "";
+  } catch (e) { show($("lk-msg"), "err", `اتعدّل ${n} ووقف عند خطأ: ` + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : e.message)); }
 };
 
 let VIEW = false;   // المشاهد: عرض بس
@@ -474,7 +549,7 @@ const sickFields = e => e.type !== "sick" ? "" : `<div class="row" style="width:
   <select data-sk="${e.id}" style="padding:4px 6px;font-size:12px;"><option value="sick" ${e.sick_kind !== "injury" ? "selected" : ""}>مرضى</option><option value="injury" ${e.sick_kind === "injury" ? "selected" : ""}>إصابة عمل</option></select>
   <input data-cause="${e.id}" placeholder="سبب الحالة المرضية" value="${esc(e.cause || "")}" style="flex:2;min-width:150px;">
   <input data-hosp="${e.id}" placeholder="المستشفى" value="${esc(e.hospital || "")}" style="flex:1;min-width:110px;"></div>`;
-const kindSel = e => e.type !== "leave" ? "" : `<select data-kind="${e.id}" style="padding:4px 6px;font-size:12px;"><option value="">نوع الإجازة…</option><option value="annual" ${e.kind === "annual" || e.kind === "casual" ? "selected" : ""}>ج — إجازة (ليه رصيد)</option><option value="unpaid" ${e.kind === "unpaid" ? "selected" : ""}>خ — بدون أجر (ملوش رصيد)</option></select>`;
+const kindSel = e => e.type !== "leave" ? "" : `<select data-kind="${e.id}" style="padding:4px 6px;font-size:12px;"><option value="annual" ${e.kind !== "unpaid" ? "selected" : ""}>ج — إجازة (ليه رصيد)</option><option value="unpaid" ${e.kind === "unpaid" ? "selected" : ""}>خ — بدون أجر (ملوش رصيد)</option></select>`;
 function render() {
   const st = $("f-st").value, ty = $("f-ty").value, gr = $("f-gr").value, q = $("f-q").value.trim();
   // اللي اتعدل في الشيت بعد القرار بيظهر مع «مستني HR تيما» وفوق خالص، عشان محدش يفوّته
@@ -546,8 +621,8 @@ async function save(id, upd, okMsg) {
 function hrOk(ev, extra) {
   const u = auth.currentUser, toClient = needsClient({ ...ev, ...extra });
   const upd = { ...extra, status: toClient ? "client_wait" : "approved", changed: false,
-    hr_ok_by: u.uid, hr_ok_email: u.email || "", hr_ok_at: serverTimestamp(), client_group: groupOf(ev) };
-  if (!toClient) Object.assign(upd, { decided_by: u.uid, decided_email: u.email || "", decided_at: serverTimestamp() });
+    hr_ok_by: u.uid, hr_ok_email: actorEmail(u), hr_ok_at: serverTimestamp(), client_group: groupOf(ev) };
+  if (!toClient) Object.assign(upd, { decided_by: u.uid, decided_email: actorEmail(u), decided_at: serverTimestamp() });
   return [upd, toClient ? "اتوافق عليها واتنقلت لـ «مستني رد العميل»." : "اتعتمدت."];
 }
 $("list").onclick = async e => {
@@ -596,7 +671,7 @@ $("list").onclick = async e => {
   if (ds.crj) { if (!note && !confirm("ترفض من غير ملاحظة؟")) return; return save(id, clientUpd(ev, "rejected", "", "", note), "اتسجل إن العميل رفض."); }
   if (ds.rj) {
     if (!note && !confirm("ترفض من غير ملاحظة؟")) return;
-    const upd = { status: "rejected", note, decided_by: u.uid, decided_email: u.email || "", decided_at: serverTimestamp(), changed: false };
+    const upd = { status: "rejected", note, decided_by: u.uid, decided_email: actorEmail(u), decided_at: serverTimestamp(), changed: false };
     if (ev.changed && ev.changed_data) Object.assign(upd, ev.changed_data);   // القرار على آخر نسخة في الشيت
     return save(id, upd, "اترفضت.");
   }
@@ -608,8 +683,8 @@ $("list").onclick = async e => {
     Object.assign(extra, sf.v);
   }
   if ((extra.type || ev.type) === "leave") {
-    const k = document.querySelector(`[data-kind="${id}"]`)?.value || "";
-    if (!k) return show($("msg"), "err", `اختار نوع الإجازة لـ ${ev.name}: ج (ليه رصيد) ولا خ (ملوش رصيد).`);
+    // لحد ما يبقى فيه رصيد إجازات: الافتراضي ج، والـ HR بيصحح اللي ملوش رصيد بعدين من «تصحيح نوع الإجازة»
+    const k = document.querySelector(`[data-kind="${id}"]`)?.value || "annual";
     extra.kind = k;
   }
   const [upd, msg] = hrOk(ev, extra);

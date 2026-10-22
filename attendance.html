@@ -300,7 +300,7 @@ img[data-zoom]{cursor:zoom-in;}
 <script type="module">
 import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite } from './shared.js';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite } from './shared.js';
 import { openPrintView, openOrderEditor } from './sheet.js';
 
 
@@ -473,7 +473,7 @@ async function onFiles(e) {
     try {
       const image = await compress(files[i]);
       await addDoc(collection(db, "att_pages"), {
-        site: S.site, date: S.date, image, uploaded_by: u.uid, uploaded_email: u.email || "",
+        site: S.site, date: S.date, image, uploaded_by: u.uid, uploaded_email: actorEmail(u),
         status: "pending", created_at: serverTimestamp()
       });
       ok++;
@@ -741,7 +741,7 @@ $("confirm").addEventListener("click", async () => {
   if (S.over.length) {
     try {
       await addDoc(collection(db, "att_alerts"), { type: "over_plan", site: S.site, date: S.date,
-        detail: S.over.map(o => `${o.job}: ${o.n} / ${o.plan}`).join("، "), by: u.uid, by_email: u.email || "", at: serverTimestamp() });
+        detail: S.over.map(o => `${o.job}: ${o.n} / ${o.plan}`).join("، "), by: u.uid, by_email: actorEmail(u), at: serverTimestamp() });
     } catch (e) {}
     return show($("c-msg"), "err", "مينفعش تأكد: الحاضرين أكتر من العدد المطلوب. " + S.over.map(o => `${o.job}: ${o.n} والمطلوب ${o.plan}`).join("، "));
   }
@@ -759,12 +759,12 @@ $("confirm").addEventListener("click", async () => {
     if (S.regional) {
       // الإقليمي: مراجعة (لو المشرف مارفعش، الإقليمي بيرفع ويراجع مرة واحدة)
       const sup = S.day?.confirmed_at ? { late: !!S.day.late, confirmed_by: S.day.confirmed_by, confirmed_email: S.day.confirmed_email || "", confirmed_at: S.day.confirmed_at }
-        : { late, confirmed_by: u.uid, confirmed_email: u.email || "", confirmed_at: serverTimestamp() };
+        : { late, confirmed_by: u.uid, confirmed_email: actorEmail(u), confirmed_at: serverTimestamp() };
       await setDoc(doc(db, "att_days", S.site + "__" + S.date), { ...base, ...sup, status: "reviewed",
-        review_late: late || !!S.day?.review_late, reviewed_by: u.uid, reviewed_email: u.email || "", reviewed_at: serverTimestamp() });
+        review_late: late || !!S.day?.review_late, reviewed_by: u.uid, reviewed_email: actorEmail(u), reviewed_at: serverTimestamp() });
     } else {
       await setDoc(doc(db, "att_days", S.site + "__" + S.date), { ...base, status: "confirmed",
-        late: late || !!S.day?.late, confirmed_by: u.uid, confirmed_email: u.email || "", confirmed_at: serverTimestamp() });
+        late: late || !!S.day?.late, confirmed_by: u.uid, confirmed_email: actorEmail(u), confirmed_at: serverTimestamp() });
     }
     show($("c-msg"), "ok", "اتأكد الحضور ✓");
   } catch (err) {
@@ -807,7 +807,7 @@ $("order").addEventListener("click", async () => {
       await setDoc(doc(db, "sheet_order", site), {
         site, groups: o.groups, breaks: o.breaks, excluded: o.excluded,
         ...(o.sections ? { sections: o.sections, secNeed: o.secNeed, secOrder: o.secOrder, pageGroups: o.pageGroups } : {}),
-        updated_by: u.uid, updated_email: u.email || "", updated_at: serverTimestamp(),
+        updated_by: u.uid, updated_email: actorEmail(u), updated_at: serverTimestamp(),
       });
     },
   });
@@ -934,9 +934,9 @@ $("m-remove-save").addEventListener("click", async () => {
   try {
     // الاستقالة الأول: لو الصورة مارفعتش، الاسم ميتشالش
     if (resign) await addDoc(collection(db, "doc_uploads"), { site: S.site, nid: String(w.nid), kind: "resignation", images: [RS.img],
-      uploaded_by: u.uid, uploaded_email: u.email || "", status: "pending", created_at: serverTimestamp() });
+      uploaded_by: u.uid, uploaded_email: actorEmail(u), status: "pending", created_at: serverTimestamp() });
     await setDoc(doc(db, "sheet_removals", S.site + "__" + code), { site: S.site, code, name: w.name, reason: $("m-reason").value,
-      note: $("m-note").value.trim(), by: u.uid, by_email: u.email || "", at: serverTimestamp() });
+      note: $("m-note").value.trim(), by: u.uid, by_email: actorEmail(u), at: serverTimestamp() });
     show($("m-msg"), "ok", resign ? "اتشال، وصورة الاستقالة اترفعت. الكشف هيتحدّث خلال ثواني." : "اتشال. الكشف هيتحدّث خلال ثواني.");
     RS.img = null; $("m-resign-img").classList.add("hidden"); $("m-note").value = ""; $("m-q").value = ""; rmPick(""); $("m-remove-form").classList.add("hidden");
   } catch (err) { show($("m-msg"), "err", "ماتشالش: " + err.message); }
@@ -999,7 +999,7 @@ $("idm-send").addEventListener("click", async () => {
   try {
     const u = auth.currentUser;
     const ref = await addDoc(collection(db, "id_checks"), { site: S.site, date: S.date, image: ID.front, image_back: ID.back, purpose: ID.purpose,
-      uploaded_by: u.uid, uploaded_email: u.email || "", status: "pending", created_at: serverTimestamp() });
+      uploaded_by: u.uid, uploaded_email: actorEmail(u), status: "pending", created_at: serverTimestamp() });
     ID.check = ref.id;
     show($("idm-msg"), "info", "بيقرا البطاقة... (حوالي نص دقيقة)");
     ID.unsub?.();
@@ -1041,13 +1041,13 @@ $("idm-ok").addEventListener("click", async () => {
       // البلاك ليست: ممنوع يتضاف (زي اللي تحت السن)
       let banned = false; try { banned = (await getDoc(doc(db, "blacklist", d.nid))).exists(); } catch (e) {}
       if (banned) {
-        try { await addDoc(collection(db, "att_alerts"), { type: "blacklist", site: S.site, date: S.date, detail: `${d.name} — ${d.nid}`, by: u.uid, by_email: u.email || "", at: serverTimestamp() }); } catch (e) {}
+        try { await addDoc(collection(db, "att_alerts"), { type: "blacklist", site: S.site, date: S.date, detail: `${d.name} — ${d.nid}`, by: u.uid, by_email: actorEmail(u), at: serverTimestamp() }); } catch (e) {}
         throw new Error("العامل ده ممنوع تشغيله في تيما. راجع الإدارة.");
       }
       await setDoc(doc(db, "new_workers", d.nid), { nid: d.nid, name: d.name, site: S.site,
         job: ID.purpose === "roster" ? $("idm-job").value : (S.roster.find(x => x.code === ID.target)?.job || ""),
         ...(typ ? { type: typ } : {}),
-        role: ID.purpose === "roster" && !toRoster ? "replacement" : ID.purpose, check_id: ID.check, first_day: S.date, added_by: u.uid, added_email: u.email || "", at: serverTimestamp() });
+        role: ID.purpose === "roster" && !toRoster ? "replacement" : ID.purpose, check_id: ID.check, first_day: S.date, added_by: u.uid, added_email: actorEmail(u), at: serverTimestamp() });
     }
     if (ID.purpose === "replacement" && ID.target) S.rep[ID.target] = { nid: d.nid, name: d.name, code: inPool?.code || "" };
     $("idm").classList.add("hidden");
@@ -1132,7 +1132,7 @@ $("fm-send").addEventListener("click", async () => {
   try {
     const u = auth.currentUser;
     const ref = await addDoc(collection(db, "doc_uploads"), { site: S.site, nid: FM.nid, kind: "fiche", images: FM.imgs,
-      uploaded_by: u.uid, uploaded_email: u.email || "", status: "pending", created_at: serverTimestamp() });
+      uploaded_by: u.uid, uploaded_email: actorEmail(u), status: "pending", created_at: serverTimestamp() });
     const un = onSnapshot(ref, snap => {
       const d = snap.data(); if (!d || d.status === "pending" || d.status === "saving") return;
       un();
@@ -1250,7 +1250,7 @@ $("lv-send").addEventListener("click", async () => {
       type, type_ar: inj ? "إصابة عمل" : LV_TY[type], ...(type === "sick" ? { sick_kind: inj ? "injury" : "sick" } : {}),
       from: f, to: t, days: String(lvWorkDays(f, t)),
       image: "data:image/jpeg;base64," + LV.img, ...(inj ? { image2: "data:image/jpeg;base64," + LV.img2 } : {}), status: "pending", entry_date: ymd(new Date()),
-      by_email: u.email || "", uploaded_by: u.uid, created_at: serverTimestamp() });
+      by_email: actorEmail(u), uploaded_by: u.uid, created_at: serverTimestamp() });
     $("lvm").classList.add("hidden");
     show($("lv-msg"), "ok", `الطلب اتبعت للـ HR — ${inj ? "إصابة عمل" : LV_TY[type]} ${w.name} من ${f} لحد ${t}.`);
   } catch (err) {

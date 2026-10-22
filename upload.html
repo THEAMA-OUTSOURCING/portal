@@ -89,7 +89,7 @@ details ul{margin:6px 18px;font-size:12px;color:#555;max-height:260px;overflow:a
 <script type="module">
 import { getFirestore, doc, getDoc, getDocs, collection, query, where, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, fetchPlanBase, planBySite } from './shared.js';
+import { db, auth, actorEmail, fetchPlanBase, planBySite } from './shared.js';
 import { detect, parseChipsy, parseEmdad, parseSharqia, emdadMonths, counts, COMPANY_LABEL, CHIPSY_PLAN, countsForPlan } from './xl-attendance.js';
 
 const $ = id => document.getElementById(id);
@@ -235,8 +235,8 @@ $("save").onclick = async () => {
         b.set(doc(db, "att_days", k), { site: d.site, date: d.date, entries: d.entries,
           counts: { present: c.present, absent: c.absent, leave: c.leave, total: c.total },
           source: "excel", company: S.type, file: S.fileName, status: "approved",
-          uploaded_by: u.uid, uploaded_email: u.email || "", uploaded_at: serverTimestamp(),
-          approved_by: u.uid, approved_email: u.email || "", approved_at: serverTimestamp() });
+          uploaded_by: u.uid, uploaded_email: actorEmail(u), uploaded_at: serverTimestamp(),
+          approved_by: u.uid, approved_email: actorEmail(u), approved_at: serverTimestamp() });
       });
       await b.commit();
       show($("s-msg"), "info", `اتحفظ ${Math.min(i + 20, list.length)} من ${list.length}...`);

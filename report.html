@@ -144,7 +144,7 @@ tr.foot td{background:#f3f3ef;font-weight:600;}
 <script type="module">
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, ATT_SITES, XL_SITES } from './shared.js';
+import { db, auth, actorEmail, ATT_SITES, XL_SITES } from './shared.js';
 
 // خانة اليوم: 1 حاضر، غ غايب، أو الرمز زي ما هو (ج م ض ر ق ن 8 ...). p = قيمة الحضور (ن = نص يوم)
 function cellOf(e, app) {
@@ -642,7 +642,7 @@ const canAp = d => S.canApprove && (d.status === "reviewed" || (S.role === "admi
 async function setStatus(d, approve) {
   const u = auth.currentUser;
   await updateDoc(doc(db, "att_days", d.id), approve
-    ? { status: "approved", approved_by: u.uid, approved_email: u.email || "", approved_at: serverTimestamp() }
+    ? { status: "approved", approved_by: u.uid, approved_email: actorEmail(u), approved_at: serverTimestamp() }
     : { status: d.reviewed_by ? "reviewed" : "confirmed" });
 }
 $("a-list").onclick = async e => {
@@ -675,7 +675,7 @@ $("a-esave").onclick = async () => {
   const v = Object.values(entries), u = auth.currentUser;
   try {
     await updateDoc(doc(db, "att_days", d.id), { entries, counts: { ...(d.counts || {}), present: v.filter(e => e.s === "P").length, absent: v.filter(e => e.s === "A").length },
-      status: "approved", approved_by: u.uid, approved_email: u.email || "", approved_at: serverTimestamp(), edited_by: u.email || "", edited_n: n });
+      status: "approved", approved_by: u.uid, approved_email: actorEmail(u), approved_at: serverTimestamp(), edited_by: u.email || "", edited_n: n });
     show($("a-msg"), "ok", "اتعدل واتعتمد."); $("a-detail").classList.add("hidden"); $("a-go").click();
   } catch (er) { show($("a-msg"), "err", "ماتحفظش: " + (er.code === "permission-denied" ? "محتاج تحديث الـ Rules." : er.message)); }
 };
