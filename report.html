@@ -399,7 +399,7 @@ $("r-go").onclick = async () => {
     for (const d of days) {
       Object.entries(d.entries || {}).forEach(([code, e]) => {
         const w = roster[d.site + "|" + code] || {};
-        const r = getRow(d.site + "|" + code, { site: d.site, code, name: e.name || w.name || code, nid: e.nid || w.nid || "", job: e.job || w.job || "", loc: e.loc || "", rep: false });
+        const r = getRow(d.site + "|" + code, { site: d.site, code, name: e.name || w.name || code, nid: e.nid || w.nid || "", job: e.job || w.job || "", loc: e.loc || "", rep: !!e.sub });
         r.cells[d.date] = cellOf(e, d.status === "approved");
         if (e.s === "A" && e.rep) {
           const k = d.site + "|R" + (e.rep.nid || e.rep.code || e.rep.name);

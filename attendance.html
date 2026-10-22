@@ -147,6 +147,13 @@ img[data-zoom]{cursor:zoom-in;}
       <div class="pages" id="pages"></div>
     </div>
 
+    <div class="card hidden" id="force-card">
+      <h2>قوة الفرع</h2>
+      <p class="muted" style="margin-bottom:8px;">راجع الأسماء دي: اللي مشي شيله من «إدارة الكشف»، واللي جديد ضيفه بالبطاقة.</p>
+      <div id="force-plan"></div>
+      <div id="force-list" style="margin-top:8px;"></div>
+    </div>
+
     <div class="card" id="manage-card">
       <h2>إدارة الكشف</h2>
       <p class="muted" style="margin-bottom:8px;">الحذف والإضافة هنا بيغيّروا الكشف المطبوع وقايمة المراجعة بس، والمرتبات مش بتتأثر. وأي تغيير بيوصل لـ HR.</p>
@@ -160,6 +167,13 @@ img[data-zoom]{cursor:zoom-in;}
         <div id="m-picked" class="m-picked hidden"></div>
         <input type="hidden" id="m-who">
         <select id="m-reason" style="margin-bottom:8px;"><option>استقالة</option><option>انقطاع</option><option>نقل لموقع تاني</option><option>فصل</option><option>أخرى</option></select>
+        <div id="m-resign" style="margin-bottom:8px;border:1px solid #e5e5e5;border-radius:12px;padding:10px;text-align:center;">
+          <b>صورة الاستقالة (إجباري)</b>
+          <img id="m-resign-img" class="hidden" data-zoom alt="الاستقالة" title="دوس تكبّر" style="width:100%;max-height:220px;object-fit:contain;margin-top:6px;">
+          <div class="row" style="justify-content:center;margin-top:6px;"><label class="btn sec small" for="m-resign-cam">صوّر</label><label class="btn sec small" for="m-resign-file">من المعرض</label></div>
+          <input type="file" id="m-resign-cam" accept="image/*" capture="environment" class="hidden">
+          <input type="file" id="m-resign-file" accept="image/*" class="hidden">
+        </div>
         <input type="text" id="m-note" placeholder="ملاحظة (اختياري)" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:10px;margin-bottom:8px;">
         <button class="btn" id="m-remove-save">شيل من الكشف</button>
       </div>
@@ -247,6 +261,9 @@ img[data-zoom]{cursor:zoom-in;}
     <div class="row" style="justify-content:space-between;margin-bottom:8px;"><h2 id="idm-title" style="margin:0;">عامل جديد</h2><button class="btn sec small" id="idm-close">قفل</button></div>
     <p class="muted" id="idm-sub" style="margin-bottom:10px;"></p>
     <label id="idm-job-wrap" style="display:block;margin-bottom:10px;"><span class="muted">الوظيفة</span><select id="idm-job"></select></label>
+    <label id="idm-type-wrap" style="display:block;margin-bottom:10px;"><span class="muted">النوع</span><select id="idm-type">
+      <option value="">— اختار النوع —</option><option value="اساسي">أساسي (على الكشف)</option><option value="موسمي">موسمي (على الكشف)</option>
+      <option value="بديل راحات">بديل راحات (قايمة البدلاء)</option><option value="يومية">يومية (قايمة البدلاء)</option></select></label>
     <div class="row" style="align-items:stretch;">
       <div class="grow" style="border:1px solid #e5e5e5;border-radius:12px;padding:10px;text-align:center;">
         <b>1. وش البطاقة</b>
@@ -376,7 +393,8 @@ async function openDay() {
   hide($("up-msg")); hide($("c-msg"));
   // مواقع شيبسي والإمداد: حضورها إكسيل من الأدمن، فالمشرف ليه الكشف والبطايق والطلبات بس (من غير تصوير ولا تأكيد)
   S.photo = ATT_SITES.includes(S.site);
-  ["upload-card", "print-row"].forEach(id => $(id).classList.toggle("hidden", !S.photo));
+  $("upload-card").classList.toggle("hidden", !S.photo);
+  $("force-card").classList.toggle("hidden", S.photo);
   $("app").querySelector("h1").textContent = S.photo ? "تسجيل الحضور" : "الكشف والطلبات";
   $("date").previousElementSibling.textContent = S.photo ? "يوم الحضور" : "اليوم";
   const dl = deadlineOf(S.date);
@@ -391,7 +409,7 @@ async function openDay() {
   } catch (e) { S.roster = []; }
   if (!S.roster.length) show($("day-state"), "err", "كشف الموقع مش موجود لسه. الأدمن لازم يعمل مزامنة من لوحة الإدارة.");
   else hide($("day-state"));
-  S.unsubRoster = onSnapshot(doc(db, "rosters", S.site), snap => { if (snap.exists()) { S.roster = snap.data().workers || []; render(); renderManage(); } }, () => {});
+  S.unsubRoster = onSnapshot(doc(db, "rosters", S.site), snap => { if (snap.exists()) { S.roster = snap.data().workers || []; render(); renderManage(); renderForce(); } }, () => {});
   S.unsubPool = onSnapshot(doc(db, "pools", S.site), snap => { S.pool = snap.exists() ? (snap.data().workers || []) : []; render(); }, () => {});
   S.unsubNew?.();
   S.unsubNew = onSnapshot(query(collection(db, "new_workers"), where("site", "==", S.site)), snap => {
@@ -401,7 +419,7 @@ async function openDay() {
   S.unsubRem = onSnapshot(query(collection(db, "sheet_removals"), where("site", "==", S.site)), snap => {
     S.removals = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderManage();
   }, () => {});
-  if (!S.photo) { render(); return; }
+  if (!S.photo) { await loadPlan(); render(); renderForce(); return; }
   await Promise.all([loadPlan(), loadLate()]);
 
   S.unsubDay = onSnapshot(doc(db, "att_days", S.site + "__" + S.date), snap => {
@@ -517,6 +535,52 @@ function aiState() {
 }
 function needsReview(r) { return !r || r.s === "U" || r.conf === "L" || r.match === "fuzzy" || r.match === "handwritten"; }
 
+// بدلاء الراحات المطبوعين في الكشف: مش في قائمة عمال الموقع، فالسيرفر بيرجّع صفهم من غير code.
+// بنطابق رقمهم القومي على قائمة البدلاء (pools) — مطابق تمام، أو فرق رقمين بالكتير لو عامل واحد بس قريب.
+const subKey = p => "R" + (p.nid || p.code);
+function subOf(r) {
+  const nid = String(r.nid || "").replace(/\D/g, "");
+  if (nid.length !== 14) return null;
+  const pool = (S.pool || []).filter(p => /راحات/.test(p.type || "") && /^\d{14}$/.test(String(p.nid || "")));
+  const exact = pool.find(p => p.nid === nid);
+  if (exact) return { p: exact, fuzzy: false };
+  const near = pool.filter(p => [...p.nid].filter((c, i) => c !== nid[i]).length <= 2);
+  return near.length === 1 ? { p: near[0], fuzzy: true } : null;
+}
+// صف مكتوب بخط اليد مش في الكشف: هل هو بديل (راحات أو يومية) في قايمة البدلاء؟ بالرقم القومي أو بالاسم
+function poolOfExtra(x) {
+  const pool = S.pool || [];
+  const nid = String(x.nid || "").replace(/\D/g, "");
+  if (nid.length === 14) {
+    const ex = pool.find(p => p.nid === nid); if (ex) return ex;
+    const near = pool.filter(p => /^\d{14}$/.test(String(p.nid || "")) && [...p.nid].filter((c, i) => c !== nid[i]).length <= 2);
+    if (near.length === 1) return near[0];
+  }
+  for (const nm of [x.name, x.note]) {
+    if (!nm) continue;
+    const sc = pool.map(p => ({ p, s: nameScore(nm, p.name) })).sort((a, b) => b.s - a.s);
+    if (sc[0] && sc[0].s >= 0.85 && (!sc[1] || sc[0].s - sc[1].s >= 0.1)) return sc[0].p;
+  }
+  return null;
+}
+function aiSubs() {
+  // آخر قراءة لكل بديل من الصور اللي خلصت
+  const map = {};
+  S.pages.filter(p => p.status === "done").forEach(pg => {
+    (pg.result?.rows || []).filter(r => !r.code).forEach(r => {
+      const m = subOf(r); if (!m) return;
+      map[subKey(m.p)] = { ...r, page: pg.id, w: m.p, match: m.fuzzy ? "fuzzy" : r.match };
+    });
+    // المكتوبين بخط اليد: مكتوب = حاضر، بس لازم المشرف يأكد
+    (pg.result?.extra || []).forEach(x => {
+      if (matchExtra(x)) return;
+      const p = poolOfExtra(x); if (!p || map[subKey(p)]) return;
+      map[subKey(p)] = { s: "P", conf: "M", match: "handwritten", note: x.note || "", nid: x.nid || "", page: pg.id, w: p };
+    });
+  });
+  return map;
+}
+
 // اليوم مقفول عليّا؟ بعد اعتماد المحاسب على الكل، وبعد مراجعة الإقليمي على المشرف
 function lockedForMe() {
   const st = S.day?.status;
@@ -573,7 +637,20 @@ function render() {
       <div class="seg"><button class="p" data-c="${w.code}" data-v="P" aria-pressed="${def === "P"}" ${roP}>حاضر</button><button class="a" data-c="${w.code}" data-v="A" aria-pressed="${def === "A"}" ${ro}>غايب</button></div></div>` +
       (def === "A" ? repBlock(w, r) : "");
   }).join("")).join("");
-  $("workers").innerHTML = html;
+  const subs = aiSubs();
+  const subHtml = Object.keys(subs).length ? `<div class="grp">بدلاء حاضرين من الكشف (مطبوعين أو بخط اليد) (${fmt(Object.keys(subs).length)})</div>` + Object.entries(subs).map(([k, r]) => {
+    const w = r.w;
+    const def = S.choice[k] ?? (r.s !== "U" && !needsReview(r) ? r.s : null);
+    if (def === "P") P++; else if (def === "A") A++; else open++;
+    const flag = needsReview(r); if (flag) flagged++;
+    const why = r.s === "U" ? "القراءة مش واضحة" : r.match === "handwritten" ? "اتكتب بخط اليد — اتأكد" : r.match === "fuzzy" ? "الرقم القومي اتقرا بفرق بسيط" : r.conf === "L" ? "القراءة مش أكيدة" : "";
+    const aiTxt = r.s === "P" ? "قرا: حاضر" : r.s === "A" ? "قرا: غايب" : "قرا: مش واضح";
+    const ro = lockedForMe() ? "disabled" : "";
+    return `<div class="w ${flag ? "flag" : ""}">
+      <div class="nm"><b>${esc(w.name)}</b><small>${esc(w.type || "بديل")} — ${esc(w.job || "")} · ${esc(aiTxt)}${why ? ` · <span style="color:#8a5a10">${esc(why)}</span>` : ""}</small></div>
+      <div class="seg"><button class="p" data-c="${esc(k)}" data-v="P" aria-pressed="${def === "P"}" ${ro}>حاضر</button><button class="a" data-c="${esc(k)}" data-v="A" aria-pressed="${def === "A"}" ${ro}>غايب</button></div></div>`;
+  }).join("") : "";
+  $("workers").innerHTML = html + subHtml;
 
   // العدد المطلوب لكل وظيفة (أساسي + موسمي مع بعض)
   const perJob = {};
@@ -582,6 +659,10 @@ function render() {
     const def = S.choice[w.code] ?? (r && r.s !== "U" && !needsReview(r) ? r.s : null);
     perJob[w.job] ??= 0; if (def === "P") perJob[w.job]++;
     if (def === "A" && S.rep[w.code]) perJob[w.job]++;
+  });
+  Object.entries(subs).forEach(([k, r]) => {
+    const def = S.choice[k] ?? (r.s !== "U" && !needsReview(r) ? r.s : null);
+    if (def === "P") { perJob[r.w.job] ??= 0; perJob[r.w.job]++; }
   });
   S.over = Object.entries(perJob).filter(([j, n]) => S.plan[j] != null && n > S.plan[j]).map(([job, n]) => ({ job, n, plan: S.plan[job] }));
   const planRows = Object.keys(perJob).map(j => `<tr><td>${esc(j)}</td><td class="n">${fmt(perJob[j])}</td><td class="n">${S.plan[j] != null ? fmt(S.plan[j]) : "—"}</td>
@@ -595,8 +676,8 @@ function render() {
   // صفوف من غير عامل معروف + المكتوبة بخط اليد
   const loose = [];
   S.pages.filter(p => p.status === "done").forEach(p => {
-    (p.result?.rows || []).filter(r => !r.code).forEach(r => loose.push(`صف ${esc(r.n)}: رقم قومي ${esc(r.nid || "مش مقروء")} — ${r.s === "P" ? "حاضر" : r.s === "A" ? "غايب" : "مش واضح"}`));
-    (p.result?.extra || []).filter(x => !matchExtra(x)).forEach(x => loose.push(`بخط اليد: ${esc(x.name || "اسم مش مقروء")}${x.nid ? " — " + esc(x.nid) : ""}${x.note ? " — " + esc(x.note) : ""} <button class="btn sec small" data-addnew="1">إضافة بالبطاقة</button>`));
+    (p.result?.rows || []).filter(r => !r.code && !subOf(r)).forEach(r => loose.push(`صف ${esc(r.n)}: رقم قومي ${esc(r.nid || "مش مقروء")} — ${r.s === "P" ? "حاضر" : r.s === "A" ? "غايب" : "مش واضح"}`));
+    (p.result?.extra || []).filter(x => !matchExtra(x) && !poolOfExtra(x)).forEach(x => loose.push(`بخط اليد: ${esc(x.name || "اسم مش مقروء")}${x.nid ? " — " + esc(x.nid) : ""}${x.note ? " — " + esc(x.note) : ""} <button class="btn sec small" data-addnew="1">إضافة بالبطاقة</button>`));
   });
   $("extra-card").classList.toggle("hidden", !loose.length);
   $("extras").innerHTML = loose.map(t => `<div class="muted" style="padding:4px 0;border-bottom:1px solid #f0efe9;">${t}</div>`).join("");
@@ -633,6 +714,18 @@ $("confirm").addEventListener("click", async () => {
     entries[w.code] = { name: w.name, nid: w.nid || "", job: w.job, type: w.type, s, ai: r ? r.s : "", by: S.choice[w.code] && (!r || S.choice[w.code] !== r.s) ? "sup" : "ai", note: r?.note || "", page: r?.page || "" };
     if (s === "A" && S.rep[w.code]) entries[w.code].rep = S.rep[w.code];
   }
+  // بدلاء الراحات المطبوعين: بيتسجلوا لو حاضرين بس (البدلاء برّه نظام الغياب)
+  const usedRep = new Set(Object.values(S.rep).map(x => x.nid).filter(Boolean));
+  let subsP = 0;
+  for (const [k, r] of Object.entries(aiSubs())) {
+    const s = S.choice[k] ?? (r.s !== "U" && !needsReview(r) ? r.s : null);
+    if (s !== "P" && s !== "A") return show($("c-msg"), "err", "فيه بدلاء لسه محتاجين قرار.");
+    if (s !== "P") continue;
+    if (usedRep.has(r.w.nid)) return show($("c-msg"), "err", `${r.w.name} متسجل حاضر في صفه، ومختار كمان بديل لعامل غايب. شيله من واحد منهم.`);
+    entries[k] = { name: r.w.name, nid: r.w.nid || "", code: r.w.code || "", job: r.w.job || "", type: r.w.type || "بديل", sub: true, s: "P", ai: r.s,
+      by: S.choice[k] && S.choice[k] !== r.s ? "sup" : "ai", note: r.note || "", page: r.page || "" };
+    P++; subsP++;
+  }
   if (S.over.length) {
     try {
       await addDoc(collection(db, "att_alerts"), { type: "over_plan", site: S.site, date: S.date,
@@ -648,7 +741,7 @@ $("confirm").addEventListener("click", async () => {
   try {
     const base = {
       site: S.site, date: S.date, entries,
-      counts: { present: P, absent: A, total: S.roster.length },
+      counts: { present: P, absent: A, total: S.roster.length + subsP },
       pages: S.pages.filter(p => p.status === "done").map(p => p.id),
     };
     if (S.regional) {
@@ -769,6 +862,22 @@ $("workers").addEventListener("click", e => {
 $("extras").addEventListener("click", e => { if (e.target.closest("[data-addnew]")) openId("roster"); });
 
 // ===== إدارة الكشف =====
+// قوة الفرع: الأسماء بالوظيفة والنوع، وعدد كل وظيفة قصاد المطلوب (أساسي + موسمي)
+function renderForce() {
+  if (S.photo !== false) return;
+  const tl = t => ({ "اساسي": "أساسي", "جديد": "جديد (مستني HR)" }[t] || t || "");
+  const perJob = {};
+  S.roster.forEach(w => { perJob[w.job] = (perJob[w.job] || 0) + 1; });
+  const jobsAll = [...new Set([...Object.keys(perJob), ...Object.keys(S.plan || {})])];
+  $("force-plan").innerHTML = jobsAll.length ? `<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr><th style="text-align:right">الوظيفة</th><th>على الكشف</th><th>المطلوب</th><th></th></tr></thead><tbody>` +
+    jobsAll.map(j => { const n = perJob[j] || 0, p = S.plan?.[j];
+      return `<tr><td>${esc(j)}</td><td class="n">${fmt(n)}</td><td class="n">${p != null ? fmt(p) : "—"}</td><td class="n">${p == null ? "" : n > p ? `<span class="pill p-err">زيادة ${fmt(n - p)}</span>` : n < p ? `<span class="pill p-grey">ناقص ${fmt(p - n)}</span>` : `<span class="pill p-ok">مطابق</span>`}</td></tr>`; }).join("") +
+    `</tbody></table>` + (Object.keys(S.plan || {}).length ? "" : `<p class="muted" style="margin-top:6px;">مفيش عدد مطلوب متسجل للفرع ده.</p>`) : `<p class="muted">الكشف فاضي.</p>`;
+  const groups = {};
+  S.roster.forEach(w => { const g = (w.type === "موسمي" ? "موسمي — " : "") + w.job; (groups[g] ??= []).push(w); });
+  $("force-list").innerHTML = Object.entries(groups).map(([g, ws]) => `<div class="grp">${esc(g)} (${fmt(ws.length)})</div>` +
+    ws.map((w, i) => `<div class="w"><div class="nm"><b>${fmt(i + 1)}. ${esc(w.name)}</b><small dir="ltr" style="unicode-bidi:plaintext">${esc(w.nid || "")}${w.type && w.type !== "اساسي" && w.type !== "موسمي" ? " · " + esc(tl(w.type)) : ""}</small></div></div>`).join("")).join("");
+}
 function renderManage() {
   renderRmHits();
   $("m-removed").innerHTML = S.removals.length ? `<div class="muted" style="margin-bottom:4px;">اتشالوا من الكشف:</div>` + S.removals.map(r =>
@@ -797,14 +906,32 @@ $("m-remove").addEventListener("click", () => {
   const f = $("m-remove-form"); f.classList.toggle("hidden");
   if (!f.classList.contains("hidden")) { $("m-q").value = ""; rmPick(""); $("m-q").focus(); }
 });
+const RS = { img: null };
+const resignOn = () => $("m-reason").value === "استقالة";
+function syncResign() { $("m-resign").classList.toggle("hidden", !resignOn()); }
+$("m-reason").addEventListener("change", syncResign);
+syncResign();
+async function onResign(e) {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try { RS.img = await compressCard(f, FICHE_LIMIT, FICHE_SIDE); const im = $("m-resign-img"); im.src = "data:image/jpeg;base64," + RS.img; im.classList.remove("hidden"); hide($("m-msg")); }
+  catch (err) { show($("m-msg"), "err", err.message); }
+}
+["m-resign-cam", "m-resign-file"].forEach(id => $(id).addEventListener("change", onResign));
 $("m-remove-save").addEventListener("click", async () => {
   const code = $("m-who").value, w = S.roster.find(x => x.code === code); if (!w) return show($("m-msg"), "err", "اختار العامل من القايمة الأول.");
+  const resign = resignOn();
+  if (resign && !RS.img) return show($("m-msg"), "err", "صوّر الاستقالة الأول.");
+  if (resign && !/^\d{14}$/.test(String(w.nid || ""))) return show($("m-msg"), "err", "الرقم القومي للعامل ده ناقص في الكشف — ابعت الاستقالة للإدارة.");
   if (!confirm(`تشيل ${w.name} من الكشف؟ (السبب: ${$("m-reason").value})`)) return;
   const u = auth.currentUser;
   try {
+    // الاستقالة الأول: لو الصورة مارفعتش، الاسم ميتشالش
+    if (resign) await addDoc(collection(db, "doc_uploads"), { site: S.site, nid: String(w.nid), kind: "resignation", images: [RS.img],
+      uploaded_by: u.uid, uploaded_email: u.email || "", status: "pending", created_at: serverTimestamp() });
     await setDoc(doc(db, "sheet_removals", S.site + "__" + code), { site: S.site, code, name: w.name, reason: $("m-reason").value,
       note: $("m-note").value.trim(), by: u.uid, by_email: u.email || "", at: serverTimestamp() });
-    show($("m-msg"), "ok", "اتشال. الكشف هيتحدّث خلال ثواني."); $("m-note").value = ""; $("m-q").value = ""; rmPick(""); $("m-remove-form").classList.add("hidden");
+    show($("m-msg"), "ok", resign ? "اتشال، وصورة الاستقالة اترفعت. الكشف هيتحدّث خلال ثواني." : "اتشال. الكشف هيتحدّث خلال ثواني.");
+    RS.img = null; $("m-resign-img").classList.add("hidden"); $("m-note").value = ""; $("m-q").value = ""; rmPick(""); $("m-remove-form").classList.add("hidden");
   } catch (err) { show($("m-msg"), "err", "ماتشالش: " + err.message); }
 });
 $("m-removed").addEventListener("click", async e => {
@@ -840,6 +967,8 @@ function openId(purpose, target) {
   $("idm-job").innerHTML = jobs.map(j => `<option>${esc(j)}</option>`).join("");
   if (w) $("idm-job").value = w.job;
   $("idm-job-wrap").classList.toggle("hidden", purpose !== "roster");
+  $("idm-type-wrap").classList.toggle("hidden", purpose !== "roster");
+  $("idm-type").value = "";
   hide($("idm-msg")); $("idm-result").classList.add("hidden");
   ID.front = ID.back = null; $("idm-send").disabled = true;
   ["front", "back"].forEach(sd => $("idm-" + sd + "-img").classList.add("hidden"));
@@ -883,6 +1012,10 @@ $("idm-send").addEventListener("click", async () => {
 });
 $("idm-ok").addEventListener("click", async () => {
   const d = ID.result; if (!d || d.status !== "ok") return;
+  // النوع: أساسي/موسمي بيدخلوا الكشف، بديل راحات/يومية بيروحوا قايمة البدلاء (السيرفر بيقسّمهم بالنوع)
+  const typ = ID.purpose === "roster" ? $("idm-type").value : "";
+  if (ID.purpose === "roster" && !typ) return show($("idm-msg"), "err", "اختار نوع العامل الأول.");
+  const toRoster = typ === "اساسي" || typ === "موسمي";
   const inRoster = S.roster.find(x => x.nid === d.nid), inPool = S.pool.find(x => x.nid === d.nid);
   const u = auth.currentUser;
   $("idm-ok").disabled = true;
@@ -906,11 +1039,14 @@ $("idm-ok").addEventListener("click", async () => {
       }
       await setDoc(doc(db, "new_workers", d.nid), { nid: d.nid, name: d.name, site: S.site,
         job: ID.purpose === "roster" ? $("idm-job").value : (S.roster.find(x => x.code === ID.target)?.job || ""),
-        role: ID.purpose, check_id: ID.check, first_day: S.date, added_by: u.uid, added_email: u.email || "", at: serverTimestamp() });
+        ...(typ ? { type: typ } : {}),
+        role: ID.purpose === "roster" && !toRoster ? "replacement" : ID.purpose, check_id: ID.check, first_day: S.date, added_by: u.uid, added_email: u.email || "", at: serverTimestamp() });
     }
     if (ID.purpose === "replacement" && ID.target) S.rep[ID.target] = { nid: d.nid, name: d.name, code: inPool?.code || "" };
     $("idm").classList.add("hidden");
-    show($("m-msg"), "ok", ID.purpose === "roster" ? `${d.name} اتضاف للكشف. هيظهر خلال ثواني.` : `${d.name} اتسجل بديل.`);
+    show($("m-msg"), "ok", ID.purpose !== "roster" ? `${d.name} اتسجل بديل.`
+      : toRoster ? `${d.name} اتضاف للكشف (${typ === "اساسي" ? "أساسي" : "موسمي"}). هيظهر خلال ثواني.`
+      : `${d.name} اتضاف لقايمة البدلاء (${typ}).`);
     render();
   } catch (err) {
     show($("idm-msg"), "err", err.code === "permission-denied" ? "مااتضافش: يمكن العامل ده اتضاف قبل كده — دوّر عليه في قايمة البدلاء." : err.message);

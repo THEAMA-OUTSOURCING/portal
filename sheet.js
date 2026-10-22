@@ -321,14 +321,16 @@ function pageHtml(s, p, total, site, typeTitle, monthName, month, year) {
   const hs = s.uniform ? Array(nBlank).fill(rh) : blankHeights(nBlank, BODY_MM - content * rh);
   // سطور فاضية من غير رقم لحد 30 سطر (زي الأول) — بس لو الصفحة مش زحمة
   const fill = Math.max(0, AUTO_ROWS - s.rows.length);
-  let rows = "", count = 0, bi = 0;
+  let rows = "", count = 0, bi = 0, k = 0;   // k = رقم الصف: بيبدأ من 1 في أول كل صفحة وتحت كل وظيفة
   for (const it of s.rows) {
+    if (it.band) { if (!it.sec) k = 0; }
+    else k++;
     if (it.band) rows += `<tr class="band${it.job && s.secs ? " job" : ""}"><td colspan="6">${esc(it.sec ? "قسم " + it.band : splitJob(it.band).job)}${needTxt(it.need)}</td></tr>`;
-    else if (it.w) { count++; rows += `<tr><td class="n">${it.n}</td><td class="nm">${esc(it.w.name)}</td><td class="nid">${esc(it.w.nid)}</td><td class="sig"></td><td class="sig"></td><td></td></tr>`; }
+    else if (it.w) { count++; rows += `<tr><td class="n">${k}</td><td class="nm">${esc(it.w.name)}</td><td class="nid">${esc(it.w.nid)}</td><td class="sig"></td><td class="sig"></td><td></td></tr>`; }
     else {
       const h = hs[bi++];
       const fs = Math.max(3.5, Math.min(9, h * 2.1)).toFixed(1);
-      rows += `<tr class="bl" style="--rh:${h.toFixed(2)}mm;--fs:${fs}pt"><td class="n">${it.n}</td><td></td><td></td><td class="sig"></td><td class="sig"></td><td></td></tr>`;
+      rows += `<tr class="bl" style="--rh:${h.toFixed(2)}mm;--fs:${fs}pt"><td class="n">${k}</td><td></td><td></td><td class="sig"></td><td class="sig"></td><td></td></tr>`;
     }
   }
   for (let i = 0; i < fill; i++) rows += `<tr class="fill"><td class="n"></td><td></td><td></td><td class="sig"></td><td class="sig"></td><td></td></tr>`;
