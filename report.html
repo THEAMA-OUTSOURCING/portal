@@ -287,15 +287,21 @@ async function applySharqiaEvents(list, from, to) {
       continue;
     }
     if (!e.from) continue;
-    const [code, lbl] = e.type === "sick" ? ["م", "مرضي"] : (KIND[e.kind] || ["ج", "إجازة"]);
+    const [code, lbl] = e.type === "sick" ? ["م", e.sick_kind === "injury" ? "إصابة عمل" : "مرضي"] : (KIND[e.kind] || ["ج", "إجازة"]);
     const wait = e.status === "client_wait";
+    // مرضي العميل اعتمد منه جزء (أو 0): أول N يوم شغل من الحالة م، والباقي خ (الجمعة برة الحسبة)
+    const nOk = e.type === "sick" && !wait && e.approved_days != null && e.approved_days !== "" ? +e.approved_days : Infinity;
+    let n = 0;
     for (let d = new Date(e.from + "T00:00"); ymd(d) <= (e.to || e.from); d.setDate(d.getDate() + 1)) {
-      const k = ymd(d); if (k < from || k > to || isFri(k)) continue;
+      const k = ymd(d); if (isFri(k)) continue;
+      const ok = ++n <= nOk;   // العدّ من أول الحالة، حتى لو اليوم برة فترة التقرير
+      if (k < from || k > to) continue;
       const c = r.cells[k];
-      if (c?.p) { c.conf = lbl + (wait ? " مستني اعتماد العميل" : " معتمد") + " والشيت بيقول حاضر"; continue; }
+      if (c?.p) { c.conf = lbl + (wait ? " مستني اعتماد العميل" : ok ? " معتمد" : " مش معتمد من العميل") + " والشيت بيقول حاضر"; continue; }
       r.cells[k] = wait
         ? { v: code + "؟", p: 0, w: true, app: true, ev: `في انتظار اعتماد ${e.type === "sick" ? "المرضي" : "الإجازة"} من العميل ${e.from} → ${e.to}` }
-        : { v: code, p: 0, l: true, app: true, ev: lbl + ` معتمد ${e.from} → ${e.to}` };
+        : ok ? { v: code, p: 0, l: true, app: true, ev: lbl + ` معتمد ${e.from} → ${e.to}` + (nOk < Infinity ? ` (العميل اعتمد ${nOk} من ${e.days})` : "") }
+        : { v: "خ", p: 0, l: true, app: true, ev: `${lbl} مش معتمد من العميل — العميل اعتمد ${nOk} من ${e.days} يوم (${e.from} → ${e.to})` };
     }
   }
 }
@@ -323,13 +329,18 @@ async function leaveReport(from, to, site, jobF, kind) {
     for (const e of evs) {
       const ok = kind === "sick" ? e.type === "sick" : (e.type === "leave" && e.kind !== "unpaid");
       if (!ok || !e.from) continue;
-      const eTo = e.to || e.from;
+      // المرضي: الأيام اللي العميل اعتمدها بس (أول N يوم شغل)، واللي اتعتمد 0 مش بيظهر
+      const nOk = kind === "sick" && e.approved_days != null && e.approved_days !== "" ? +e.approved_days : Infinity;
+      if (nOk === 0) continue;
+      let eTo = e.to || e.from;
+      if (nOk < Infinity) { let n = 0; for (let d = new Date(e.from + "T00:00"); ymd(d) <= eTo; d.setDate(d.getDate() + 1)) if (!isFri(ymd(d)) && ++n === nOk) { eTo = ymd(d); break; } }
       if (eTo < from || e.from > to) continue;
       const w = (e.nid && who[e.nid]) || (e.source === "sharqia_drive" ? byCode[SHARQIA + "|" + e.code] : (e.code ? anyCode[String(e.code)] : null));
       if (!w && site !== "*") continue;     // موقع معيّن: الحالات اللي عمالها في الموقع ده بس
       let inP = 0; for (let d = new Date((e.from > from ? e.from : from) + "T00:00"); ymd(d) <= (eTo < to ? eTo : to); d.setDate(d.getDate() + 1)) if (!isFri(ymd(d))) inP++;
       list.push({ site: w?.site || [e.company, e.loc].filter(Boolean).join(" — ") || "—", name: e.name || w?.name || "", nid: e.nid || w?.nid || "", code: e.code || w?.code || "",
-        job: w?.job || e.job || "", from: e.from, to: eTo, inP, days: +e.days || inP, reason: e.reason || "", note: e.note || "",
+        job: w?.job || e.job || "", from: e.from, to: eTo, inP, days: nOk < Infinity ? nOk : (+e.days || inP),
+        reason: [e.sick_kind === "injury" ? "إصابة عمل" : "", e.cause || e.reason || "", nOk < Infinity ? `العميل اعتمد ${nOk} من ${e.days}` : ""].filter(Boolean).join(" — "), note: e.note || "",
         flag: e.deleted_in_sheet ? "اتمسح من الشيت" : e.changed ? "اتعدل في الشيت ولسه مستني مراجعة الـ HR" : "" });
     }
     const jobs = [...new Set(list.map(r => r.job).filter(Boolean))].sort();
