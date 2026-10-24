@@ -257,6 +257,21 @@ function paginateSections(jobs, order, isBreak) {
       });
     });
   };
+  const unitsOfPage = p => p.rows.reduce((a, r) => a + (r.blank ? BLANK_UNIT : 1), 0);
+  const joinPage = (hosts, m) => {
+    if (m.jobs.some(j => j.names.some(isBreak))) return false;
+    const host = hosts.find(p => {
+      const last = [...p.rows].reverse().find(r => r.w);
+      return !(last && isBreak(last.w)) && unitsOfPage(p) + (p.secs.length === 1 ? 1 : 0) + 1 + units(m, BLANK_UNIT) <= MAX_ROWS;
+    });
+    if (!host) return false;
+    if (host.secs.length === 1) host.rows.unshift({ band: host.secs[0] || "بدون قسم", sec: true });
+    host.secs.push(m.sec);
+    host.rows.push({ band: m.sec || "بدون قسم", sec: true });
+    m.jobs.forEach(j => { addJob(host, j); if (m.jobs.length > 1) host.rows.push({ band: j.job, need: j.need, job: true }); host.rows.push(...items(j)); });
+    if (host.rows.length > AUTO_ROWS) { host.uniform = false; host.rh = BODY_MM / Math.max(AUTO_ROWS, unitsOfPage(host)); }
+    return true;
+  };
   const groups = pageGroupsOf(order);
   const done = new Set();
   secs.forEach(s => {
@@ -267,7 +282,13 @@ function paginateSections(jobs, order, isBreak) {
     const full = members.reduce((a, m) => a + 1 + units(m), 0) <= AUTO_ROWS;
     const squeezedUnits = members.reduce((a, m) => a + 1 + units(m, BLANK_UNIT), 0);
     const squeezed = squeezedUnits <= MAX_ROWS;
-    if (!(members.length > 1 && noBreaks && (full || squeezed))) { own(s); done.add(s.sec); return; }
+    if (!(members.length > 1 && noBreaks && (full || squeezed))) {
+      const from = pages.length;
+      own(s); done.add(s.sec);
+      // المجموعة كلها مش داخلة في صفحة: الأقسام الصغيرة اللي معاها في المجموعة تنزل في أول صفحة من صفحاته فيها مكان
+      if (g) members.forEach(m => { if (!done.has(m.sec) && joinPage(pages.slice(from), m)) done.add(m.sec); });
+      return;
+    }
     const p = page(members.map(m => m.sec));
     p.uniform = full;                                   // مش داخلة بالمقاس العادي: الخانات الفاضية بتصغر (والأسماء لو عدّت 30)
     if (!full) p.rh = BODY_MM / Math.max(AUTO_ROWS, squeezedUnits);
