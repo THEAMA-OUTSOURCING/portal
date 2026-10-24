@@ -232,12 +232,13 @@ export function paginate(jobs, order) {
 }
 
 // الكشف بالأقسام: كل قسم صفحاته، والوظيفة اللي مش هتكفي في باقي الصفحة تبدأ صفحة جديدة (من غير «تكملة»).
-// الأقسام اللي في نفس المجموعة (order.pageGroups) بتتجمع في صفحة لو كلها تدخل في 30 سطر. كل السطور بنفس المقاس.
+// الأقسام اللي في نفس المجموعة (order.pageGroups) بتتجمع في صفحة لو كلها تدخل في 30 سطر (كل السطور بنفس المقاس)،
+// أو لو داخلين في 35 سطر والخانة الفاضية بنص سطر: الأسماء بتصغر شوية لو لزم، والخانات الفاضية بتصغر بالتدريج.
 function paginateSections(jobs, order, isBreak) {
   const secs = [];
   jobs.forEach(j => { const sec = splitJob(j.job).sec; let s = secs.find(x => x.sec === sec); if (!s) secs.push(s = { sec, jobs: [] }); s.jobs.push(j); });
   const items = j => [...j.names.map((w, i) => ({ w, n: i + 1 })), ...Array.from({ length: j.blanks }, (_, i) => ({ blank: true, n: j.names.length + i + 1 }))];
-  const units = s => s.jobs.reduce((a, j) => a + j.names.length + j.blanks + (s.jobs.length > 1 ? 1 : 0), 0);
+  const units = (s, bu = 1) => s.jobs.reduce((a, j) => a + j.names.length + j.blanks * bu + (s.jobs.length > 1 ? 1 : 0), 0);
   const pages = [];
   const page = secList => { const p = { secs: secList, jobs: [], rows: [], over: false, uniform: true }; pages.push(p); return p; };
   const addJob = (p, j) => { if (!p.jobs.includes(j.job)) p.jobs.push(j.job); };
@@ -262,10 +263,14 @@ function paginateSections(jobs, order, isBreak) {
     if (done.has(s.sec)) return;
     const g = groups.find(x => x.includes(s.sec));
     const members = g ? secs.filter(x => g.includes(x.sec) && !done.has(x.sec)) : [s];
-    const fits = members.length > 1 && members.reduce((a, m) => a + 1 + units(m), 0) <= AUTO_ROWS
-      && !members.some(m => m.jobs.some(j => j.names.slice(0, -1).some(isBreak)));
-    if (!fits) { own(s); done.add(s.sec); return; }
+    const noBreaks = !members.some(m => m.jobs.some(j => j.names.slice(0, -1).some(isBreak)));
+    const full = members.reduce((a, m) => a + 1 + units(m), 0) <= AUTO_ROWS;
+    const squeezedUnits = members.reduce((a, m) => a + 1 + units(m, BLANK_UNIT), 0);
+    const squeezed = squeezedUnits <= MAX_ROWS;
+    if (!(members.length > 1 && noBreaks && (full || squeezed))) { own(s); done.add(s.sec); return; }
     const p = page(members.map(m => m.sec));
+    p.uniform = full;                                   // مش داخلة بالمقاس العادي: الخانات الفاضية بتصغر (والأسماء لو عدّت 30)
+    if (!full) p.rh = BODY_MM / Math.max(AUTO_ROWS, squeezedUnits);
     members.forEach(m => {
       done.add(m.sec);
       p.rows.push({ band: m.sec || "بدون قسم", sec: true });
@@ -317,13 +322,13 @@ function pageHtml(s, p, total, site, typeTitle, monthName, month, year) {
   const content = contentRows(s);
   const nBlank = s.rows.length - content;
   // صفحة واحدة للكشف كله: كل السطور (أسماء وخانات) بنفس المقاس. غير كده: الخانات بتصغر لو مفيش مكان
-  const rh = s.uniform ? BODY_MM / Math.max(AUTO_ROWS, s.rows.length) : rowMm(s);
+  const rh = s.uniform ? BODY_MM / Math.max(AUTO_ROWS, s.rows.length) : (s.rh || rowMm(s));
   const hs = s.uniform ? Array(nBlank).fill(rh) : blankHeights(nBlank, BODY_MM - content * rh);
   // سطور فاضية من غير رقم لحد 30 سطر (زي الأول) — بس لو الصفحة مش زحمة
   const fill = Math.max(0, AUTO_ROWS - s.rows.length);
   let rows = "", count = 0, bi = 0, k = 0;   // k = رقم الصف: بيبدأ من 1 في أول كل صفحة وتحت كل وظيفة
   for (const it of s.rows) {
-    if (it.band) { if (!it.sec) k = 0; }
+    if (it.band) k = 0;
     else k++;
     if (it.band) rows += `<tr class="band${it.job && s.secs ? " job" : ""}"><td colspan="6">${esc(it.sec ? "قسم " + it.band : splitJob(it.band).job)}${needTxt(it.need)}</td></tr>`;
     else if (it.w) { count++; rows += `<tr><td class="n">${k}</td><td class="nm">${esc(it.w.name)}</td><td class="nid">${esc(it.w.nid)}</td><td class="sig"></td><td class="sig"></td><td></td></tr>`; }
@@ -339,7 +344,7 @@ function pageHtml(s, p, total, site, typeTitle, monthName, month, year) {
   const part = s.parts > 1 && (s.secs ? s.secs.length === 1 : s.jobs.length === 1) ? ` (${s.part} من ${s.parts})` : "";
   const need = s.jobs.length === 1 && s.need != null ? `<span class="scr"> &nbsp; المطلوب للوظيفة: <b>${s.need}</b></span>` : "";
   const secLine = s.secs ? `${s.secs.length > 1 ? "الأقسام" : "القسم"}: <b>${esc(s.secs.map(x => x || "بدون قسم").join("، "))}</b> &nbsp;·&nbsp; ` : "";
-  return `<section class="page${(s.uniform ? s.rows.length : content) > AUTO_ROWS ? " dense" : ""}${s.uniform ? " uni" : ""}" style="--rh:${rh.toFixed(2)}mm">
+  return `<section class="page${(s.uniform ? s.rows.length : content) > AUTO_ROWS || rh < ROW_MM - 0.01 ? " dense" : ""}${s.uniform ? " uni" : ""}" style="--rh:${rh.toFixed(2)}mm">
     <div class="head"><div><div class="title">كشف حضور ${esc(site)}${typeTitle}</div>
       <div class="meta">${secLine}${jl}: <b>${esc(jobs.join("، "))}</b>${part}${need}</div><div class="meta">شهر <b>${monthName}</b></div></div>
       <div class="pagebox"><small>صفحة</small><span>${p + 1} / ${total}</span></div></div>
