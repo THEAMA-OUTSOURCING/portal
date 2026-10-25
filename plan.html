@@ -348,6 +348,14 @@ body.view-only .vo-txt{display:inline;}
       </div>
       <div class="row"><button class="btn" id="s-save">حفظ الإعدادات</button><button class="btn sec" id="s-default">تحميل الإعدادات المبدئية</button></div>
       <div class="msg" id="s-msg"></div>
+      <div class="card" style="margin-top:12px;">
+        <h2>جدول الأكواد الإنجليزي (للبصمة)</h2>
+        <p class="muted" style="margin-bottom:8px;">كل سطر: الكود العربي <b>الموقع/الوظيفة/القسم</b> وكود العميل (CODE - HC). «تصدير البصمة» في صفحة التقارير بياخد كود كل عامل من هنا (القسم من «ترتيب الكشف»). تقدر ترفع تابة CODE من شيت «قوة كاملة»: السطور الجديدة بتتضاف، واللي موجود بيتحدّث.</p>
+        <div class="row" style="margin-bottom:8px;"><input type="file" id="jc-file" accept=".xlsx,.xls,.xlsm"><button class="btn sec small" id="jc-add">+ سطر</button></div>
+        <div class="tbl set-tbl"><table><thead><tr><th>الكود العربي</th><th>CODE - HC</th><th></th></tr></thead><tbody id="jc-list"></tbody></table></div>
+        <div class="row" style="margin-top:8px;"><button class="btn" id="jc-save">حفظ الجدول</button></div>
+        <div class="msg" id="jc-msg"></div>
+      </div>
     </section>
   </div>
 </div>
@@ -355,7 +363,7 @@ body.view-only .vo-txt{display:inline;}
 <script type="module">
 import { getFirestore, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES } from './shared.js';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC } from './shared.js';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====
@@ -431,7 +439,7 @@ onAuthStateChanged(auth, async user => {
   $("who").textContent = (user.email || "") + " — " + ({ admin: "أدمن", hr: "HR", accountant: "محاسب", viewer: "مشاهد (عرض بس)" }[role]);
   $("app").classList.remove("hidden");
   await loadAll();
-  if (role === "admin") { await loadAdminConfig(); initAccounts(); }
+  if (role === "admin") { await loadAdminConfig(); initAccounts(); loadJobCodes(); }
   initWorkers();
   initBlacklist();
 });
@@ -999,6 +1007,48 @@ async function initWorkers() {
     WS.rem = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderRem();
   }, () => {});
 }
+// ===== جدول الأكواد الإنجليزي (الأدمن بس) =====
+const JC = { rows: [] };
+async function loadJobCodes() {
+  try { const d = await getDoc(doc(db, ...JC_DOC)); JC.rows = d.exists() ? d.data().rows || [] : []; } catch (e) { show($("jc-msg"), "err", "مش قادر أقرا الجدول: " + e.message); }
+  renderJC();
+}
+function renderJC() {
+  $("jc-list").innerHTML = JC.rows.length ? JC.rows.map((r, i) => `<tr><td><input data-jc="${i}" data-f="ar" value="${esc(r.ar)}" style="width:100%;"></td>
+    <td><input data-jc="${i}" data-f="hc" value="${esc(r.hc)}" dir="ltr" style="width:100%;"></td><td><button class="btn sec small" data-jcdel="${i}">شيل</button></td></tr>`).join("")
+    : `<tr><td colspan="3" class="muted">الجدول فاضي — ارفع تابة CODE من «قوة كاملة».</td></tr>`;
+}
+$("jc-list")?.addEventListener("input", e => { const i = e.target.dataset.jc; if (i != null) JC.rows[+i][e.target.dataset.f] = e.target.value; });
+$("jc-list")?.addEventListener("click", e => { const i = e.target.dataset.jcdel; if (i != null) { JC.rows.splice(+i, 1); renderJC(); } });
+$("jc-add")?.addEventListener("click", () => { JC.rows.push({ ar: "", hc: "" }); renderJC(); });
+$("jc-file")?.addEventListener("change", async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const wb = XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: "array" });
+    const found = new Map();
+    wb.SheetNames.forEach(n => {
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: "" });
+      const hi = rows.slice(0, 6).findIndex(r => r.some(v => String(v).trim() === "الكود العربي") && r.some(v => /code\s*-?\s*hc/i.test(String(v))));
+      if (hi < 0) return;
+      const ia = rows[hi].findIndex(v => String(v).trim() === "الكود العربي"), ih = rows[hi].findIndex(v => /code\s*-?\s*hc/i.test(String(v)));
+      rows.slice(hi + 1).forEach(r => { const ar = String(r[ia] || "").trim(), hc = String(r[ih] || "").trim(); if (ar && hc && !found.has(ar)) found.set(ar, hc); });
+    });
+    if (!found.size) return show($("jc-msg"), "err", "مالقيتش عمودين «الكود العربي» و«CODE - HC» في الملف.");
+    let added = 0, changed = 0;
+    found.forEach((hc, ar) => { const r = JC.rows.find(x => x.ar.trim() === ar); if (!r) { JC.rows.push({ ar, hc }); added++; } else if (r.hc !== hc) { r.hc = hc; changed++; } });
+    renderJC();
+    show($("jc-msg"), "info", `${added} سطر جديد و${changed} اتحدّث من الملف. راجع ودوس «حفظ الجدول».`);
+  } catch (er) { show($("jc-msg"), "err", "مش قادر أقرا الملف: " + er.message); }
+  e.target.value = "";
+});
+$("jc-save")?.addEventListener("click", async () => {
+  const rows = JC.rows.map(r => ({ ar: String(r.ar || "").trim(), hc: String(r.hc || "").trim() })).filter(r => r.ar || r.hc);
+  const bad = rows.filter(r => !r.ar || !r.hc || r.ar.split("/").length < 2);
+  if (bad.length) return show($("jc-msg"), "err", `فيه ${bad.length} سطر ناقص (لازم الكود العربي فيه الموقع/الوظيفة، والكود الإنجليزي).`);
+  try { await setDoc(doc(db, ...JC_DOC), { rows, updated_at: serverTimestamp() }); JC.rows = rows; renderJC(); show($("jc-msg"), "ok", `اتحفظ ${rows.length} كود.`); }
+  catch (er) { show($("jc-msg"), "err", "ماتحفظش: " + (er.code === "permission-denied" ? "محتاج تحديث الـ Rules (job_codes)." : er.message)); }
+});
+
 // ===== البلاك ليست =====
 function initBlacklist() {
   // الإضافة والشيل للأدمن وHR اللي ليه كل الفروع بس (زي الـ Rules)، والباقي بيشوف القايمة بس

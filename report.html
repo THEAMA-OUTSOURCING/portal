@@ -77,6 +77,7 @@ tr.foot td{background:#f3f3ef;font-weight:600;}
       <button class="tab" data-tab="report" aria-selected="true">التقرير الشهري</button>
       <button class="tab hidden" data-tab="approve" aria-selected="false" id="tab-approve">اعتماد الحضور</button>
       <button class="tab" data-tab="holidays" aria-selected="false">العطلات</button>
+      <button class="tab hidden" data-tab="fp" aria-selected="false" id="tab-fp">تصدير البصمة</button>
     </div>
 
     <!-- التقرير -->
@@ -84,7 +85,7 @@ tr.foot td{background:#f3f3ef;font-weight:600;}
       <div class="card noprint">
         <div class="row">
           <label class="f">الموقع<select id="r-site"></select></label>
-          <label class="f">الفترة<select id="r-mode"><option value="21">من 21 لـ 20</option><option value="cal">الشهر الميلادي</option><option value="custom">من تاريخ لتاريخ</option></select></label>
+          <label class="f">الفترة<select id="r-mode"><option value="21">من 21 لـ 20</option><option value="26">من 26 لـ 25</option><option value="16">من 16 لـ 15</option><option value="cal">الشهر الميلادي</option><option value="custom">من تاريخ لتاريخ</option></select></label>
           <label class="f" id="r-month-w">الشهر<input type="month" id="r-month"></label>
           <label class="f hidden" id="r-from-w">من<input type="date" id="r-from"></label>
           <label class="f hidden" id="r-to-w">لحد<input type="date" id="r-to"></label>
@@ -125,6 +126,20 @@ tr.foot td{background:#f3f3ef;font-weight:600;}
     </section>
 
     <!-- العطلات -->
+    <!-- تصدير البصمة: شيت بنفس شكل شيت المشرف اللي سكيل «ابلود الحضور والبصمة» بيقراه -->
+    <section data-panel="fp" class="hidden">
+      <div class="card">
+        <p class="muted" style="margin-bottom:8px;">ملف واحد في تابة واحدة لكل مواقع الشركة: الاسم والرقم القومى والوظيفة والكود الإنجليزي (من «جدول الأكواد» في الاحتياج والأعداد) وعمود لكل يوم. الحاضر = 1، وفي مصنع العامرية وفرع العجمى وطنطا مصنع وقت الحضور والانصراف زي <b>08:00-20:00</b>. الغياب خ، والجمعة والعطلات فاضية لو مااشتغلش. الأيام المعتمدة من المحاسب بس.</p>
+        <div class="row">
+          <label class="f">الشركة<select id="fp-co"><option value="pepsi">بيبسي (المواقع والإمداد)</option><option value="chipsy">شيبسي</option></select></label>
+          <label class="f">من<input type="date" id="fp-from"></label>
+          <label class="f">لحد<input type="date" id="fp-to"></label>
+          <button class="btn" id="fp-go"><i class="ti ti-file-spreadsheet"></i> تصدير</button>
+        </div>
+        <div class="msg" id="fp-msg"></div>
+      </div>
+    </section>
+
     <section data-panel="holidays" class="hidden">
       <div class="card">
         <p class="muted" style="margin-bottom:8px;">حدد العطلات الرسمية لكل شهر باليوم الفعلي اللي هيتاخد إجازة (مثلاً 6 أكتوبر لو اتنقلت للخميس 8، سجّل يوم 8). الجمعة بتتلوّن لوحدها.</p>
@@ -144,7 +159,7 @@ tr.foot td{background:#f3f3ef;font-weight:600;}
 <script type="module">
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, XL_SITES } from './shared.js';
+import { db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes } from './shared.js';
 
 // خانة اليوم: 1 حاضر، غ غايب، أو الرمز زي ما هو (ج م ض ر ق ن 8 ...). p = قيمة الحضور (ن = نص يوم)
 function cellOf(e, app) {
@@ -183,6 +198,7 @@ onAuthStateChanged(auth, async user => {
   S.canApprove = ["admin", "accountant"].includes(c.role);
   $("tab-approve").classList.toggle("hidden", !S.canApprove && !S.view);
   $("a-all").classList.toggle("hidden", !S.canApprove);
+  $("tab-fp").classList.toggle("hidden", c.role !== "admin");   // مؤقتاً للأدمن بس
   // أزرار التنقل بين الصفحات بقت في shared.js (حسب الدور)
   if (S.view) { $("tab-approve").textContent = "حالة الاعتماد"; }
   $("r-site").innerHTML = (S.office ? `<option value="*">كل المواقع</option>` : "") + S.sites.map(s => `<option>${esc(s)}</option>`).join("");
@@ -190,6 +206,7 @@ onAuthStateChanged(auth, async user => {
   $("r-month").value = now.getDate() > 20 ? ymd(new Date(now.getFullYear(), now.getMonth() + 1, 1)).slice(0, 7) : m;
   $("h-month").value = m;
   $("a-to").value = ymd(now); $("a-from").value = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 14));
+  $("fp-from").value = ymd(new Date(now.getFullYear(), now.getMonth(), 1)); $("fp-to").value = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
   $("app").classList.remove("hidden");
   loadHolidays();
 });
@@ -201,6 +218,60 @@ $("r-kind").onchange = () => { S.report = null; $("r-out").classList.add("hidden
 $("r-mode").onchange = () => {
   const c = $("r-mode").value === "custom";
   $("r-month-w").classList.toggle("hidden", c); $("r-from-w").classList.toggle("hidden", !c); $("r-to-w").classList.toggle("hidden", !c);
+};
+
+// ===== تصدير البصمة =====
+const FP_SITES = { pepsi: [...ATT_SITES, "العامرية امداد", "اكتوبر امداد", "مدينة نصر امداد", "طنطا امداد"], chipsy: ["قطامية", "ابوصير"] };
+// قيمة اليوم زي ما السكيل بيقراها (وبيفضل يقرا الأكواد القديمة 1.1 / 2 / 202 من شيتات المشرفين زي ما هي)
+function fpCell(e, offDay) {
+  if (!e) return "";
+  if (e.s === "P") {
+    if (e.in) return e.out ? `${e.in}-${e.out}` : e.in;        // وقت فعلي (مواقع الساعات)
+    const n = Number(e.c); return e.c && !isNaN(n) && n > 0 ? n : 1;   // الإمداد: ساعات مكتوبة، وإلا وردية عادية
+  }
+  if (e.s === "A") return offDay ? "" : "خ";
+  return e.c === "ض" ? "م" : (e.c || "");                     // ق / ج / م / ط زي ما هي
+}
+$("fp-go").onclick = async () => {
+  const co = $("fp-co").value, from = $("fp-from").value, to = $("fp-to").value;
+  if (!from || !to || from > to) return show($("fp-msg"), "err", "الفترة مش صحيحة.");
+  show($("fp-msg"), "info", "بيجهّز الملف...");
+  try {
+    const sites = FP_SITES[co];
+    const all = (await fetchDays(from, to, "*")).filter(d => sites.includes(d.site));
+    const days = all.filter(d => d.status === "approved"), notApp = all.filter(d => d.status !== "approved");
+    if (!days.length) return show($("fp-msg"), "warn", "مفيش أيام معتمدة في الفترة دي." + (notApp.length ? ` (فيه ${notApp.length} يوم لسه مااتعتمدش)` : ""));
+    let jc = []; try { const d = await getDoc(doc(db, ...JC_DOC)); jc = d.exists() ? d.data().rows || [] : []; } catch (e) {}
+    const cmap = codeMap(jc), secs = {};
+    for (const s of sites) { try { const o = await getDoc(doc(db, "sheet_order", s)); secs[s] = o.exists() ? o.data().sections || {} : {}; } catch (e) { secs[s] = {}; } }
+    const months = [...new Set([from.slice(0, 7), to.slice(0, 7)])], hol = await holidaysFor(months);
+    const dates = []; for (let d = new Date(from + "T00:00:00"); ymd(d) <= to; d.setDate(d.getDate() + 1)) dates.push(ymd(d));
+    const off = d => new Date(d + "T00:00:00").getDay() === 5 || !!hol[d];
+    const rows = {};
+    days.forEach(d => Object.entries(d.entries || {}).forEach(([k, e]) => {
+      const nid = String(e.nid || "").replace(/\D/g, "");
+      const r = rows[d.site + "|" + (nid || k)] ??= { site: d.site, key: k, name: e.name || "", nid, job: e.job || "", cells: {} };
+      r.cells[d.date] = fpCell(e, off(d.date));
+    }));
+    const list = Object.values(rows).sort((a, b) => sites.indexOf(a.site) - sites.indexOf(b.site) || a.job.localeCompare(b.job) || a.name.localeCompare(b.name));
+    const noCode = new Set(), noNid = [];
+    list.forEach(r => { r.code = codeFor(cmap, r.site, r.job, secs[r.site]?.[r.key] || ""); if (!r.code) noCode.add(`${r.site}/${r.job}${secs[r.site]?.[r.key] ? "/" + secs[r.site][r.key] : ""}`); if (r.nid.length !== 14) noNid.push(r.name); });
+    const aoa = [["م", "الموقع", "الاسم", "الرقم القومى", "الوظيفة", "CODE", ...dates.map(d => new Date(d + "T00:00:00"))]];
+    list.forEach((r, i) => aoa.push([i + 1, r.site, r.name, r.nid, r.job, r.code, ...dates.map(d => r.cells[d] ?? "")]));
+    const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true, dateNF: "dd/mm/yyyy" });
+    ws["!cols"] = [{ wch: 5 }, { wch: 16 }, { wch: 32 }, { wch: 16 }, { wch: 22 }, { wch: 48 }, ...dates.map(() => ({ wch: 12 }))];
+    // الرقم القومى نص عشان الإكسيل مايقلبوش لرقم بأُس
+    list.forEach((r, i) => { const c = XLSX.utils.encode_cell({ r: i + 1, c: 3 }); if (ws[c]) { ws[c].t = "s"; ws[c].v = r.nid; } });
+    const wb = XLSX.utils.book_new(); wb.Workbook = { Views: [{ RTL: true }] };
+    XLSX.utils.book_append_sheet(wb, ws, co === "pepsi" ? "حضور بيبسي" : "حضور شيبسي");
+    XLSX.writeFile(wb, `${co === "pepsi" ? "حضور بيبسي" : "حضور شيبسي"} للبصمة ${from} - ${to}.xlsx`, { cellDates: true });
+    const warn = [];
+    if (notApp.length) warn.push(`${notApp.length} يوم لسه مااتعتمدش ومش في الملف: ` + [...new Set(notApp.map(d => d.site + " " + d.date.slice(5)))].slice(0, 12).join("، "));
+    if (noCode.size) warn.push(`وظايف مالهاش كود إنجليزي (خانة CODE فاضية — زودها في جدول الأكواد): ` + [...noCode].join("، "));
+    if (noNid.length) warn.push(`${noNid.length} عامل من غير رقم قومى صحيح: ` + noNid.slice(0, 10).join("، "));
+    show($("fp-msg"), warn.length ? "warn" : "ok", `اتصدّر ${list.length} عامل × ${dates.length} يوم.` + (warn.length ? "\n" + warn.join("\n") : ""));
+    $("fp-msg").style.whiteSpace = "pre-line";
+  } catch (er) { show($("fp-msg"), "err", "ماتصدّرش: " + er.message); }
 };
 
 // ===== العطلات =====
@@ -261,7 +332,9 @@ function period() {
   if (mode === "custom") return [$("r-from").value, $("r-to").value];
   const [y, m] = $("r-month").value.split("-").map(Number);
   if (mode === "cal") return [ymd(new Date(y, m - 1, 1)), ymd(new Date(y, m, 0))];
-  return [ymd(new Date(y, m - 2, 21)), ymd(new Date(y, m - 1, 20))];
+  // 21→20 (بيبسي وشيبسي)، 26→25 (الإمداد)، 16→15 (الشرقية 1): من يوم N في الشهر اللي قبله لحد يوم N-1 في الشهر المختار
+  const n = Number(mode);
+  return [ymd(new Date(y, m - 2, n)), ymd(new Date(y, m - 1, n - 1))];
 }
 
 // ===== الحالات المعتمدة من الـ HR (إجازة / مرضي / استقالة): الشرقية من Drive، وطلبات المشرفين، وإكسيل الـ HR =====
@@ -639,13 +712,16 @@ $("a-go").onclick = async () => {
       return `<tr><td>${esc(d.site)}</td><td>${DAYN[new Date(d.date + "T00:00").getDay()]} ${d.date}</td><td>${d.counts?.present ?? ""}</td><td>${d.counts?.absent ?? ""}</td><td>${reps}</td><td>${sup}</td>
         <td class="muted">${esc(d.confirmed_email || "")}${d.late ? ` <span class="pill p-late">متأخر</span>` : ""}${d.reviewed_email ? `<br>راجعه: ${esc(d.reviewed_email)}${d.review_late ? ` <span class="pill p-late">متأخر</span>` : ""}` : ""}</td>
         <td>${apState(d)}</td>
-        <td><button class="btn sec small" data-view="${i}">تفاصيل</button> ${!S.canApprove ? "" : d.status === "approved" ? `<button class="btn sec small" data-un="${i}">إلغاء الاعتماد</button>` : (d.status === "reviewed" || S.role === "admin") ? `<button class="btn small" data-ap="${i}">اعتماد</button>` : ""}</td></tr>`;
+        <td><button class="btn sec small" data-view="${i}">تفاصيل</button> ${!S.canApprove ? "" : d.status === "approved" ? `<button class="btn sec small" data-un="${i}">إلغاء الاعتماد</button>` : (d.status === "reviewed" || S.role === "admin") ? (tIssues(d) ? `<button class="btn small" data-view="${i}">راجع الأوقات (${tIssues(d)})</button>` : `<button class="btn small" data-ap="${i}">اعتماد</button>`) : ""}</td></tr>`;
     }).join("") : `<tr><td colspan="9" class="muted">مفيش.</td></tr>`;
     $("a-all").disabled = !A.some(canAp);
     hide($("a-msg"));
   } catch (e) { show($("a-msg"), "err", e.message); }
 };
-const canAp = d => S.canApprove && (d.status === "reviewed" || (S.role === "admin" && d.status === "confirmed"));
+const canEd = d => S.canApprove && (d.status === "reviewed" || (S.role === "admin" && d.status === "confirmed"));
+// مواقع الحضور والانصراف: الوقت اللي البوابة مش متأكدة منه لازم المحاسب يراجعه قبل الاعتماد
+const tIssues = d => TIME_SITES.includes(d.site) ? Object.values(d.entries || {}).filter(e => e.s === "P" && (e.t_issue || e.min == null)).length : 0;
+const canAp = d => canEd(d) && !tIssues(d);
 async function setStatus(d, approve) {
   const u = auth.currentUser;
   await updateDoc(doc(db, "att_days", d.id), approve
@@ -659,13 +735,20 @@ $("a-list").onclick = async e => {
     $("a-dtitle").textContent = `${d.site} — ${d.date}`;
     A.cur = d;
     // اليوم المعتمد: الأدمن بس يعدّل فيه على طول، والمحاسب يلغي الاعتماد الأول (نفس اللي الـ Rules بتسمح بيه)
-    const canEdit = canAp(d) || (d.status === "approved" && S.role === "admin");
+    const canEdit = canEd(d) || (d.status === "approved" && S.role === "admin");
     $("a-edit-bar").classList.toggle("hidden", !canEdit);
     $("a-locked").classList.toggle("hidden", canEdit || d.status !== "approved" || !S.canApprove);
     const dis = canEdit ? "" : " disabled";
     const ai = { P: "حاضر", A: "غايب", U: "مش واضح", "": "مالوش صف" };
+    // «نهار ولا ليل؟»: لو العامل كان متأكد امبارح، بنقترح نفس ورديته (المحاسب لسه بيأكد بالحفظ)
+    A.prev = {};
+    if (TIME_SITES.includes(d.site) && Object.values(d.entries || {}).some(e => e.t_issue)) {
+      const pd = new Date(d.date + "T00:00:00"); pd.setDate(pd.getDate() - 1);
+      try { const p = await getDoc(doc(db, "att_days", d.site + "__" + ymd(pd)));
+        Object.entries(p.exists() ? p.data().entries || {} : {}).forEach(([k, e]) => { if (e.s === "P" && e.in && e.min != null && !e.t_issue) A.prev[k] = e.in; }); } catch (er) {}
+    }
     $("a-dlist").innerHTML = Object.values(d.entries || {}).sort((a, b) => (a.s === "A") === (b.s === "A") ? 0 : a.s === "A" ? -1 : 1).map(x =>
-      `<tr><td>${esc(x.name || "")}</td><td>${esc(x.job || "")}</td><td>${x.s === "P" || x.s === "A" ? `<select data-ecode="${esc(Object.keys(d.entries).find(k => d.entries[k] === x))}"${dis}><option value="P" ${x.s === "P" ? "selected" : ""}>حاضر</option><option value="A" ${x.s === "A" ? "selected" : ""}>غايب</option></select>` : esc(x.c || "")}</td><td>${ai[x.ai ?? ""] || ""}${x.by === "sup" ? " <span class='pill p-wait'>المشرف غيّرها</span>" : ""}</td><td>${esc(x.rep?.name || "")}</td><td>${esc(x.note || "")}</td></tr>`).join("");
+      `<tr><td>${esc(x.name || "")}</td><td>${esc(x.job || "")}</td><td>${x.s === "P" || x.s === "A" ? `<select data-ecode="${esc(Object.keys(d.entries).find(k => d.entries[k] === x))}"${dis}><option value="P" ${x.s === "P" ? "selected" : ""}>حاضر</option><option value="A" ${x.s === "A" ? "selected" : ""}>غايب</option></select>${TIME_SITES.includes(d.site) ? tmCell(x, dis, Object.keys(d.entries).find(k => d.entries[k] === x)) : ""}` : esc(x.c || "")}</td><td>${ai[x.ai ?? ""] || ""}${x.by === "sup" ? " <span class='pill p-wait'>المشرف غيّرها</span>" : ""}</td><td>${esc(x.rep?.name || "")}</td><td>${esc(x.note || "")}</td></tr>`).join("");
     $("a-detail").classList.remove("hidden"); $("a-detail").scrollIntoView({ behavior: "smooth" });
     return;
   }
@@ -673,10 +756,44 @@ $("a-list").onclick = async e => {
   if (t.dataset.un && !confirm("تلغي الاعتماد؟ الإقليمي هيقدر يعدّل اليوم تاني.")) return;
   try { await setStatus(A[+i], !!t.dataset.ap); $("a-go").click(); } catch (er) { show($("a-msg"), "err", "مااتحفظش: " + er.message); }
 };
+// مواقع الحضور والانصراف: الوقتين والساعات تحت الحالة، والمحاسب يقدر يصححهم قبل الاعتماد
+function tmCell(x, dis, key) {
+  if (x.t_issue === "نهار ولا ليل؟" && A.prev?.[key]) { const g = guessTimes(x.tin, x.tout, isHelperJob(x.job), A.prev[key]); if (g.prev) x = { ...x, in: g.in, out: g.out, t_issue: "زي وردية امبارح، اتأكد" }; }
+  const h = x.min != null ? `${hrsTxt(x.min)} س · نهاري ${hrsTxt(x.dmin)} · ليلي ${hrsTxt(x.nmin)}${x.ot ? " · إضافي " + hrsTxt(x.ot) : ""}` : "";
+  const bad = x.t_issue || x.min == null;
+  return `<div class="a-tm" style="margin-top:4px;display:${x.s === "P" ? "flex" : "none"};gap:4px;flex-wrap:wrap;align-items:center;font-size:12px;padding:4px;border-radius:8px;${bad ? "background:#fff6e5;" : ""}">
+    <input type="time" data-ein value="${esc(x.in || "")}"${dis} style="width:auto;padding:3px 4px;">
+    ${isHelperJob(x.job) ? "" : `<input type="time" data-eout value="${esc(x.out || "")}"${dis} style="width:auto;padding:3px 4px;">`}
+    <button type="button" class="btn sec small" data-eflip${dis} title="يقلب الوقتين 12 ساعة">نهار ⇄ ليل</button>
+    <span class="muted" style="flex-basis:100%;">${x.mission ? "<b>مأمورية</b> (الوردية العادية) · " : ""}مكتوب في الورقة: ${esc(x.tin || "—")} → ${esc(x.tout || "—")}${h ? " · " + h : ""}${bad ? ` · <b style="color:#a32d2d">${esc(x.t_issue || "محتاج وقت")}</b>` : ""}</span></div>`;
+}
+$("a-dlist").addEventListener("click", e => {
+  const b = e.target.closest("[data-eflip]"); if (!b) return;
+  b.closest(".a-tm").querySelectorAll("input[type=time]").forEach(i => { const m = toMin(i.value); if (m != null) i.value = hhmm(m + 720); });
+});
+$("a-dlist").addEventListener("change", e => {
+  if (!e.target.matches("[data-ecode]")) return;
+  const tm = e.target.closest("td").querySelector(".a-tm"); if (tm) tm.style.display = e.target.value === "P" ? "flex" : "none";
+});
 $("a-esave").onclick = async () => {
   const d = A.cur; if (!d) return;
   const entries = JSON.parse(JSON.stringify(d.entries || {})); let n = 0;
-  document.querySelectorAll("#a-dlist [data-ecode]").forEach(sel => { const e = entries[sel.dataset.ecode]; if (e && e.s !== sel.value) { e.s = sel.value; e.by = "acc"; n++; } });
+  const timed = TIME_SITES.includes(d.site), bad = []; let fixed = 0;
+  document.querySelectorAll("#a-dlist [data-ecode]").forEach(sel => {
+    const e = entries[sel.dataset.ecode]; if (!e) return;
+    if (e.s !== sel.value) { e.s = sel.value; e.by = "acc"; n++; }
+    if (!timed) return;
+    const TF = ["in", "out", "min", "dmin", "nmin", "ot", "otd", "otn"];
+    if (e.s !== "P") { TF.concat(["t_issue"]).forEach(f => delete e[f]); return; }
+    const cell = sel.closest("td"), tin = cell.querySelector("[data-ein]")?.value ?? e.in ?? "", tout = cell.querySelector("[data-eout]")?.value ?? e.out ?? "";
+    const h = calcHours(tin, tout, e.job);
+    if (!h) { bad.push(e.name); return; }
+    if (tin !== (e.in || "") || (!isHelperJob(e.job) && tout !== (e.out || ""))) { e.by = "acc"; n++; }
+    if (e.t_issue) { fixed++; delete e.t_issue; }
+    Object.assign(e, { in: tin, out: isHelperJob(e.job) ? "" : tout, min: h.min, dmin: h.dmin, nmin: h.nmin, ot: h.ot, otd: h.otd, otn: h.otn });
+  });
+  if (bad.length) return show($("a-msg"), "err", "اكتب وقت الحضور والانصراف لـ: " + bad.join("، "));
+  if (fixed && !confirm(`فيه ${fixed} وقت كان متعلّم للمراجعة (الأصفر). اتأكدت منهم؟`)) return;
   if (!n && d.status === "approved") return show($("a-msg"), "info", "مفيش تغيير.");
   if (!confirm(`${n ? `تعديل ${n} عامل و` : ""}اعتماد ${d.site} يوم ${d.date}؟`)) return;
   const v = Object.values(entries), u = auth.currentUser;

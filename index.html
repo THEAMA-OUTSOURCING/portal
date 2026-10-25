@@ -231,6 +231,12 @@ input[type=file]{width:100%;padding:8px;cursor:pointer;font-size:13px;border:1px
       <p style="font-size:14px;font-weight:500;color:#222;margin-bottom:12px;"><i class="ti ti-upload" style="font-size:16px;vertical-align:-2px;margin-left:6px;color:#c0392b;"></i>رفع شيت الرواتب الجديد</p>
       <input type="file" id="admin-excel" accept=".xlsx,.xls" style="margin-bottom:6px;" onchange="resetPayReview()"/>
       <p style="font-size:12px;color:#888;margin-bottom:12px;">كل شركة في تابة لوحدها (بيبسي، شيبسي، سويفل، الشرقية 1، الشرقية 2...) — المراجعة بتطلع إجمالي كل تابة لوحدها.</p>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:13px;color:#555;">
+        <label for="pay-days">المرتب يفضل ظاهر للعمال</label>
+        <input type="number" id="pay-days" min="1" max="60" value="5" inputmode="numeric" style="width:70px;padding:6px 8px;border:1px solid #ddd;border-radius:8px;text-align:center;">
+        <span>يوم من وقت الرفع</span>
+      </div>
+      <div id="pay-vis" class="info-box" style="display:none;margin-bottom:12px;"></div>
       <div class="success-box" id="upload-success"><i class="ti ti-circle-check" style="font-size:14px;vertical-align:-2px;margin-left:4px;"></i><span id="upload-success-msg"></span></div>
       <div class="error-box" id="upload-error"><i class="ti ti-alert-circle" style="font-size:14px;vertical-align:-2px;margin-left:4px;"></i><span id="upload-error-msg"></span></div>
       <div id="pay-review" style="display:none;"></div>
@@ -373,7 +379,7 @@ input[type=file]{width:100%;padding:8px;cursor:pointer;font-size:13px;border:1px
 
 <!-- Firebase SDKs -->
 <script type="module">
-import { getFirestore, collection, getDocs, addDoc, deleteDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getFirestore, collection, getDocs, addDoc, deleteDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { db, auth, actorEmail } from './shared.js';
 
@@ -517,6 +523,7 @@ onAuthStateChanged(auth, async (user)=>{
     document.querySelectorAll('.payroll-only').forEach(el=>{
       el.style.display = canPayroll ? '' : 'none';
     });
+    if(canPayroll) showPayVis();
     document.querySelectorAll('.staff-only').forEach(el=>{
       el.style.display = isStaffRole ? '' : 'none';
     });
@@ -722,6 +729,42 @@ async function reviewSheet(){
 }
 window.reviewSheet = reviewSheet;
 
+// ===== مدة ظهور المرتب للعمال =====
+// payroll_meta/current = { upload_id, days, visible_until }. بعد الميعاد العامل بيدخل عادي (البطاقة الطبية وبياناته وكلمة المرور)
+// بس مكان المرتب بتظهر رسالة يكلم المشرف أو الـ HR. الأدمن والمحاسب والمشاهد بيشوفوا المرتب عادي في «عرض مرتب موظف».
+const VIS_DOC = ()=>doc(db,'payroll_meta','current');
+function payDays(){ const n = parseInt(document.getElementById('pay-days').value,10); return n>=1 && n<=60 ? n : 5; }
+async function loadPayVis(){ try{ const s = await getDoc(VIS_DOC()); return s.exists() ? s.data() : null; }catch(e){ return null; } }
+// مفيش ميعاد متسجّل (رفعة قبل الميزة دي) → المرتب ظاهر
+function payHidden(meta){ const t = meta?.visible_until?.toDate?.(); return !!t && Date.now() > t.getTime(); }
+const visFmt = d => d.toLocaleString('ar-EG',{weekday:'long',day:'numeric',month:'long',hour:'numeric',minute:'2-digit'});
+async function showPayVis(){
+  const box = document.getElementById('pay-vis'); if(!box) return;
+  const meta = await loadPayVis();
+  const t = meta?.visible_until?.toDate?.();
+  if(!t){ box.style.display='none'; return; }
+  const txt = payHidden(meta) ? 'المرتب مستخبي عن العمال من '+visFmt(t) : 'المرتب ظاهر للعمال لحد '+visFmt(t);
+  box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;"><span>'+esc(txt)+'</span>'
+    +'<button class="btn-secondary" style="width:auto;margin:0;padding:6px 14px;" onclick="extendPayVis()">تمديد</button></div>';
+  box.style.display='block';
+}
+async function extendPayVis(){
+  const meta = await loadPayVis();
+  const v = prompt('تمديد ظهور المرتب للعمال كام يوم؟\n(من آخر الميعاد لو لسه ماخلصش، أو من دلوقتي لو خلص)','2');
+  if(v===null) return;
+  const n = parseInt(v,10);
+  if(!(n>=1 && n<=60)){ alert('اكتب عدد أيام من 1 لـ 60'); return; }
+  const cur = meta?.visible_until?.toDate?.()?.getTime() || 0;
+  const until = new Date(Math.max(Date.now(), cur) + n*864e5);
+  try{
+    await setDoc(VIS_DOC(), { visible_until: Timestamp.fromDate(until), extended_at: serverTimestamp() }, { merge: true });
+  }catch(e){
+    alert('التمديد ماتسجلش: '+(e.code==='permission-denied'?'محتاج تحديث الـ Rules (payroll_meta)':e.message)); return;
+  }
+  showPayVis();
+}
+window.extendPayVis = extendPayVis;
+
 // ===== رفع الشيت (بعد المراجعة) =====
 async function uploadSheet(){
   const successEl = document.getElementById('upload-success');
@@ -774,7 +817,16 @@ async function uploadSheet(){
       btn.innerHTML='<span class="spinner"></span> بيمسح القديم... '+Math.min(i+BATCH,oldIds.length)+'/'+oldIds.length;
     }
     const count = recs.length;
-    document.getElementById('upload-success-msg').textContent='تم رفع '+count+' موظف بنجاح ✓'
+    // مدة ظهور المرتب للعمال: من وقت الرفع، بالعدد اللي اتختار
+    const days = payDays();
+    let visMsg = ' — ظاهر للعمال '+days+' يوم';
+    try{
+      await setDoc(VIS_DOC(), { upload_id: uploadId, days, visible_until: Timestamp.fromDate(new Date(Date.now()+days*864e5)), set_at: serverTimestamp() });
+    }catch(e){
+      visMsg = ' — بس مدة الظهور ماتسجلتش ('+(e.code==='permission-denied'?'محتاج تحديث الـ Rules: payroll_meta':e.message)+')، فالمرتب هيفضل ظاهر لحد ما تمدّد';
+    }
+    showPayVis();
+    document.getElementById('upload-success-msg').textContent='تم رفع '+count+' موظف بنجاح ✓' + visMsg
       + (leftover ? ' — بس '+leftover+' كشف قديم مااتمسحش (مش هيظهروا للموظفين). ارفع الشيت تاني وقت ما النت يبقى أحسن عشان يتمسحوا.' : '');
     successEl.style.display='block';
     ok = true;
@@ -942,7 +994,7 @@ async function doLogin(){
     const docs = snap.docs.filter(d=>(d.data().upload_id || '') === latest).sort((a,b)=>a.id.localeCompare(b.id));
     const rows = docs.map(d=>d.data().data);
     const nationalId = docs[0].data().national_id;
-    loggedUser = {code: myCode, rows, nationalId};
+    loggedUser = {code: myCode, rows, nationalId, payHidden: payHidden(await loadPayVis())};
 
     // 3) لو داخل بالرقم القومي (أول مرة أو بعد إعادة تعيين) — لازم يغيّره
     if(pass === nationalId){
@@ -1040,6 +1092,14 @@ function renderSalary(src, viewOnly){
 
   const container = document.getElementById('months-container');
   container.innerHTML='';
+
+  // مدة ظهور المرتب خلصت: العامل بيشوف اسمه وأزراره بس، ومكان المرتب رسالة
+  if(!viewOnly && src.payHidden){
+    container.innerHTML='<div class="sv-sum sv-first" style="text-align:center;"><p class="sv-netl" style="margin-bottom:6px;">كشف المرتب مش متاح دلوقتي</p>'
+      +'<p style="font-size:14px;color:#555;line-height:1.8;">لو عندك أي استفسار عن مرتبك كلّم المشرف أو الـ HR.</p></div>'
+      +'<div class="sv-acts"><button onclick="openMedicalCard()">البطاقة الطبية</button><button onclick="openRequestForm()">بياناتي</button><button onclick="showScreen(\'change-pass-screen\')">كلمة المرور</button></div>';
+    return;
+  }
 
   rows.forEach((row,idx)=>{
     const plus=PLUS.map(c=>[c,num(get(row,c))]).filter(x=>x[1]>0);
