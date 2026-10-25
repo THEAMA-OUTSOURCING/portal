@@ -17,7 +17,8 @@
       replaysSessionSampleRate: 0,
       replaysOnErrorSampleRate: 0,
       // أخطاء متصفحات وإضافات مالهاش علاقة بالبوابة
-      ignoreErrors: ["ResizeObserver loop", "Non-Error promise rejection captured", "Load failed", "NetworkError"],
+      // «Script error.» = خطأ جاي من سكريبت من موقع تاني (reCAPTCHA / مكتبة الإكسيل / إضافة متصفح) والمتصفح بيخبّي تفاصيله
+      ignoreErrors: [/^Script error\.?$/, "ResizeObserver loop", "Non-Error promise rejection captured", "Load failed", "NetworkError"],
       denyUrls: [/extensions\//i, /^chrome:\/\//i, /^moz-extension:\/\//i],
       beforeBreadcrumb: function (b) {
         // مفيش تسجيل للضغطات أو الكلام اللي بيتكتب، وطلبات الشبكة من غير البارامترات
