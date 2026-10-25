@@ -173,6 +173,27 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
 <script>if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));</script>
+<script>
+// الأزرار (onclick) بتنادي دوال من سكريبت الصفحة، وده بيستنى مكتبات Firebase تتحمّل من النت.
+// لو حد داس قبل ما يخلص تحميل (نت ضعيف)، بدل خطأ «showScreen is not defined» بتظهر رسالة «لحظة»
+document.addEventListener("click", function (e) {
+  var el = e.target.closest && e.target.closest("[onclick]");
+  if (!el) return;
+  // الدالة اللي الزرار بيناديها موجودة؟ يبقى يشتغل عادي
+  var m = (el.getAttribute("onclick") || "").match(/^\s*([A-Za-z_$][\w$]*)\s*\(/);
+  if (!m || typeof window[m[1]] === "function") return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  var t = document.getElementById("boot-toast");
+  if (!t) {
+    t = document.createElement("div"); t.id = "boot-toast";
+    t.style.cssText = "position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;z-index:9999;max-width:90vw;text-align:center;";
+    document.body.appendChild(t);
+  }
+  var slow = performance.now() > 15000;
+  t.textContent = slow ? "الصفحة ماخلصتش تحميل — النت ضعيف. اعمل تحديث للصفحة وجرّب تاني." : "لحظة، الصفحة لسه بتحمّل...";
+  clearTimeout(t._h); t._h = setTimeout(function () { t.remove(); }, 3000);
+}, true);
+</script>
 </head>
 <body>
 
@@ -1661,6 +1682,8 @@ document.getElementById('emp-code').addEventListener('keydown',e=>{if(e.key==='E
 document.getElementById('new-pass2').addEventListener('keydown',e=>{if(e.key==='Enter')doSetPass();});
 document.getElementById('admin-pass').addEventListener('keydown',e=>{if(e.key==='Enter')checkAdminPass();});
 document.getElementById('search-sal-code').addEventListener('keydown',e=>{if(e.key==='Enter')lookupSalary();});
+// الصفحة خلصت تحميل: نشيل رسالة «لحظة» لو لسه ظاهرة
+document.getElementById('boot-toast')?.remove();
 </script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </body>
