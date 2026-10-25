@@ -288,7 +288,7 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
     <div class="card payroll-only">
       <p style="font-size:14px;font-weight:500;color:#222;margin-bottom:12px;"><i class="ti ti-upload" style="font-size:16px;vertical-align:-2px;margin-left:6px;color:#c0392b;"></i>رفع شيت الرواتب الجديد</p>
       <input type="file" id="admin-excel" accept=".xlsx,.xls" style="margin-bottom:6px;" onchange="resetPayReview()"/>
-      <p style="font-size:12px;color:#888;margin-bottom:12px;">كل شركة في تابة لوحدها (بيبسي، شيبسي، سويفل، الشرقية 1، الشرقية 2...) — المراجعة بتطلع إجمالي كل تابة لوحدها.</p>
+      <p style="font-size:12px;color:#888;margin-bottom:12px;">كل شركة في تابة لوحدها (بيبسي، شيبسي، سويفل، الشرقية 1، الشرقية 2...) — المراجعة بتطلع إجمالي كل تابة لوحدها، وتعلّم على الشركات اللي هترفعها دلوقتي بس. الشركات اللي مش متعلّم عليها كشوفها ومدة ظهورها بيفضلوا زي ما هم.</p>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:13px;color:#555;">
         <label for="pay-days">المرتب يفضل ظاهر للعمال</label>
         <input type="number" id="pay-days" min="1" max="60" value="5" inputmode="numeric" style="width:70px;padding:6px 8px;border:1px solid #ddd;border-radius:8px;text-align:center;">
@@ -731,12 +731,13 @@ async function reviewSheet(){
       +'.pv-n:hover,.pv-n.pv-hl{background:#eef6f0;}.pv-cp{font-style:normal;font-size:10px;color:#aaa;margin-inline-start:3px;}'
       +'.pv-toast{display:block;font-size:11px;color:#1e7a4a;font-weight:500;}</style>';
     h+='<div style="border:1px solid #e5e5e5;border-radius:10px;padding:12px;margin-bottom:12px;font-size:13px;">';
+    h+='<div class="info-box" style="margin-bottom:8px;">علّم على الشركات اللي هترفعها دلوقتي. كشوف الشركات التانية ومدة ظهورها مش هيتغيّروا.</div>';
     h+='<p style="font-weight:500;margin-bottom:8px;">مراجعة الشيت — '+cnt(p.tabs.length)+' تابة، '+cnt(p.recs.length)+' كشف <span style="font-size:11px;color:#888;font-weight:400;">· دوس على أي رقم ينسخه</span></p>';
     // كل تابة كارت لوحده: الاسم والعدد، وتحتهم المستحقات / الخصومات / الصافي
     const cell=(l,v,st)=>'<div style="flex:1;min-width:0;"><span style="display:block;font-size:11px;color:#888;">'+l+'</span><b style="font-size:13px;'+(st||'')+'">'+v+'</b></div>';
     p.tabs.forEach(t=>{
       h+='<div style="border-top:1px solid #eee;padding:8px 0;">';
-      h+='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;"><b style="font-size:14px;">'+esc(t.name)+(t.diffs.length?' <span style="color:#a32d2d;">⚠</span>':'')+'</b><span style="font-size:12px;color:#888;">'+cnt(t.count)+' كشف</span></div>';
+      h+='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="pv-pick" value="'+esc(t.name)+'" style="width:18px;height:18px;accent-color:#c0392b;"><b style="font-size:14px;">'+esc(t.name)+(t.diffs.length?' <span style="color:#a32d2d;">⚠</span>':'')+'</b></label><span style="font-size:12px;color:#888;">'+cnt(t.count)+' كشف</span></div>';
       h+='<div style="display:flex;gap:8px;">'+cell('المستحقات',money(t.P))+cell('الخصومات',money(t.M),'color:#a32d2d;')+cell('الصافي',money(t.net),'color:#1e7a4a;')+'</div>';
       const ms=Object.entries(t.methods);
       if(ms.length>1){
@@ -777,7 +778,13 @@ async function reviewSheet(){
     btn.style.display='none';
     const up = document.getElementById('upload-btn');
     up.style.display='block';
-    up.textContent = (diffs.length||unk.size) ? 'رفع رغم التنبيهات' : 'تأكيد الرفع وتحديث البيانات';
+    const pickLbl = () => {
+      const k = [...box.querySelectorAll('.pv-pick:checked')].map(x=>x.value);
+      const warnT = new Set([...diffs.map(d=>d.tab), ...p.tabs.filter(t=>t.unknown.size).map(t=>t.name)]);
+      up.disabled = !k.length;
+      up.textContent = !k.length ? 'علّم على شركة واحدة على الأقل' : (k.some(x=>warnT.has(x)) ? 'رفع رغم التنبيهات — ' : 'رفع ')+k.join('، ');
+    };
+    box.onchange = pickLbl; pickLbl();
     document.getElementById('review-cancel').style.display='block';
   }catch(e){
     document.getElementById('upload-error-msg').textContent='خطأ: '+e.message;
@@ -795,27 +802,45 @@ function payDays(){ const n = parseInt(document.getElementById('pay-days').value
 async function loadPayVis(){ try{ const s = await getDoc(VIS_DOC()); return s.exists() ? s.data() : null; }catch(e){ return null; } }
 // مفيش ميعاد متسجّل (رفعة قبل الميزة دي) → المرتب ظاهر
 function payHidden(meta){ const t = meta?.visible_until?.toDate?.(); return !!t && Date.now() > t.getTime(); }
+// مدة الظهور لكل شركة (تابة): meta.tabs[اسم التابة] = { upload_id, days, visible_until }. التابة اللي مالهاش ميعاد بتاخد الميعاد العام القديم
+const tabKey = n => String(n||'').replace(/[أإآ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/\s+/g,' ').trim();
+function tabVis(meta, tab){ return meta?.tabs?.[tabKey(tab)] || meta; }
+function tabHidden(meta, tab){ return payHidden(tabVis(meta, tab)); }
+// كشوف العامل: أحدث رفعة لكل شركة (تابة) — لأن كل شركة بتترفع في ميعادها
+function latestPerTab(docs){
+  const tabbed = docs.filter(d=>d.data().data?._tab);
+  const use = tabbed.length ? tabbed : docs;   // كشوف قديمة من غير اسم تابة: بتتعرض بس لو مفيش غيرها
+  const best = {};
+  use.forEach(d=>{ const k = tabKey(d.data().data?._tab), u = d.data().upload_id || ''; if(!(k in best) || u > best[k]) best[k] = u; });
+  return use.filter(d=>(d.data().upload_id || '') === best[tabKey(d.data().data?._tab)]).sort((a,b)=>a.id.localeCompare(b.id));
+}
 const visFmt = d => d.toLocaleString('ar-EG',{weekday:'long',day:'numeric',month:'long',hour:'numeric',minute:'2-digit'});
 async function showPayVis(){
   const box = document.getElementById('pay-vis'); if(!box) return;
   const meta = await loadPayVis();
-  const t = meta?.visible_until?.toDate?.();
-  if(!t){ box.style.display='none'; return; }
-  const txt = payHidden(meta) ? 'المرتب مستخبي عن العمال من '+visFmt(t) : 'المرتب ظاهر للعمال لحد '+visFmt(t);
-  box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;"><span>'+esc(txt)+'</span>'
-    +'<button class="btn-secondary" style="width:auto;margin:0;padding:6px 14px;" onclick="extendPayVis()">تمديد</button></div>';
+  const tabs = Object.entries(meta?.tabs || {}).filter(([,v])=>v?.visible_until?.toDate);
+  if(!tabs.length && meta?.visible_until?.toDate) tabs.push(['', meta]);   // رفعة قديمة بميعاد واحد للكل
+  if(!tabs.length){ box.style.display='none'; return; }
+  box.innerHTML = '<b style="display:block;margin-bottom:4px;">مدة ظهور المرتب للعمال</b>' + tabs.sort((x,y)=>x[0].localeCompare(y[0])).map(([k,v])=>{
+    const t = v.visible_until.toDate();
+    const txt = (v.name || k || 'كل الشركات')+': '+(payHidden(v) ? 'مستخبي من '+visFmt(t) : 'ظاهر لحد '+visFmt(t));
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:3px 0;border-top:1px solid #e6edf3;"><span>'+esc(txt)+'</span>'
+      +'<button class="btn-secondary" style="width:auto;margin:0;padding:4px 12px;" data-ext="'+esc(k)+'">تمديد</button></div>';
+  }).join('');
+  box.onclick = e => { const b = e.target.closest('[data-ext]'); if(b) extendPayVis(b.dataset.ext); };
   box.style.display='block';
 }
-async function extendPayVis(){
+async function extendPayVis(key){
   const meta = await loadPayVis();
-  const v = prompt('تمديد ظهور المرتب للعمال كام يوم؟\n(من آخر الميعاد لو لسه ماخلصش، أو من دلوقتي لو خلص)','2');
+  const cur0 = key ? meta?.tabs?.[key] : meta;
+  const v = prompt('تمديد ظهور مرتب «'+(cur0?.name || key || 'كل الشركات')+'» للعمال كام يوم؟\n(من آخر الميعاد لو لسه ماخلصش، أو من دلوقتي لو خلص)','2');
   if(v===null) return;
   const n = parseInt(v,10);
   if(!(n>=1 && n<=60)){ alert('اكتب عدد أيام من 1 لـ 60'); return; }
-  const cur = meta?.visible_until?.toDate?.()?.getTime() || 0;
-  const until = new Date(Math.max(Date.now(), cur) + n*864e5);
+  const cur = cur0?.visible_until?.toDate?.()?.getTime() || 0;
+  const until = Timestamp.fromDate(new Date(Math.max(Date.now(), cur) + n*864e5));
   try{
-    await setDoc(VIS_DOC(), { visible_until: Timestamp.fromDate(until), extended_at: serverTimestamp() }, { merge: true });
+    await setDoc(VIS_DOC(), key ? { tabs: { [key]: { visible_until: until, extended_at: serverTimestamp() } } } : { visible_until: until, extended_at: serverTimestamp() }, { merge: true });
   }catch(e){
     alert('التمديد ماتسجلش: '+(e.code==='permission-denied'?'محتاج تحديث الـ Rules (payroll_meta)':e.message)); return;
   }
@@ -830,7 +855,11 @@ async function uploadSheet(){
   const btn = document.getElementById('upload-btn');
   successEl.style.display='none'; errEl.style.display='none';
   if(!payParsed){ resetPayReview(); return; }
-  const warn = payParsed.tabs.some(t=>t.diffs.length||t.unknown.size);
+  const picked = [...document.querySelectorAll('#pay-review .pv-pick:checked')].map(x=>x.value);
+  if(!picked.length){ alert('علّم على الشركات اللي هترفعها الأول'); return; }
+  const pickedK = new Set(picked.map(tabKey)), allPicked = picked.length === payParsed.tabs.length;
+  const pTabs = payParsed.tabs.filter(t=>pickedK.has(tabKey(t.name)));
+  const warn = pTabs.some(t=>t.diffs.length||t.unknown.size);
   if(warn && !confirm('فيه تنبيهات في المراجعة. متأكد إنك عايز ترفع الشيت كده؟')) return;
   const btnLabel = btn.textContent;
   btn.innerHTML='<span class="spinner"></span> جاري الرفع...'; btn.disabled=true;
@@ -841,7 +870,7 @@ async function uploadSheet(){
     // لو النت فصل في النص، الكشوف القديمة بتفضل زي ما هي والموظف ميلاقيش «مفيش كشف».
     // كل رفعة ليها upload_id، وصفحة الموظف بتعرض أحدث رفعة بس لو لقت القديم والجديد مع بعض.
     const uploadId = new Date().toISOString().replace(/\D/g,'').slice(0,14);
-    const recs = payParsed.recs.map((x,i)=>({ id: x.code+'_'+uploadId+'_'+String(i+1).padStart(5,'0'),
+    const recs = payParsed.recs.filter(x=>pickedK.has(tabKey(x.data._tab))).map((x,i)=>({ id: x.code+'_'+uploadId+'_'+String(i+1).padStart(5,'0'),
       data: { employee_code: x.code, national_id: x.nid, upload_id: uploadId, data: x.data } }));
 
     const old = await getDocs(collection(db,'payroll'));   // الـ IDs القديمة عشان نمسحها في الآخر
@@ -867,7 +896,8 @@ async function uploadSheet(){
 
     // الجديد اترفع كامل → نمسح القديم
     const newIds = new Set(recs.map(x=>x.id));
-    const oldIds = old.docs.map(d=>d.id).filter(id=>!newIds.has(id));
+    // القديم اللي بيتمسح: كشوف الشركات المتعلّم عليها بس. الكشوف القديمة اللي مالهاش اسم تابة بتتمسح لو رفعت كل الشركات
+    const oldIds = old.docs.filter(d=>{ const t = d.data().data?._tab; return t ? pickedK.has(tabKey(t)) : allPicked; }).map(d=>d.id).filter(id=>!newIds.has(id));
     let leftover = 0;
     for(let i=0; i<oldIds.length; i+=BATCH){
       const b = writeBatch(db); oldIds.slice(i,i+BATCH).forEach(id=>b.delete(doc(db,'payroll',id)));
@@ -877,15 +907,17 @@ async function uploadSheet(){
     const count = recs.length;
     // مدة ظهور المرتب للعمال: من وقت الرفع، بالعدد اللي اتختار
     const days = payDays();
-    let visMsg = ' — ظاهر للعمال '+days+' يوم';
+    let visMsg = ' ('+picked.join('، ')+') — ظاهر للعمال '+days+' يوم';
     try{
-      await setDoc(VIS_DOC(), { upload_id: uploadId, days, visible_until: Timestamp.fromDate(new Date(Date.now()+days*864e5)), set_at: serverTimestamp() });
+      const until = Timestamp.fromDate(new Date(Date.now()+days*864e5)), tabs = {};
+      pTabs.forEach(t=>tabs[tabKey(t.name)] = { name: t.name, upload_id: uploadId, days, visible_until: until, set_at: serverTimestamp() });
+      await setDoc(VIS_DOC(), { upload_id: uploadId, tabs }, { merge: true });
     }catch(e){
       visMsg = ' — بس مدة الظهور ماتسجلتش ('+(e.code==='permission-denied'?'محتاج تحديث الـ Rules: payroll_meta':e.message)+')، فالمرتب هيفضل ظاهر لحد ما تمدّد';
     }
     // تقسيم الشرقية للتقارير: اللي في تابة «الشرقية 1» = الشرقية 1، وأي حد تاني في الشرقية = الشرقية 2
     // بيتسجل بس لو الشيت فيه تابة الشرقية 1 (عشان رفعة من غيرها ماتمسحش التقسيم القديم)
-    const shTabs = payParsed.tabs.map(t=>t.name).filter(n=>/شرق/.test(n));
+    const shTabs = pTabs.map(t=>t.name).filter(n=>/شرق/.test(n));
     const sh1 = shTabs.filter(n=>/[1١]/.test(n));
     if(sh1.length){
       const nids1 = [...new Set(payParsed.recs.filter(x=>sh1.includes(x.data._tab)).map(x=>String(x.nid||'').replace(/\D/g,'')).filter(n=>n.length===14))];
@@ -1056,12 +1088,13 @@ async function doLogin(){
       fail('مفيش كشف راتب متسجّل على الكود ده حالياً');
       resetBtn(); return;
     }
-    // لو لقينا كشوف من رفعتين (القديم لسه بيتمسح)، نعرض أحدث رفعة بس، وبترتيبها في الشيت
-    const latest = snap.docs.reduce((m,d)=>{ const u = d.data().upload_id || ''; return u > m ? u : m; }, '');
-    const docs = snap.docs.filter(d=>(d.data().upload_id || '') === latest).sort((a,b)=>a.id.localeCompare(b.id));
-    const rows = docs.map(d=>d.data().data);
+    // أحدث رفعة لكل شركة، وبترتيبها في الشيت. الشركة اللي مدة ظهورها خلصت كشفها مش بيظهر
+    const docs = latestPerTab(snap.docs);
+    const meta = await loadPayVis();
+    const shown = docs.filter(d=>!tabHidden(meta, d.data().data?._tab));
+    const rows = (shown.length ? shown : docs).map(d=>d.data().data);
     const nationalId = docs[0].data().national_id;
-    loggedUser = {code: myCode, rows, nationalId, payHidden: payHidden(await loadPayVis())};
+    loggedUser = {code: myCode, rows, nationalId, payHidden: !shown.length};
 
     // 3) لو داخل بالرقم القومي (أول مرة أو بعد إعادة تعيين) — لازم يغيّره
     if(pass === nationalId){
@@ -1225,9 +1258,8 @@ async function lookupSalary(){
   try{
     const snap = await getDocs(query(collection(db,'payroll'), where('employee_code','==',code)));
     if(snap.empty){ fail('مفيش كشف راتب متسجّل على الكود ده حالياً'); return; }
-    // زي شاشة الموظف: أحدث رفعة بس، وبترتيبها في الشيت
-    const latest = snap.docs.reduce((m,d)=>{ const u = d.data().upload_id || ''; return u > m ? u : m; }, '');
-    const docs = snap.docs.filter(d=>(d.data().upload_id || '') === latest).sort((a,b)=>a.id.localeCompare(b.id));
+    // زي شاشة الموظف: أحدث رفعة لكل شركة، وبترتيبها في الشيت
+    const docs = latestPerTab(snap.docs);
     staffView = true;
     renderSalary({code, rows: docs.map(d=>d.data().data)}, true);
     document.getElementById('sv-out').textContent = 'رجوع';
