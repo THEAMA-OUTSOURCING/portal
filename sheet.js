@@ -558,7 +558,8 @@ const ORDER_CSS = `
 #so li.brk{border-bottom:2px dashed #c0392b;}
 #so li .h{cursor:grab;color:#aaa;font-size:18px;padding:0 4px;touch-action:none;user-select:none;}
 #so li .i{width:24px;text-align:center;color:#999;font-size:12px;font-variant-numeric:tabular-nums;}
-#so li .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#so li .nm{flex:1 1 140px;min-width:0;white-space:normal;overflow-wrap:anywhere;line-height:1.45;}
+@media(max-width:520px){#so li{flex-wrap:wrap;padding:8px;}#so li .nm{flex-basis:calc(100% - 70px);font-size:15px;}#so li .nm small{display:block;margin:0;}}
 #so li .nm small{color:#999;font-size:11px;margin-inline-start:6px;}
 #so li .new{font-size:11px;background:#eef4fb;color:#185fa5;border-radius:999px;padding:0 7px;}
 #so li button{border:1px solid #e5e5e5;background:#fafafa;border-radius:7px;cursor:pointer;font-size:12px;padding:3px 7px;color:#555;}
