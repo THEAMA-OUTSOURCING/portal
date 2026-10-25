@@ -107,6 +107,50 @@ input[type=file]{width:100%;padding:8px;cursor:pointer;font-size:13px;border:1px
 .sv-sep{margin:22px 4px 0;text-align:center;font-size:13px;color:var(--sv-muted);}
 #admin-screen{display:none;max-width:500px;margin:1.5rem auto;}
 #change-pass-screen{display:none;max-width:420px;margin:1.5rem auto;}
+/* ===== تصميم الموبايل الجديد — شاشات العامل ===== */
+body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;color:#1d2024;}
+#login-screen,#set-pass-screen,#change-pass-screen,#card-screen,#request-screen{max-width:440px;}
+@media(max-width:479px){#login-screen,#set-pass-screen,#change-pass-screen,#card-screen,#request-screen{margin-top:0!important;}}
+#request-screen input[type=tel]{direction:ltr;text-align:right;}
+:is(#login-screen,#set-pass-screen,#change-pass-screen) .logo-header{background:#a61b12;color:#fff;margin:-1rem -1rem 0;padding:36px 20px 80px;border-radius:0 0 28px 28px;}
+:is(#login-screen,#set-pass-screen,#change-pass-screen) .logo-header img{height:64px;width:64px;background:#fff;border-radius:18px;padding:6px;}
+:is(#login-screen,#set-pass-screen,#change-pass-screen) .logo-header h1{color:#fff;font-size:22px;font-weight:700;margin-top:10px;}
+:is(#login-screen,#set-pass-screen,#change-pass-screen) .logo-header p{color:#fff;opacity:.85;font-size:14px;}
+:is(#login-screen,#set-pass-screen,#change-pass-screen) .card{margin-top:-60px;border:0;border-radius:20px;padding:22px 18px;box-shadow:0 6px 24px rgba(29,32,36,.08);}
+@media(min-width:480px){:is(#login-screen,#set-pass-screen,#change-pass-screen) .logo-header{margin:0;border-radius:28px;}}
+:is(#login-screen,#set-pass-screen,#change-pass-screen,#card-screen,#request-screen) label{font-size:13px!important;color:#6a6e75!important;font-weight:500;}
+:is(#login-screen,#set-pass-screen,#change-pass-screen,#request-screen) :is(input[type=text],input[type=password],input[type=tel],select.size-select){height:52px;border:1px solid #e6e7ea;border-radius:14px;padding:0 14px;font-size:17px;background:#f8f9fa;}
+:is(#login-screen,#set-pass-screen,#change-pass-screen,#request-screen) input[type=tel]{width:100%;outline:none;font-family:inherit;}
+:is(#login-screen,#set-pass-screen,#change-pass-screen,#request-screen) :is(input,select):focus{border-color:#a61b12;background:#fff;}
+:is(#login-screen,#set-pass-screen,#change-pass-screen) .pass-wrap input{padding-left:52px;}
+:is(#login-screen,#set-pass-screen,#change-pass-screen) .eye-btn{left:4px;width:44px;height:44px;color:#6a6e75;}
+:is(#login-screen,#set-pass-screen,#change-pass-screen,#card-screen,#request-screen) .btn-primary{height:54px;border-radius:14px;background:#a61b12;font-size:17px;font-weight:600;}
+:is(#login-screen,#set-pass-screen,#change-pass-screen,#card-screen,#request-screen) .btn-primary:hover{background:#8c160f;}
+:is(#login-screen,#set-pass-screen,#change-pass-screen,#card-screen,#request-screen) .btn-secondary{height:50px;border-radius:14px;background:#fff;border:1px solid #e6e7ea;color:#1d2024;font-size:15px;}
+#login-screen .admin-link{margin-top:20px;}
+#login-screen .admin-link a{display:flex;align-items:center;justify-content:center;gap:6px;height:50px;border-radius:14px;background:#fff;border:1px solid #e6e7ea;color:#1d2024;font-size:15px;font-weight:500;}
+:is(#card-screen,#request-screen) .header-bar{background:#fff;margin:-1rem -1rem 1rem;padding:10px 12px;border-bottom:1px solid #e6e7ea;}
+:is(#card-screen,#request-screen) .header-bar .btn-logout{height:44px;border-radius:12px;color:#1d2024;border-color:#e6e7ea;}
+:is(#card-screen,#request-screen) .header-bar p:first-child{font-size:17px!important;font-weight:700!important;color:#1d2024!important;}
+:is(#card-screen,#request-screen) .card{border:0;border-radius:20px;}
+:is(#card-screen,#request-screen) .info-box{border:0;border-radius:12px;}
+#card-preview{border:0!important;border-radius:16px!important;}
+@media(min-width:480px){:is(#card-screen,#request-screen) .header-bar{margin:0 0 1rem;border-radius:16px;border:0;}}
+/* شاشة المرتب */
+.sv-sum{border-radius:20px;box-shadow:0 6px 24px rgba(29,32,36,.08);}
+.sv-acts button{border:0;border-radius:16px;padding:12px 4px;font-weight:500;display:flex;flex-direction:column;align-items:center;gap:6px;min-height:72px;justify-content:center;}
+.sv-acts button i{font-size:24px;color:#a61b12;}
+.sv-sec{border-radius:20px;padding:14px 16px;}
+.sv-chips{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;background:none;}
+.sv-chip{background:#f2f3f5;border-radius:14px;border:0!important;padding:10px 2px;}
+.sv-chip b{font-size:20px;font-weight:700;}
+.sv-chip span{font-size:12px;color:#4a4e55;}
+.sv-chip.sv-bad{background:#fbeceb;}
+.sv-closed{text-align:center;padding:26px 20px!important;}
+.sv-closed .sv-ic{width:64px;height:64px;border-radius:20px;background:#fbeceb;color:#a61b12;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:32px;}
+.sv-closed h3{font-size:20px;font-weight:700;line-height:1.5;}
+.sv-closed p{font-size:15px;color:#4a4e55;line-height:1.8;margin-top:6px;}
+.sv-closed small{display:inline-block;margin-top:12px;font-size:13px;color:#6a6e75;background:#f2f3f5;padding:8px 14px;border-radius:999px;}
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#c0392b">
@@ -1095,9 +1139,10 @@ function renderSalary(src, viewOnly){
 
   // مدة ظهور المرتب خلصت: العامل بيشوف اسمه وأزراره بس، ومكان المرتب رسالة
   if(!viewOnly && src.payHidden){
-    container.innerHTML='<div class="sv-sum sv-first" style="text-align:center;"><p class="sv-netl" style="margin-bottom:6px;">كشف المرتب مش متاح دلوقتي</p>'
-      +'<p style="font-size:14px;color:#555;line-height:1.8;">لو عندك أي استفسار عن مرتبك كلّم المشرف أو الـ HR.</p></div>'
-      +'<div class="sv-acts"><button onclick="openMedicalCard()">البطاقة الطبية</button><button onclick="openRequestForm()">بياناتي</button><button onclick="showScreen(\'change-pass-screen\')">كلمة المرور</button></div>';
+    document.getElementById('sv-note').style.display='none';
+    container.innerHTML='<div class="sv-sum sv-first sv-closed"><div class="sv-ic"><i class="ti ti-calendar-check"></i></div><h3>شكراً على تعبك الشهر ده</h3>'
+      +'<p>كشف المرتب خلص وقت عرضه.<br>نشوفك على خير مع مرتب الشهر الجاي.</p><small>مرتب الشهر الجاي هيظهر هنا أول ما يتنزل</small></div>'
+      +'<div class="sv-acts"><button onclick="openMedicalCard()"><i class="ti ti-id"></i>الكارنيه الطبي</button><button onclick="openRequestForm()"><i class="ti ti-user"></i>بياناتي</button><button onclick="showScreen(\'change-pass-screen\')"><i class="ti ti-lock"></i>كلمة المرور</button></div>';
     return;
   }
 
@@ -1119,7 +1164,7 @@ function renderSalary(src, viewOnly){
     h+='<div class="sv-split"><div><span>المستحقات</span><b>'+money(P)+'</b></div><div class="sv-m"><span>الخصومات</span><b>'+money(M)+'</b></div></div>';
     h+='</div>';
     if(idx===0 && !viewOnly){
-      h+='<div class="sv-acts"><button onclick="openMedicalCard()">البطاقة الطبية</button><button onclick="openRequestForm()">بياناتي</button><button onclick="showScreen(\'change-pass-screen\')">كلمة المرور</button></div>';
+      h+='<div class="sv-acts"><button onclick="openMedicalCard()"><i class="ti ti-id"></i>الكارنيه الطبي</button><button onclick="openRequestForm()"><i class="ti ti-user"></i>بياناتي</button><button onclick="showScreen(\'change-pass-screen\')"><i class="ti ti-lock"></i>كلمة المرور</button></div>';
     }
     if(days.length){
       h+='<div class="sv-sec"><h2>أيام الشهر</h2><div class="sv-chips">';
