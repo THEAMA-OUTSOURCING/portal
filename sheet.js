@@ -386,6 +386,7 @@ const PRINT_CSS = `
 #pv .pv-bar button{font:inherit;padding:8px 16px;border-radius:10px;border:0;cursor:pointer;background:#fff;color:#222;}
 #pv .pv-bar button.main{background:#c0392b;color:#fff;}
 #pv .pv-bar button:disabled{opacity:.6;cursor:wait;}
+#pv .pv-bar{transition:transform .2s ease;}#pv .pv-bar.hid{transform:translateY(-110%);}
 #pv .pv-msg{width:100%;text-align:center;font-size:13px;color:#ffd9d4;}
 #pv .pv-msg:empty{display:none;}
 #pv .pv-pages{padding:10px 0 30px;}
@@ -467,6 +468,19 @@ function fitBlanks(root) {
 }
 
 // ---------------------------------------------------------------- عرض الكشف + طباعة + PDF
+// الشريط اللي فوق يختفي وإنت نازل ويرجع أول ما تطلع (على الموبايل بس، الشاشات العريضة يفضل ظاهر).
+// بيدور على الشريط كل مرة لأن شاشة الترتيب بتترسم من جديد.
+function autoHideBar(scroller, sel) {
+  let last = scroller.scrollTop;
+  scroller.addEventListener("scroll", () => {
+    const bar = scroller.querySelector(sel); if (!bar) return;
+    const y = scroller.scrollTop, d = y - last; last = y;
+    if (window.innerWidth > 760 || y < 40) { bar.classList.remove("hid"); return; }
+    if (d > 6 && !bar.contains(document.activeElement)) bar.classList.add("hid");
+    else if (d < -6) bar.classList.remove("hid");
+  }, { passive: true });
+}
+
 export async function openPrintView(opts) {
   ensureCss();
   document.getElementById("pv")?.remove();
@@ -477,6 +491,7 @@ export async function openPrintView(opts) {
       <div class="pv-msg"></div></div>
     <div class="pv-pages">${sheetsHtml(opts)}</div>`;
   document.body.appendChild(pv);
+  autoHideBar(pv, ".pv-bar");
   const prevOverflow = document.body.style.overflow;
   document.body.style.overflow = "hidden";
   const msg = t => { pv.querySelector(".pv-msg").textContent = t || ""; };
@@ -543,6 +558,7 @@ const ORDER_CSS = `
 #so{position:fixed;inset:0;z-index:900;background:#f5f5f0;overflow:auto;direction:rtl;}
 #so .so-in{max-width:760px;margin:0 auto;padding:12px;}
 #so .so-top{position:sticky;top:0;z-index:2;background:#f5f5f0;padding:8px 0 10px;border-bottom:1px solid #e5e5e5;margin-bottom:10px;}
+#so .so-top{transition:transform .2s ease;}#so .so-top.hid{transform:translateY(-110%);}
 #so h2{font-size:17px;margin:0 0 2px;}
 #so .so-tabs{display:flex;gap:6px;margin-top:8px;}
 #so .so-tabs button{padding:6px 14px;border-radius:999px;border:1px solid #ddd;background:#fff;cursor:pointer;font:inherit;font-size:13px;}
@@ -610,6 +626,7 @@ export async function openOrderEditor(opts) {
   const so = document.createElement("div");
   so.id = "so";
   document.body.appendChild(so);
+  autoHideBar(so, ".so-top");
   const prevOverflow = document.body.style.overflow;
   document.body.style.overflow = "hidden";
   const close = () => { so.remove(); document.body.style.overflow = prevOverflow; };
