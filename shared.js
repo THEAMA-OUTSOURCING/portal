@@ -67,15 +67,15 @@ function navStyle() {
   const s = document.createElement("style");
   s.id = "pnav-style";
   s.textContent = `
-    .pnav{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px;}
+    .pnav{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px;}
     .pnav:empty{display:none;}
-    .pnav a{display:flex;flex-direction:column;align-items:center;gap:3px;width:92px;padding:7px 4px 6px;
-      border:1px solid #ebe5e3;border-radius:12px;background:#fff;color:#6b625e;font-size:11px;font-weight:500;
+    .pnav a{display:flex;flex-direction:column;align-items:center;gap:6px;width:96px;padding:12px 4px 10px;
+      border:0;border-radius:16px;background:#fff;color:#1d2024;font-size:12.5px;font-weight:500;
       line-height:1.25;text-align:center;text-decoration:none;flex:0 0 auto;}
-    .pnav a:hover{background:#fbf6f5;}
-    .pnav a svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;
-      stroke-linejoin:round;color:#c0392b;}
-    .pnav a.on{background:#c0392b;border-color:#c0392b;color:#fff;cursor:default;}
+    .pnav a:hover{background:#fbeceb;}
+    .pnav a svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;
+      stroke-linejoin:round;color:#a61b12;}
+    .pnav a.on{background:#a61b12;border-color:#a61b12;color:#fff;cursor:default;}
     .pnav a.on svg{color:#fff;}
     @media (max-width:520px){.pnav{display:grid;grid-template-columns:repeat(3,1fr);}.pnav a{width:auto;}}
     @media print{.pnav{display:none !important;}}`;

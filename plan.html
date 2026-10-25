@@ -83,6 +83,25 @@ body.view-only [data-ntype], body.view-only [data-left], body.view-only [data-fe
 .vo-txt{display:none;}
 body.view-only .vo-txt{display:inline;}
 .center{max-width:380px;margin:60px auto;}
+/* ===== تصميم الموبايل الجديد ===== */
+@media screen{
+body{background:#f2f3f5;color:#1d2024;}
+.card{border:0;border-radius:20px;}
+.btn{min-height:44px;border-radius:12px;background:#a61b12;font-weight:600;}
+.btn:hover{background:#8c160f;}
+.btn.sec{background:#fff;color:#1d2024;border:1px solid #e6e7ea;}
+.btn.small{min-height:36px;border-radius:10px;}
+input:not([type=checkbox]):not([type=radio]):not([type=file]),select{min-height:44px;border:1px solid #e6e7ea;border-radius:12px;background:#f8f9fa;}
+input[type=file]{border-radius:12px;}
+input:focus,select:focus{border-color:#a61b12;background:#fff;}
+.tbl{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+@media(max-width:600px){
+ body{padding:10px;}
+ .row>.btn{flex:1 1 calc(50% - 10px);}
+ .row>label.f{flex:1 1 calc(50% - 10px);}
+ .row>label.f :is(input,select){width:100%;}
+}
+}
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#c0392b">
