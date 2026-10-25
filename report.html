@@ -45,6 +45,36 @@ tr.foot td{background:#f3f3ef;font-weight:600;}
   @page{size:A4 landscape;margin:8mm;}
 }
 #print-head{display:none;} @media print{#print-head{display:block;margin-bottom:6px;}}
+/* ===== تصميم الموبايل الجديد ===== */
+@media screen{
+body{background:#f2f3f5;color:#1d2024;}
+.card{border:0;border-radius:20px;padding:16px;}
+h1{font-size:20px;font-weight:700;}
+.btn{min-height:46px;border-radius:12px;background:#a61b12;font-weight:600;}
+.btn.sec{background:#fff;color:#1d2024;border:1px solid #e6e7ea;}
+.btn.ok{background:#16683a;}
+.btn.small{min-height:38px;padding:5px 12px;border-radius:10px;font-size:13px;}
+input,select,textarea{min-height:46px;border:1px solid #e6e7ea;border-radius:12px;background:#f8f9fa;}
+input[type=checkbox]{min-height:0;width:18px;height:18px;accent-color:#a61b12;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;background:#fff;}
+@media(max-width:600px){
+ .row{align-items:stretch;}
+ .row>label.f{flex:1 1 calc(50% - 10px);}
+ .row>label.f input,.row>label.f select{width:100%;}
+ .row>.btn{flex:1 1 calc(50% - 10px);}
+}
+}
+@media screen{
+.tabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;}
+.tab{min-height:40px;white-space:nowrap;}
+.tab[aria-selected=true]{background:#1d2024;border-color:#1d2024;}
+.tbl{border:0;border-radius:14px;background:#fff;-webkit-overflow-scrolling:touch;}
+th{background:#1d2024;}
+@media(max-width:600px){
+ .tbl{max-height:65vh;}
+ td.nm{white-space:normal;min-width:130px;max-width:170px;line-height:1.35;font-size:12.5px;}
+}
+}
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#c0392b">

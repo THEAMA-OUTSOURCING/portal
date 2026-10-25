@@ -38,6 +38,33 @@ label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#777;}
 .warn{background:#fff5de;color:#8a5a10;border-radius:8px;padding:4px 8px;font-size:12px;margin-top:6px;}
 #zoom{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:9;cursor:zoom-out;}
 #zoom img{max-width:96vw;max-height:96vh;}
+/* ===== تصميم الموبايل الجديد ===== */
+@media screen{
+body{background:#f2f3f5;color:#1d2024;}
+.card{border:0;border-radius:20px;padding:16px;}
+h1{font-size:20px;font-weight:700;}
+.btn{min-height:46px;border-radius:12px;background:#a61b12;font-weight:600;}
+.btn.sec{background:#fff;color:#1d2024;border:1px solid #e6e7ea;}
+.btn.ok{background:#16683a;}
+.btn.small{min-height:38px;padding:5px 12px;border-radius:10px;font-size:13px;}
+input,select,textarea{min-height:46px;border:1px solid #e6e7ea;border-radius:12px;background:#f8f9fa;}
+input[type=checkbox]{min-height:0;width:18px;height:18px;accent-color:#a61b12;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;background:#fff;}
+@media(max-width:600px){
+ .row{align-items:stretch;}
+ .row>label.f{flex:1 1 calc(50% - 10px);}
+ .row>label.f input,.row>label.f select{width:100%;}
+ .row>.btn{flex:1 1 calc(50% - 10px);}
+}
+}
+@media screen{
+.ev{border:0;border-radius:20px;}
+.ev .ph{height:180px;background:#eceef1;}
+.ev .nm{font-size:16px;line-height:1.45;}
+.ev .ft{border-top:1px solid #f0f1f3;}
+.ev .ft input{flex:1 1 100%;}
+@media(max-width:600px){.grid{grid-template-columns:1fr;}}
+}
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#c0392b">
