@@ -245,7 +245,8 @@ onAuthStateChanged(auth, async user => {
   $("tab-fp").classList.toggle("hidden", c.role !== "admin");   // مؤقتاً للأدمن بس
   // أزرار التنقل بين الصفحات بقت في shared.js (حسب الدور)
   if (S.view) { $("tab-approve").textContent = "حالة الاعتماد"; }
-  $("r-site").innerHTML = (S.office ? `<option value="*">كل المواقع</option>` : "") + S.sites.map(s => `<option>${esc(s)}</option>`).join("");
+  // الشرقية بتظهر في الاختيار اتنين: الشرقية 1 (16→15) والشرقية 2 (الشهر الميلادي)
+  $("r-site").innerHTML = (S.office ? `<option value="*">كل المواقع</option>` : "") + S.sites.flatMap(s => s === SHARQIA ? Object.keys(SH_G) : [s]).map(s => `<option>${esc(s)}</option>`).join("");
   const now = new Date(), m = ymd(now).slice(0, 7);
   $("r-month").value = now.getDate() > 20 ? ymd(new Date(now.getFullYear(), now.getMonth() + 1, 1)).slice(0, 7) : m;
   $("h-month").value = m;
@@ -384,6 +385,21 @@ function period() {
 // ===== الحالات المعتمدة من الـ HR (إجازة / مرضي / استقالة): الشرقية من Drive، وطلبات المشرفين، وإكسيل الـ HR =====
 // والمرضي اللي مستني رد العميل (بيبسي والإمداد / شيبسي) بيظهر «م؟» — مش غياب ومش معتمد
 const SHARQIA = "الشرقية للدخان";
+// ===== الشرقية 1 / الشرقية 2: التقسيم من تابة «الشرقية 1» في آخر شيت مرتبات (sharqia_map/groups) =====
+const SH_G = { "الشرقية 1": "16", "الشرقية 2": "cal" };   // الاسم ← فترته الافتراضية
+const realSite = s => SH_G[s] ? SHARQIA : s;
+async function shGroups() {
+  try { const m = await getDoc(doc(db, "sharqia_map", "groups")); return m.exists() ? new Set(m.data().nids1 || []) : null; } catch (e) { return null; }
+}
+// سطور الشرقية بتاخد اسم مجموعتها بدل «الشرقية للدخان»، ولو اختار مجموعة بيفضل سطورها بس
+async function splitSharqia(list, sel, siteOf = r => r.site, setSite = (r, v) => r.site = v) {
+  if (!list.some(r => siteOf(r) === SHARQIA)) return { list };
+  const g1 = await shGroups();
+  if (!g1) return SH_G[sel] ? { err: "تقسيم الشرقية 1 / 2 لسه مااتسجلش — ارفع شيت المرتبات (فيه تابة «الشرقية 1») الأول." } : { list };
+  list.forEach(r => { if (siteOf(r) === SHARQIA) setSite(r, g1.has(String(r.nid || "")) ? "الشرقية 1" : "الشرقية 2"); });
+  return { list: SH_G[sel] ? list.filter(r => siteOf(r) === sel) : list };
+}
+$("r-site").addEventListener("change", () => { const m = SH_G[$("r-site").value]; if (m) $("r-mode").value = m; $("r-mode").dispatchEvent(new Event("change")); });
 // حالات HR بحالة معيّنة — HR/المحاسب اللي ليه فروع بيقرا حالات فروعه بس (الـ Rules بتطلب كده)
 const evQuery = st => S.scoped
   ? query(collection(db, "hr_events"), where("status", "==", st), where("site", "in", S.scoped))
@@ -433,7 +449,8 @@ async function applySharqiaEvents(list, from, to) {
 
 // ===== تقرير الإجازات (ج) / المرضي: سطر لكل حالة معتمدة نهائي =====
 const LV_TITLE = { annual: "إجازات", sick: "مرضي" };
-async function leaveReport(from, to, site, jobF, kind) {
+async function leaveReport(from, to, sel, jobF, kind) {
+  const site = realSite(sel);
   show($("r-msg"), "info", "بيحمّل...");
   try {
     // مين في الموقع: من حضور الفترة (عشان مواقع الإكسيل كمان) + كشوف المواقع
@@ -468,6 +485,8 @@ async function leaveReport(from, to, site, jobF, kind) {
         reason: [e.sick_kind === "injury" ? "إصابة عمل" : "", e.cause || e.reason || "", nOk < Infinity ? `العميل اعتمد ${nOk} من ${e.days}` : ""].filter(Boolean).join(" — "), note: e.note || "",
         flag: e.deleted_in_sheet ? "اتمسح من الشيت" : e.changed ? "اتعدل في الشيت ولسه مستني مراجعة الـ HR" : "" });
     }
+    const sp = await splitSharqia(list, sel); if (sp.err) return show($("r-msg"), "err", sp.err);
+    list.length = 0; list.push(...sp.list);
     const jobs = [...new Set(list.map(r => r.job).filter(Boolean))].sort();
     $("r-job").innerHTML = `<option value="">كل الوظايف</option>` + jobs.map(j => `<option ${j === jobF ? "selected" : ""}>${esc(j)}</option>`).join("");
     let rows = jobF ? list.filter(r => r.job === jobF) : list;
@@ -479,8 +498,8 @@ async function leaveReport(from, to, site, jobF, kind) {
     const tot = rows.reduce((a, r) => a + r.inP, 0), ppl = new Set(rows.map(r => r.nid || r.code || r.name)).size;
     h += `<tr class="foot"><td colspan="${multi ? 7 : 6}" style="text-align:right">الإجمالي</td><td><b>${tot}</b></td><td></td><td></td></tr></tbody>`;
     $("r-table").innerHTML = h;
-    S.report = { kind, from, to, site, list: rows, tot, ppl };
-    $("print-head").innerHTML = `<b>تقرير ${LV_TITLE[kind]} — ${esc(multi ? "كل المواقع" : site)}${jobF ? " — " + esc(jobF) : ""}</b> — من ${from} لحد ${to}`;
+    S.report = { kind, from, to, site: sel, list: rows, tot, ppl };
+    $("print-head").innerHTML = `<b>تقرير ${LV_TITLE[kind]} — ${esc(multi ? "كل المواقع" : sel)}${jobF ? " — " + esc(jobF) : ""}</b> — من ${from} لحد ${to}`;
     $("r-sum").textContent = `${rows.length} حالة · ${ppl} عامل · ${tot} يوم في الفترة (من غير الجمعة) · الحالات المعتمدة من الـ HR بس`;
     $("r-out").classList.remove("hidden"); hide($("r-msg")); filterRows();
     $("r-print").disabled = false; $("r-xlsx").disabled = false;
@@ -517,8 +536,8 @@ async function leaveXlsx(R) {
 $("r-go").onclick = async () => {
   const [from, to] = period();
   if (!from || !to || from > to) return show($("r-msg"), "err", "الفترة مش صحيحة.");
-  const site = $("r-site").value, jobF = $("r-job").value, onlyApp = $("r-approved").checked;
-  if (S.office && $("r-kind").value !== "att") return leaveReport(from, to, site, jobF, $("r-kind").value);
+  const sel = $("r-site").value, site = realSite(sel), jobF = $("r-job").value, onlyApp = $("r-approved").checked;
+  if (S.office && $("r-kind").value !== "att") return leaveReport(from, to, sel, jobF, $("r-kind").value);
   show($("r-msg"), "info", "بيحمّل...");
   try {
     const days = (await fetchDays(from, to, site)).filter(d => !onlyApp || d.status === "approved");
@@ -546,6 +565,7 @@ $("r-go").onclick = async () => {
     }
     let list = Object.values(rows);
     if (S.office) await applySharqiaEvents(list, from, to);
+    const sp = await splitSharqia(list, sel); if (sp.err) return show($("r-msg"), "err", sp.err); list = sp.list;
     if (!list.length) { $("r-out").classList.add("hidden"); return show($("r-msg"), "warn", "مفيش حضور متأكد في الفترة دي."); }
     const jobs = [...new Set(list.map(r => r.job))].sort();
     $("r-job").innerHTML = `<option value="">كل الوظايف</option>` + jobs.map(j => `<option ${j === jobF ? "selected" : ""}>${esc(j)}</option>`).join("");
@@ -555,7 +575,7 @@ $("r-go").onclick = async () => {
     list.forEach(r => { r.total = 0; r.extra = 0; dates.forEach(d => { const c = r.cells[d]; if (c?.p) { r.total += c.p; if (off(d) || c.hrs) r.extra += c.p; } }); });
     const hasLoc = list.some(r => r.loc);
     const late = days.filter(d => d.late).length, unapp = days.filter(d => d.status !== "approved").length;
-    S.report = { kind: "att", from, to, dates, list, off, hol, site, late, hasLoc };
+    S.report = { kind: "att", from, to, dates, list, off, hol, site: sel, late, hasLoc };
     // جدول
     const multi = site === "*";
     let h = `<thead><tr><th>م</th>${multi ? "<th>الموقع</th>" : ""}<th>الاسم</th><th>${list.some(r => !r.nid) ? "الرقم القومي / الكود" : "الرقم القومي"}</th><th>الوظيفة</th>${hasLoc ? "<th>المكان</th>" : ""}` +
@@ -573,7 +593,7 @@ $("r-go").onclick = async () => {
     (jobF ? [jobF] : jobs).forEach(j => h += footRow("حاضرين — " + j, d => pres(list.filter(r => r.job === j), d)));
     h += footRow("إجمالي الحاضرين", d => pres(list, d)) + "</tbody>";
     $("r-table").innerHTML = h;
-    const sTitle = multi ? "كل المواقع" : site;
+    const sTitle = multi ? "كل المواقع" : sel;
     $("print-head").innerHTML = `<b>تقرير حضور ${esc(sTitle)}${jobF ? " — " + esc(jobF) : ""}</b> — من ${from} لحد ${to}`;
     $("r-sum").textContent = `${list.length} عامل · ${days.length} يوم حضور متأكد · ${unapp} لسه مااتعتمدش · رفع متأخر: ${late} مرة` + (Object.keys(hol).length ? ` · العطلات: ${Object.entries(hol).filter(([d]) => d >= from && d <= to).map(([d, n]) => d.slice(8) + " " + n).join("، ")}` : "");
     $("r-out").classList.remove("hidden"); hide($("r-msg")); filterRows();

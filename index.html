@@ -883,6 +883,15 @@ async function uploadSheet(){
     }catch(e){
       visMsg = ' — بس مدة الظهور ماتسجلتش ('+(e.code==='permission-denied'?'محتاج تحديث الـ Rules: payroll_meta':e.message)+')، فالمرتب هيفضل ظاهر لحد ما تمدّد';
     }
+    // تقسيم الشرقية للتقارير: اللي في تابة «الشرقية 1» = الشرقية 1، وأي حد تاني في الشرقية = الشرقية 2
+    // بيتسجل بس لو الشيت فيه تابة الشرقية 1 (عشان رفعة من غيرها ماتمسحش التقسيم القديم)
+    const shTabs = payParsed.tabs.map(t=>t.name).filter(n=>/شرق/.test(n));
+    const sh1 = shTabs.filter(n=>/[1١]/.test(n));
+    if(sh1.length){
+      const nids1 = [...new Set(payParsed.recs.filter(x=>sh1.includes(x.data._tab)).map(x=>String(x.nid||'').replace(/\D/g,'')).filter(n=>n.length===14))];
+      try{ await setDoc(doc(db,'sharqia_map','groups'), { nids1, tabs1: sh1, upload_id: uploadId, set_at: serverTimestamp() }); visMsg += ' — تقسيم الشرقية: '+nids1.length+' في الشرقية 1'; }
+      catch(e){ visMsg += ' — بس تقسيم الشرقية 1 / 2 ماتسجلش ('+(e.code==='permission-denied'?'محتاج تحديث الـ Rules: sharqia_map':e.message)+')'; }
+    }
     showPayVis();
     document.getElementById('upload-success-msg').textContent='تم رفع '+count+' موظف بنجاح ✓' + visMsg
       + (leftover ? ' — بس '+leftover+' كشف قديم مااتمسحش (مش هيظهروا للموظفين). ارفع الشيت تاني وقت ما النت يبقى أحسن عشان يتمسحوا.' : '');
