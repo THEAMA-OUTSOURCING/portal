@@ -116,10 +116,17 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
         <button class="btn sec" id="lk-exp">تنزيل الإجازات</button><input type="file" id="lk-file" accept=".xlsx,.xls" style="max-width:300px"><button class="btn" id="lk-save" disabled>احفظ التصحيح</button></div>
       <div class="msg" id="lk-msg" style="white-space:pre-line;"></div>
     </div>
+    <div class="card no-view">
+      <h2>تصدير المرفوض (مرضي / إجازة / استقالة)</h2>
+      <p class="muted" style="margin-bottom:8px;">إكسيل واحد بكل الحالات المرفوضة في الفترة — من HR تيما أو من العميل — وسبب الرفض قدام كل حالة. المرضي اللي العميل اعتمد منه جزء بيطلع كمان بعدد الأيام المرفوضة. الفترة بتتحسب على تاريخ الحالة (والاستقالة على يوم تسجيلها).</p>
+      <div class="row"><label class="f">من<input type="date" id="rj-from"></label><label class="f">لحد<input type="date" id="rj-to"></label>
+        <label class="f">النوع<select id="rj-ty"><option value="">الكل</option><option value="sick">مرضي</option><option value="leave">إجازة</option><option value="resign">استقالة</option></select></label>
+        <button class="btn sec" id="rj-exp">تصدير المرفوض (Excel)</button></div>
+      <div class="msg" id="rj-msg"></div>
+    </div>
     <div class="card no-view" id="client-card">
-      <h2>مرحلة العميل (بيبسي والإمداد / شيبسي)</h2>
-      <p class="muted" style="margin-bottom:8px;">اللي HR تيما وافق عليه لعمال بيبسي والإمداد وشيبسي بيستنى هنا رد العميل. وتقدر كمان تسجّل قرار العميل يدوي على كل حالة تحت.</p>
-      <h2 style="margin-top:6px;">المرضي</h2>
+      <h2>مرحلة العميل — المرضي (بيبسي والإمداد / شيبسي)</h2>
+      <p class="muted" style="margin-bottom:8px;">المرضي اللي HR تيما وافق عليه لعمال بيبسي والإمداد وشيبسي بيستنى هنا رد العميل. وتقدر كمان تسجّل قرار العميل يدوي على كل حالة تحت. الإجازات والاستقالات بتتعتمد من HR تيما على طول.</p>
       <p class="muted" style="margin-bottom:6px;">1) صدّر شيت المرضي وابعته للعميل. 2) لما العميل يرد، نزّل «شيت الرد» وعدّل فيه «الأيام المعتمدة» للحالات اللي العميل غيّرها بس (والـ Limit لو باعته)، واكتب الإجمالي اللي في إيميله وارفعه.
         لو العامل ليه أكتر من فترة، اكتب الإجمالي في أول سطر وفضّي الباقي — بيتوزّع من الأقدم. الأيام المعتمدة = م، والباقي = خ.</p>
       <div class="row"><button class="btn sec" id="sk-exp-pepsi">تصدير مرضي بيبسي والإمداد</button><button class="btn sec" id="sk-exp-chipsy">تصدير مرضي شيبسي</button>
@@ -128,11 +135,12 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
         <label class="f">إجمالي الأيام المعتمدة في إيميل العميل<input type="number" id="sk-total" min="0" style="width:120px;"></label>
         <button class="btn" id="sk-save" disabled>احفظ رد العميل</button></div>
       <div class="msg" id="sk-msg" style="white-space:pre-line;"></div>
-      <h2 style="margin-top:14px;">الإجازات</h2>
-      <p class="muted" style="margin-bottom:6px;">صدّر ملف لكل عميل وابعته، ولما يرجّعه مالي عمود القرار (وتعديل المدة لو فيه)، ارفعه هنا.</p>
-      <div class="row"><button class="btn sec" id="cl-exp-pepsi">تصدير إجازات بيبسي والإمداد</button><button class="btn sec" id="cl-exp-chipsy">تصدير إجازات شيبسي</button><span class="muted" id="cl-count"></span></div>
-      <div class="row" style="margin-top:8px;"><input type="file" id="cl-file" accept=".xlsx,.xls" style="max-width:320px"><button class="btn" id="cl-save" disabled>احفظ قرارات العميل</button></div>
-      <div class="msg" id="cl-msg" style="white-space:pre-line;"></div>
+      <div id="old-lv" class="hidden" style="margin-top:14px;">
+        <h2>إجازات قديمة كانت مستنية العميل</h2>
+        <p class="muted" style="margin-bottom:6px;">الإجازة مابقتش بتستنى رد العميل. الإجازات دي اتوافق عليها من HR تيما قبل التعديل — اعتمدها مرة واحدة.</p>
+        <div class="row"><button class="btn" id="old-lv-ok">اعتمد الإجازات دي</button><span class="muted" id="cl-count"></span></div>
+        <div class="msg" id="cl-msg" style="white-space:pre-line;"></div>
+      </div>
     </div>
     <div class="card">
       <div class="row">
@@ -141,7 +149,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
         <label class="f">النوع<select id="f-ty"><option value="">الكل</option><option value="sick">مرضي</option><option value="leave">إجازة</option><option value="resign">استقالة</option></select></label>
         <label class="f">بحث<input id="f-q" placeholder="الاسم أو الكود أو الرقم القومي أو الموقع"></label>
       </div>
-      <p class="muted" style="margin-top:8px;">الحالات جاية من: طلبات المشرفين في صفحة الحضور، ورفع الإكسيل هنا، وتطبيق الشرقية على Drive (بيتحدث كل ساعة). الشرقية بتتعتمد من HR تيما على طول؛ بيبسي والإمداد وشيبسي بيستنوا رد العميل بعد موافقة تيما، ولحد ما العميل يرد بيظهروا في تقرير الحضور «في انتظار الاعتماد». <span id="sync"></span></p>
+      <p class="muted" style="margin-top:8px;">الحالات جاية من: طلبات المشرفين في صفحة الحضور، ورفع الإكسيل هنا، وتطبيق الشرقية على Drive (بيتحدث كل ساعة). الإجازات والاستقالات والشرقية بتتعتمد من HR تيما على طول؛ مرضي بيبسي والإمداد وشيبسي بس اللي بيستنى رد العميل بعد موافقة تيما، ولحد ما العميل يرد بيظهر في تقرير الحضور «في انتظار الاعتماد». <span id="sync"></span></p>
       <div class="msg" id="msg"></div>
     </div>
     <div class="grid" id="list"></div>
@@ -176,7 +184,8 @@ function groupOf(e) {
   if (/شيبس|chipsy|cfi/i.test(t) || CHIPSY_SITES.some(s => t.includes(s))) return "chipsy";
   return "pepsi";
 }
-const needsClient = e => e.type !== "resign" && groupOf(e) !== "sharqia";
+// رد العميل للمرضي بس (بيبسي والإمداد / شيبسي). الإجازة والاستقالة بيتعتمدوا من HR تيما على طول
+const needsClient = e => e.type === "sick" && groupOf(e) !== "sharqia";
 const placeOf = e => e.site || [e.company, e.loc].filter(Boolean).join(" — ");
 let ALL = [], ALL_LOADED = false, EDIT = null, CEDIT = null, XROWS = [], CROWS = [];
 // المستني واللي اتعدل بعد القرار واللي مستني العميل: بيتسمعلهم على طول (دول اللي الـ HR محتاجهم).
@@ -187,8 +196,9 @@ function rebuild() {
   const m = new Map(DECIDED);
   LIVE_C.forEach((v, k) => m.set(k, v)); LIVE_W.forEach((v, k) => m.set(k, v)); LIVE_P.forEach((v, k) => m.set(k, v));
   ALL = [...m.values()];
-  const w = [...LIVE_W.values()], cnt = (g, t) => w.filter(e => groupOf(e) === g && (t === "sick" ? e.type === "sick" : e.type !== "sick")).length;
-  $("cl-count").textContent = `مستني العميل — مرضي: بيبسي والإمداد ${cnt("pepsi", "sick")}، شيبسي ${cnt("chipsy", "sick")} — إجازات: بيبسي والإمداد ${cnt("pepsi")}، شيبسي ${cnt("chipsy")}`;
+  const oldLv = [...LIVE_W.values()].filter(e => e.type !== "sick");
+  $("old-lv").classList.toggle("hidden", !oldLv.length);
+  $("cl-count").textContent = oldLv.length ? `${oldLv.length} إجازة` : "";
   render();
 }
 async function loadDecided() {
@@ -289,65 +299,21 @@ $("xsave").onclick = async () => {
   } catch (e) { show($("xmsg"), "err", `اترفع ${n} جديد و${upd} تعديل، ووقف عند خطأ: ` + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules." : e.message)); }
 };
 
-// ===== مرحلة العميل: ملف رايح (تصدير) وراجع (رفع القرارات) =====
-const CL_HEAD = ["رقم الطلب", "الاسم", "الرقم القومي", "الكود", "الوظيفة", "الفرع", "النوع", "من", "لحد", "عدد الأيام",
-  "قرار العميل (موافق / مرفوض)", "من (لو اتعدلت)", "لحد (لو اتعدلت)", "ملاحظة العميل"];
-async function exportClient(g) {
-  const list = [...LIVE_W.values()].filter(e => groupOf(e) === g && e.type !== "sick").sort((a, b) => placeOf(a).localeCompare(placeOf(b)) || String(a.name).localeCompare(String(b.name)) || String(a.from).localeCompare(String(b.from)));
-  if (!list.length) return show($("cl-msg"), "info", `مفيش إجازات مستنية رد ${GROUP_AR[g]}.`);
-  const ws = XLSX.utils.aoa_to_sheet([CL_HEAD, ...list.map(e => [e.id, e.name || "", String(e.nid || ""), String(e.code || ""), e.job || "", placeOf(e),
-    TY[e.type] || "", e.from || "", e.to || "", Number(e.days) || "", "", "", "", ""])]);
-  ws["!cols"] = CL_HEAD.map((h, i) => i === 0 ? { hidden: true, wch: 30 } : { wch: i === 1 ? 28 : i === 10 ? 24 : i === 13 ? 26 : 14 });
-  const wb = XLSX.utils.book_new(); wb.Workbook = { Views: [{ RTL: true }] };
-  XLSX.utils.book_append_sheet(wb, ws, "إجازات ومرضي");
-  const today = new Date().toISOString().slice(0, 10);
-  XLSX.writeFile(wb, `إجازات ${GROUP_AR[g]} ${today}.xlsx`);
-  // نعلّم إنها اتبعتت (أول مرة بس) عشان يبان في الكارت إمتى اتبعتت للعميل
-  const notSent = list.filter(e => !e.sent_at);
+// ===== إجازات قديمة كانت «مستني رد العميل» قبل ما الإجازة تبطّل تستنى العميل: اعتماد مرة واحدة =====
+$("old-lv-ok").onclick = async () => {
+  const list = [...LIVE_W.values()].filter(e => e.type !== "sick");
+  if (!list.length) return;
+  if (!confirm(`هتعتمد ${list.length} إجازة كانت مستنية العميل. متأكد؟`)) return;
+  const u = auth.currentUser; let n = 0; $("old-lv-ok").disabled = true;
   try {
-    for (let i = 0; i < notSent.length; i += 400) {
+    for (let i = 0; i < list.length; i += 400) {
       const b = writeBatch(db);
-      notSent.slice(i, i + 400).forEach(e => b.update(doc(db, "hr_events", e.id), { sent_at: serverTimestamp(), sent_email: actorEmail(auth.currentUser) }));
-      await b.commit();
+      list.slice(i, i + 400).forEach(e => b.update(doc(db, "hr_events", e.id), { status: "approved", decided_by: u.uid, decided_email: actorEmail(u), decided_at: serverTimestamp() }));
+      await b.commit(); n += Math.min(400, list.length - i);
     }
-    show($("cl-msg"), "ok", `اتصدّر ${list.length} حالة لـ ${GROUP_AR[g]}` + (notSent.length < list.length ? ` (منهم ${list.length - notSent.length} كانوا اتبعتوا قبل كده).` : "."));
-  } catch (e) { show($("cl-msg"), "err", "الملف اتصدّر، بس ماتعلّمتش إنها اتبعتت: " + e.message); }
-}
-$("cl-exp-pepsi").onclick = () => exportClient("pepsi");
-$("cl-exp-chipsy").onclick = () => exportClient("chipsy");
-// القرار في الملف الراجع: رفض / موافق، ولو العمود فاضي بس فيه تواريخ جديدة يبقى موافق بتعديل المدة
-const decOf = t => /رفض|مرفوض|reject|^no$/i.test(t) ? "rejected" : /موافق|اوافق|أوافق|معتمد|تم|ok|yes|approve/i.test(t) ? "approved" : "";
-$("cl-file").onchange = async () => {
-  CROWS = []; $("cl-save").disabled = true;
-  const f = $("cl-file").files[0]; if (!f) return;
-  try {
-    const wb = XLSX.read(await f.arrayBuffer(), { cellDates: true });
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: "" });
-    const H = (rows[0] || []).map(h => String(h).trim());
-    const col = re => H.findIndex(h => re.test(h));
-    const iId = col(/رقم الطلب/), iDec = col(/قرار/), iF = col(/^من \(/), iT = col(/^لحد \(/), iN = col(/ملاحظ/);
-    if (iId < 0 || iDec < 0) return show($("cl-msg"), "err", "ده مش ملف العميل اللي اتصدّر من هنا (مش لاقي عمود «رقم الطلب» أو «قرار العميل»).");
-    const bad = [], seen = new Set(); let skip = 0;
-    rows.slice(1).forEach((r, i) => {
-      const id = String(r[iId] || "").trim(); if (!id) return;
-      const line = `سطر ${i + 2}`;
-      if (seen.has(id)) return bad.push(`${line}: الحالة متكررة في الملف`); seen.add(id);
-      const ev = LIVE_W.get(id);
-      if (!ev) return bad.push(`${line}: الحالة دي مش مستنية رد العميل (اتسجل قرارها قبل كده أو اترجعت)`);
-      if (ev.type === "sick") return bad.push(`${line}: دي حالة مرضي — رد المرضي بيترفع من «شيت الرد» فوق`);
-      const f2 = iF >= 0 ? toISO(r[iF]) : "", t2 = iT >= 0 ? toISO(r[iT]) : "", note = iN >= 0 ? String(r[iN]).trim() : "";
-      let dec = decOf(String(r[iDec]).trim());
-      if (!dec && (f2 || t2)) dec = "approved";
-      if (!dec) return skip++;   // العميل لسه مارّدش على السطر ده
-      const from = f2 || ev.from, to = t2 || (f2 ? f2 : ev.to);
-      if (dec === "approved" && (!from || to < from)) return bad.push(`${line}: التواريخ بعد التعديل مش مظبوطة`);
-      CROWS.push({ id, ev, dec, from, to, note, moved: dec === "approved" && (from !== ev.from || to !== ev.to) });
-    });
-    const ok = CROWS.filter(x => x.dec === "approved" && !x.moved).length, mv = CROWS.filter(x => x.moved).length, rj = CROWS.filter(x => x.dec === "rejected").length;
-    show($("cl-msg"), bad.length ? "err" : "ok", `العميل: ${ok} موافق — ${mv} موافق بتعديل المدة — ${rj} مرفوض` + (skip ? ` — ${skip} لسه مارّدش عليهم (هيفضلوا مستنيين)` : "")
-      + (bad.length ? `\n${bad.length} سطر مش هيتسجلوا:\n` + bad.slice(0, 20).join("\n") : "") + (CROWS.length ? "\nراجع الأرقام ودوس «احفظ قرارات العميل»." : ""));
-    $("cl-save").disabled = !CROWS.length;
-  } catch (e) { show($("cl-msg"), "err", "الملف ماتقراش: " + e.message); }
+    show($("msg"), "ok", `اتعتمد ${n} إجازة.`);
+  } catch (e) { show($("cl-msg"), "err", `اتعتمد ${n} ووقف عند خطأ: ` + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : e.message)); }
+  $("old-lv-ok").disabled = false;
 };
 function clientUpd(ev, dec, from, to, note) {
   const u = auth.currentUser, moved = dec === "approved" && (from !== ev.from || to !== ev.to);
@@ -357,13 +323,6 @@ function clientUpd(ev, dec, from, to, note) {
     original: ev.original || { type: ev.type, from: ev.from || "", to: ev.to || "", entry_date: ev.entry_date || "" } });
   return upd;
 }
-$("cl-save").onclick = async () => {
-  $("cl-save").disabled = true; let n = 0;
-  try {
-    for (const x of CROWS) { await updateDoc(doc(db, "hr_events", x.id), clientUpd(x.ev, x.dec, x.from, x.to, x.note)); n++; }
-    show($("cl-msg"), "ok", `اتسجل قرار العميل على ${n} حالة.`); CROWS = []; $("cl-file").value = "";
-  } catch (e) { show($("cl-msg"), "err", `اتسجل ${n} ووقف عند خطأ: ` + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : e.message)); }
-};
 
 // ===== المرضي: شيت للعميل بنفس شكله، وشيت رد بالأيام المعتمدة =====
 // القاعدة عند العميل: 10 أيام مرضى في السنة، وإصابة العمل ملهاش حد. العميل بيرد بالاستثناءات بس.
@@ -560,6 +519,38 @@ $("lk-save").onclick = async () => {
   } catch (e) { show($("lk-msg"), "err", `اتعدّل ${n} ووقف عند خطأ: ` + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : e.message)); }
 };
 
+// ===== تصدير المرفوض: مرضي / إجازة / استقالة في شيت واحد بالسبب =====
+const RJ_HEAD = ["الاسم", "الرقم القومى", "الكود", "العميل", "المكان", "الوظيفة", "النوع", "من", "لحد", "عدد الايام", "الايام المرفوضة", "الرفض من", "سبب الرفض", "تاريخ التسجيل"];
+$("rj-exp").onclick = async () => {
+  const f = $("rj-from").value, t = $("rj-to").value, ty = $("rj-ty").value;
+  if (!f || !t || t < f) return show($("rj-msg"), "err", "حدد الفترة (من ولحد).");
+  show($("rj-msg"), "info", "بيحمّل...");
+  try {
+    const [rj, sk] = await Promise.all([getDocs(evQ(where("status", "==", "rejected"))), getDocs(evQ(where("status", "==", "approved"), where("type", "==", "sick")))]);
+    const list = [];
+    rj.forEach(d => list.push({ id: d.id, ...d.data() }));
+    // المرضي اللي العميل اعتمد منه أقل من أيامه (أو 0) — الباقي مرفوض
+    sk.forEach(d => { const e = { id: d.id, ...d.data() }; if (e.approved_days != null && e.approved_days !== "" && +e.approved_days < +e.days) list.push(e); });
+    const inP = e => e.type === "resign" ? (e.entry_date >= f && e.entry_date <= t) : (e.from && e.from <= t && (e.to || e.from) >= f);
+    const rows = list.filter(e => (!ty || e.type === ty) && inP(e))
+      .sort((a, b) => placeOf(a).localeCompare(placeOf(b)) || String(a.name).localeCompare(String(b.name)) || String(a.from || a.entry_date).localeCompare(String(b.from || b.entry_date)))
+      .map(e => {
+        const byClient = !!e.client, part = e.status === "approved";
+        const rjDays = e.type === "resign" ? "" : part ? (+e.days || 0) - (+e.approved_days || 0) : (+e.days || 0);
+        const why = (byClient ? e.client.note : e.note) || e.note || "";
+        return [e.name || "", String(e.nid || ""), String(e.code || ""), GROUP_AR[groupOf(e)], placeOf(e), e.job || "",
+          tyTxt(e) + (e.type === "leave" && e.kind ? " " + (KINDS[e.kind] || "") : ""),
+          e.type === "resign" ? dmy(e.entry_date) : dmy(e.from), e.type === "resign" ? "" : dmy(e.to || e.from),
+          e.type === "resign" ? "" : (+e.days || 0), rjDays,
+          byClient ? (part ? "العميل (اعتمد " + e.approved_days + " من " + e.days + ")" : "العميل") : "HR تيما", why || "بدون سبب", dmy(e.entry_date)];
+      });
+    if (!rows.length) return show($("rj-msg"), "info", "مفيش حالات مرفوضة في الفترة دي.");
+    sheetOut([RJ_HEAD, ...rows], [30, 17, 10, 14, 22, 16, 16, 11, 11, 9, 12, 22, 34, 12], "المرفوض", `المرفوض ${f} الى ${t}.xlsx`);
+    const noWhy = rows.filter(r => r[12] === "بدون سبب").length;
+    show($("rj-msg"), "ok", `نزل ${rows.length} حالة مرفوضة` + (noWhy ? ` — منهم ${noWhy} اترفضوا من غير سبب.` : "."));
+  } catch (e) { show($("rj-msg"), "err", "مش قادر أحمّل المرفوض: " + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : e.message)); }
+};
+
 let VIEW = false;   // المشاهد: عرض بس
 // HR ليه فروع: حالات فروعه بس — كل قراية لازم تبقى بالفروع دي (الـ Rules بترفض غير كده).
 // الحالات اللي مالهاش فرع (الشرقية والإكسيل القديم) ومرحلة العميل لـ HR اللي ليه كل الفروع.
@@ -651,11 +642,11 @@ function render() {
         <input placeholder="ملاحظة العميل (اختياري)" data-cnote="${e.id}">
         <div class="row"><button class="btn ok small" data-csave="${e.id}">سجّل</button><button class="btn sec small" data-ccancel="1">إلغاء</button></div></div>` : ""}
       ${VIEW ? "" : `<div class="ft">${e.status === "pending" || e.changed
-        ? `${kindSel(e)}${sickFields(e)}<input placeholder="ملاحظة (اختياري)" data-note="${e.id}" style="flex:1;min-width:120px;"><button class="btn ok small" data-ap="${e.id}">${toClient && e.type !== "resign" ? "موافقة ← للعميل" : "اعتماد"}</button><button class="btn sec small" data-ed="${e.id}">تعديل</button><button class="btn sec small" data-rj="${e.id}">رفض</button>`
+        ? `${kindSel(e)}${sickFields(e)}<input placeholder="ملاحظة (إجبارية لو هترفض)" data-note="${e.id}" style="flex:1;min-width:120px;"><button class="btn ok small" data-ap="${e.id}">${toClient && e.type !== "resign" ? "موافقة ← للعميل" : "اعتماد"}</button><button class="btn sec small" data-ed="${e.id}">تعديل</button><button class="btn sec small" data-rj="${e.id}">رفض</button>`
         : e.status === "client_wait" && e.type === "sick"
         ? `<input placeholder="ملاحظة العميل (اختياري)" data-note="${e.id}" style="flex:1;min-width:110px;"><label class="f" style="flex-direction:row;align-items:center;gap:4px;">الأيام المعتمدة<input type="number" min="0" max="${esc(e.days)}" value="${esc(e.days)}" data-sa="${e.id}" style="width:64px;padding:4px 6px;"></label><button class="btn ok small" data-sok="${e.id}">سجّل رد العميل</button><button class="btn sec small" data-back="${e.id}">رجّعها لتيما</button>`
         : e.status === "client_wait"
-        ? `<input placeholder="ملاحظة العميل (اختياري)" data-note="${e.id}" style="flex:1;min-width:120px;"><button class="btn ok small" data-cok="${e.id}">العميل وافق</button><button class="btn sec small" data-ced="${e.id}">وافق بمدة تانية</button><button class="btn sec small" data-crj="${e.id}">العميل رفض</button><button class="btn sec small" data-back="${e.id}">رجّعها لتيما</button>`
+        ? `<input placeholder="ملاحظة العميل (إجبارية لو رفض)" data-note="${e.id}" style="flex:1;min-width:120px;"><button class="btn ok small" data-cok="${e.id}">العميل وافق</button><button class="btn sec small" data-ced="${e.id}">وافق بمدة تانية</button><button class="btn sec small" data-crj="${e.id}">العميل رفض</button><button class="btn sec small" data-back="${e.id}">رجّعها لتيما</button>`
         : `<button class="btn sec small" data-back="${e.id}">رجّعها مستنية</button>`}</div>`}
     </div>`; }).join("") : `<div class="card muted">مفيش حالات.</div>`;
 }
@@ -723,9 +714,9 @@ $("list").onclick = async e => {
   }
   if (ds.back) return save(id, { status: "pending", decided_by: null, decided_email: null, decided_at: null, hr_ok_by: null, hr_ok_email: null, hr_ok_at: null, client: null, approved_days: null, client_limit: null }, "رجعت «مستني HR تيما».");
   if (ds.cok) return save(id, clientUpd(ev, "approved", ev.from, ev.to, note), "اتسجل إن العميل وافق.");
-  if (ds.crj) { if (!note && !confirm("ترفض من غير ملاحظة؟")) return; return save(id, clientUpd(ev, "rejected", "", "", note), "اتسجل إن العميل رفض."); }
+  if (ds.crj) { if (!note) return show($("msg"), "err", `اكتب سبب رفض العميل لـ ${ev.name} في خانة الملاحظة الأول.`); return save(id, clientUpd(ev, "rejected", "", "", note), "اتسجل إن العميل رفض."); }
   if (ds.rj) {
-    if (!note && !confirm("ترفض من غير ملاحظة؟")) return;
+    if (!note) return show($("msg"), "err", `اكتب سبب الرفض لـ ${ev.name} في خانة الملاحظة الأول — السبب إجباري.`);
     const upd = { status: "rejected", note, decided_by: u.uid, decided_email: actorEmail(u), decided_at: serverTimestamp(), changed: false };
     if (ev.changed && ev.changed_data) Object.assign(upd, ev.changed_data);   // القرار على آخر نسخة في الشيت
     return save(id, upd, "اترفضت.");

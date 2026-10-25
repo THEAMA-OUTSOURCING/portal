@@ -382,7 +382,7 @@ function period() {
 }
 
 // ===== الحالات المعتمدة من الـ HR (إجازة / مرضي / استقالة): الشرقية من Drive، وطلبات المشرفين، وإكسيل الـ HR =====
-// واللي مستني رد العميل (بيبسي والإمداد / شيبسي) بيظهر «م؟» أو «ج؟» أو «خ؟» — مش غياب ومش معتمد
+// والمرضي اللي مستني رد العميل (بيبسي والإمداد / شيبسي) بيظهر «م؟» — مش غياب ومش معتمد
 const SHARQIA = "الشرقية للدخان";
 // حالات HR بحالة معيّنة — HR/المحاسب اللي ليه فروع بيقرا حالات فروعه بس (الـ Rules بتطلب كده)
 const evQuery = st => S.scoped
@@ -412,7 +412,8 @@ async function applySharqiaEvents(list, from, to) {
     }
     if (!e.from) continue;
     const [code, lbl] = e.type === "sick" ? ["م", e.sick_kind === "injury" ? "إصابة عمل" : "مرضي"] : (KIND[e.kind] || ["ج", "إجازة"]);
-    const wait = e.status === "client_wait";
+    // رد العميل للمرضي بس — إجازة قديمة كانت «مستني العميل» بتتعرض معتمدة
+    const wait = e.status === "client_wait" && e.type === "sick";
     // مرضي العميل اعتمد منه جزء (أو 0): أول N يوم شغل من الحالة م، والباقي خ (الجمعة برة الحسبة)
     const nOk = e.type === "sick" && !wait && e.approved_days != null && e.approved_days !== "" ? +e.approved_days : Infinity;
     let n = 0;
@@ -681,7 +682,7 @@ function buildReportWorkbook(ExcelJS, R) {
   foot("إجمالي الحاضرين", d => pres(R.list, d));
   // دليل الألوان
   ws.addRow([]);
-  const legend = [["غ", "غايب", C.abs], ["ج", "إجازة", C.lvg], ["خ", "إجازة بدون أجر", C.lv], ["م", "مرضي", C.lv], ["س", "استقالة", C.lv], ["م؟ / ج؟ / خ؟", "في انتظار اعتماد العميل", C.wtTxt]];
+  const legend = [["غ", "غايب", C.abs], ["ج", "إجازة", C.lvg], ["خ", "إجازة بدون أجر", C.lv], ["م", "مرضي", C.lv], ["س", "استقالة", C.lv], ["م؟", "مرضي في انتظار اعتماد العميل", C.wtTxt]];
   legend.forEach(([k, v, color]) => { const row = ws.addRow([k, v]); row.getCell(1).font = { name: "Arial", bold: true, color: { argb: color } }; row.getCell(2).font = { name: "Arial", size: 9 }; });
   const l3 = ws.addRow(["", "جمعة أو عطلة رسمية"]); l3.getCell(1).fill = fill(C.off); l3.getCell(2).font = { name: "Arial", size: 9 };
   const l4 = ws.addRow(["", "يوم لسه مااتعتمدش من المحاسب"]); l4.getCell(1).fill = fill(C.unapp); l4.getCell(2).font = { name: "Arial", size: 9 };
