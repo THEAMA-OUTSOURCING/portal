@@ -358,7 +358,7 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
 import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, TIME_SITES, guessTimes, calcHours, isHelperJob, specialOf, MISSION_SHIFT } from './shared.js';
-import { openPrintView, openOrderEditor } from './sheet.js';
+import { openPrintView, openOrderEditor, printOrder } from './sheet.js';
 
 
 const $ = id => document.getElementById(id);
@@ -369,7 +369,7 @@ function hide(el) { el.className = "msg"; el.textContent = ""; }
 const pad = n => String(n).padStart(2, "0");
 const ymd = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
 
-const S = { regional: false, admin: false, office: false, timed: false, prevIn: {}, sites: [], site: null, date: null, roster: [], pages: [], day: null, choice: {}, unsubPages: null, unsubDay: null, plan: {}, lateCount: 0, pool: [], rep: {}, removals: [], unsubRoster: null, unsubPool: null, unsubRem: null, newWorkers: [], unsubNew: null };
+const S = { regional: false, admin: false, office: false, timed: false, prevIn: {}, prevOut: {}, sites: [], site: null, date: null, roster: [], pages: [], day: null, choice: {}, unsubPages: null, unsubDay: null, plan: {}, lateCount: 0, pool: [], rep: {}, removals: [], unsubRoster: null, unsubPool: null, unsubRem: null, newWorkers: [], unsubNew: null };
 
 // ===== العدد المطلوب من شيت الاحتياج (الحساب نفسه في shared.js — نفس حساب صفحة الإدارة) =====
 async function loadPlan() {
@@ -591,10 +591,10 @@ function matchExtra(x) {
 function aiState() {
   // آخر قراءة لكل عامل من الصور اللي خلصت
   const map = {};
-  S.pages.filter(p => p.status === "done").forEach(p => {
+  livePages().forEach(p => {
     (p.result?.rows || []).forEach(r => { if (r.code) map[r.code] = { ...r, page: p.id }; });
   });
-  S.pages.filter(p => p.status === "done").forEach(p => {
+  livePages().forEach(p => {
     (p.result?.extra || []).forEach(x => {
       const w = matchExtra(x);
       if (w && !map[w.code]) map[w.code] = { s: "P", conf: "M", match: "handwritten", note: x.note || "", code: w.code, page: p.id };
@@ -636,7 +636,7 @@ function poolOfExtra(x) {
 function aiSubs() {
   // آخر قراءة لكل بديل من الصور اللي خلصت
   const map = {};
-  S.pages.filter(p => p.status === "done").forEach(pg => {
+  livePages().forEach(pg => {
     (pg.result?.rows || []).filter(r => !r.code).forEach(r => {
       const m = subOf(r); if (!m) return;
       map[subKey(m.p)] = { ...r, page: pg.id, w: m.p, match: m.fuzzy ? "fuzzy" : r.match };
@@ -659,13 +659,34 @@ function lockedForMe() {
 // ===== الساعات (مواقع الحضور والانصراف) =====
 // وقت حضور كل عامل في اليوم اللي قبله (لو كان متأكد): بيحسم «8 → 8» صبح ولا مسا
 async function loadPrev() {
-  S.prevIn = {};
+  S.prevIn = {}; S.prevOut = {};
   if (!S.timed) return;
   const d = new Date(S.date + "T00:00:00"); d.setDate(d.getDate() - 1);
   try {
     const p = await getDoc(doc(db, "att_days", S.site + "__" + ymd(d)));
-    Object.entries(p.exists() ? p.data().entries || {} : {}).forEach(([k, e]) => { if (e.s === "P" && e.in && e.min != null && !e.t_issue) S.prevIn[k] = e.in; });
+    Object.entries(p.exists() ? p.data().entries || {} : {}).forEach(([k, e]) => { if (e.s === "P" && e.in && e.min != null && !e.t_issue) { S.prevIn[k] = e.in; S.prevOut[k] = e.out || ""; } });
   } catch (e) {}
+}
+// بديل الراحات (اسمه مكتوب قدام الغايب من غير ساعة): ساعة مقترحة، والمحاسب بيأكدها أو يعدّلها في الاعتماد.
+// 1) وردية العامل الأصلي امبارح  2) الأكتر بين زمايله في نفس الوظيفة النهارده  3) الوردية العادية للوظيفة (Code&time)
+function repTimes(entries) {
+  const mode = {};
+  Object.values(entries).forEach(e => {
+    if (e.s !== "P" || e.t_issue || e.mission || e.min == null || !e.in) return;
+    const k = (e.in) + "|" + (e.out || ""); ((mode[e.job] ??= {})[k] = (mode[e.job][k] || 0) + 1);
+  });
+  const top = job => { const m = mode[job]; if (!m) return null; const [k] = Object.entries(m).sort((a, b) => b[1] - a[1])[0]; const [i, o] = k.split("|"); return { in: i, out: o }; };
+  Object.entries(entries).forEach(([code, e]) => {
+    if (e.s !== "A" || !e.rep) return;
+    const helper = isHelperJob(e.job);
+    let t, src;
+    if (S.prevIn[code] && (helper || S.prevOut[code])) { t = { in: S.prevIn[code], out: S.prevOut[code] }; src = "وردية الأصلي امبارح"; }
+    else if ((t = top(e.job))) src = "زي زمايله في الوظيفة النهارده";
+    else { t = { in: MISSION_SHIFT.in, out: MISSION_SHIFT.out }; src = "الوردية العادية (Code&time)"; }
+    const h = calcHours(t.in, helper ? "" : t.out, e.job);
+    e.rep = { ...e.rep, in: t.in, out: helper ? "" : t.out, t_src: src, t_issue: "ساعة مقترحة — اتأكد",
+      ...(h ? { min: h.min, dmin: h.dmin, nmin: h.nmin, ot: h.ot, otd: h.otd, otn: h.otn } : {}) };
+  });
 }
 // الحالة: اختيار المشرف، وإلا القراية. في مواقع الساعات: المشطوب وفي ملاحظاته «مأمورية» = حاضر، و«توقف» = ق (Q)
 function defOf(k, r) {
@@ -687,6 +708,11 @@ function timeEntry(r, job, prevIn) {
     ...(issue ? { t_issue: issue } : { min: h.min, dmin: h.dmin, nmin: h.nmin, ot: h.ot, otd: h.otd, otn: h.otn }) };
 }
 
+// الصفحات اللي بتتقري: اللي خلصت، ومن غير الصور اللي اتصورت تاني (السيرفر علّمها superseded_by بصورة أحدث لنفس الصفحة)
+function livePages() {
+  const ids = new Set(S.pages.map(p => p.id));
+  return S.pages.filter(p => p.status === "done" && !(p.superseded_by && ids.has(p.superseded_by)));
+}
 function render() {
   const busy = S.pages.filter(p => p.status === "pending" || p.status === "reading").length;
   $("pages").innerHTML = S.pages.map(p => {
@@ -699,6 +725,7 @@ function render() {
     if (p.status === "pending") st = `<span class="pill p-wait">مستني السيرفر</span>`;
     else if (p.status === "reading") st = `<span class="pill p-wait">بيقرا...</span>`;
     else if (p.status === "error") st = `<span class="pill p-err">فشلت</span><div class="muted">${esc(p.error || "")}</div>`;
+    else if (p.superseded_by && S.pages.some(x => x.id === p.superseded_by)) st = `<span class="pill p-warn">اتصورت تاني</span><div class="muted">فيه صورة أحدث لنفس الصفحة، والقراية من الأحدث</div>`;
     else st = `<span class="pill p-ok">${fmt(rows.length)} صف</span> ` +
       (res.count == null ? `<span class="pill p-warn">العدد المكتوب مااتقراش</span>`
         : res.count === calc ? `<span class="pill p-ok">العدد ${fmt(calc)} ✓</span>`
@@ -716,7 +743,7 @@ function render() {
   // ترتيب المراجعة زي الصور المرفوعة مش زي الكشف الحالي: الصفحات بترتيب رفعها، وجوّا كل صفحة من فوق لتحت.
   // المكتوب بخط اليد بعد المطبوع في نفس الصفحة، واللي مالوش صف في أي صورة في آخر مجموعته.
   const at = {};
-  S.pages.filter(p => p.status === "done").forEach((p, pi) => {
+  livePages().forEach((p, pi) => {
     (p.result?.rows || []).forEach((r, i) => { if (r.code) at[r.code] = pi * 10000 + i; });
     (p.result?.extra || []).forEach((x, i) => { const w = matchExtra(x); if (w && at[w.code] == null) at[w.code] = pi * 10000 + 5000 + i; });
   });
@@ -786,7 +813,7 @@ function render() {
   // الغايب في صف مطبوع لعامل مش في الكشف دلوقتي (غالباً مشي، والورقة اتطبعت قبل التعديل): مش محتاج حاجة، فبيتعدّ بس
   const loose = [];
   let goneAbs = 0;
-  S.pages.filter(p => p.status === "done").forEach(p => {
+  livePages().forEach(p => {
     (p.result?.rows || []).filter(r => !r.code && !subOf(r)).forEach(r => {
       if (r.s === "A" && /^\d{14}$/.test(String(r.nid || "").replace(/\D/g, ""))) { goneAbs++; return; }
       loose.push(`صف ${esc(r.n)}: رقم قومي ${esc(r.nid || "مش مقروء")} — ${r.s === "P" ? "حاضر" : r.s === "A" ? "غايب" : "مش واضح"}`);
@@ -821,12 +848,16 @@ $("confirm").addEventListener("click", async () => {
   const ai = aiState(), u = auth.currentUser;
   const entries = {};
   let P = 0, A = 0, Qn = 0;
+  // ترتيب الكشف الورقي (زي المطبوع) — الاعتماد بيعرض الأسماء بيه
+  let ordMap = new Map();
+  try { ordMap = printOrder({ roster: S.roster, subs: restSubs(), order: await loadOrder(S.site), plan: S.plan }); } catch (e) {}
   for (const w of S.roster) {
     const r = ai[w.code];
     const s = defOf(w.code, r);
     if (s !== "P" && s !== "A" && s !== "Q") return show($("c-msg"), "err", "فيه عمال لسه محتاجين قرار.");
     if (s === "P") P++; else if (s === "A") A++; else Qn++;
     entries[w.code] = { name: w.name, nid: w.nid || "", job: w.job, type: w.type, s, ai: r ? r.s : "", by: S.choice[w.code] && (!r || S.choice[w.code] !== r.s) ? "sup" : "ai", note: r?.note || "", page: r?.page || "" };
+    if (ordMap.has(w.code)) entries[w.code].ord = ordMap.get(w.code);
     if (s === "A" && S.rep[w.code]) entries[w.code].rep = S.rep[w.code];
     if (s === "Q") Object.assign(entries[w.code], { s: "L", c: "ق" });   // توقف: بيترفع ق على البصمة
     if (S.timed && s === "P") Object.assign(entries[w.code], timeEntry(r, w.job, S.prevIn[w.code]));
@@ -841,9 +872,11 @@ $("confirm").addEventListener("click", async () => {
     if (usedRep.has(r.w.nid)) return show($("c-msg"), "err", `${r.w.name} متسجل حاضر في صفه، ومختار كمان بديل لعامل غايب. شيله من واحد منهم.`);
     entries[k] = { name: r.w.name, nid: r.w.nid || "", code: r.w.code || "", job: r.w.job || "", type: r.w.type || "بديل", sub: true, s: "P", ai: r.s,
       by: S.choice[k] && S.choice[k] !== r.s ? "sup" : "ai", note: r.note || "", page: r.page || "" };
+    if (ordMap.has(k)) entries[k].ord = ordMap.get(k);
     if (S.timed) Object.assign(entries[k], timeEntry(r, r.w.job, S.prevIn[k]));
     P++; subsP++;
   }
+  if (S.timed) repTimes(entries);
   if (S.over.length) {
     try {
       await addDoc(collection(db, "att_alerts"), { type: "over_plan", site: S.site, date: S.date,
@@ -860,7 +893,7 @@ $("confirm").addEventListener("click", async () => {
     const base = {
       site: S.site, date: S.date, entries,
       counts: { present: P, absent: A, ...(Qn ? { stop: Qn } : {}), total: S.roster.length + subsP },
-      pages: S.pages.filter(p => p.status === "done").map(p => p.id),
+      pages: livePages().map(p => p.id),
     };
     if (S.regional) {
       // الإقليمي: مراجعة (لو المشرف مارفعش، الإقليمي بيرفع ويراجع مرة واحدة)

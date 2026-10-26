@@ -144,6 +144,22 @@ export function buildJobs(roster, order, plan, subs) {
   return out;
 }
 
+// ترتيب الكشف الورقي (نفس اللي بيتطبع: الصفحات والصفوف) — بيستخدمه الاعتماد عشان الأسماء تظهر زي الورقة.
+// بيرجّع Map: مفتاح العامل ← رقمه في الكشف. المفاتيح: الكود، و«N+الرقم القومي»، و«R+...» لبدلاء الراحات (زي att_days).
+// اللي مش مطبوعين (زيادة عن المطلوب أو متشالين) بييجوا بعد المطبوعين بترتيب وظايفهم.
+export function printOrder({ roster, subs, order, plan }) {
+  const m = new Map(); let n = 0;
+  const put = w => {
+    [w.code, keyOf(w), w.nid ? "N" + w.nid : "", w.sub ? "R" + (w.nid || w.code) : ""].filter(Boolean)
+      .forEach(k => { if (!m.has(k)) m.set(k, n); });
+    n++;
+  };
+  const jobs = buildJobs(roster || [], order, plan || {}, subs || []);
+  for (const t of TYPES) paginate(jobs[t.id], order).forEach(pg => pg.rows.forEach(r => { if (r.w) put(r.w); }));
+  for (const t of TYPES) jobs[t.id].forEach(j => [...(j.extra || []), ...(j.spare || []), ...(j.excluded || [])].forEach(put));
+  return m;
+}
+
 // تقسيم أسماء وظيفة على صفحات حسب الفواصل اليدوية وقاعدة 30/35
 function chunk(rows, isBreak) {
   const segs = [];

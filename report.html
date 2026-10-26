@@ -157,6 +157,7 @@ th{background:#1d2024;}
         <div class="row">
           <label class="f">من<input type="date" id="a-from"></label>
           <label class="f">لحد<input type="date" id="a-to"></label>
+          <label class="f">الموقع<select id="a-site"></select></label>
           <label class="f">الحالة<select id="a-st"><option value="reviewed">مستني اعتماد</option><option value="confirmed">مستني الإقليمي</option><option value="">الكل</option><option value="approved">معتمد</option></select></label>
           <button class="btn" id="a-go">اعرض</button>
           <button class="btn sec" id="a-all" disabled>اعتماد كل المعروض</button>
@@ -166,8 +167,13 @@ th{background:#1d2024;}
       </div>
       <div class="card hidden" id="a-detail"><h2 id="a-dtitle"></h2>
         <div class="row" id="a-edit-bar" style="margin-bottom:8px;"><span class="muted">تقدر تغيّر حالة أي عامل من هنا وبعدين:</span><button class="btn small" id="a-esave">احفظ التعديل واعتمد</button></div>
-        <p class="muted hidden" id="a-locked" style="margin-bottom:8px;">اليوم ده معتمد. لو محتاج تعدّل فيه: دوس «إلغاء الاعتماد» في الجدول، وبعدين افتح التفاصيل تاني وعدّل واعتمد.</p><div class="tbl"><table class="list" style="width:100%"><thead><tr><th>الاسم</th><th>الوظيفة</th><th>الحالة</th><th>قراءة الصورة</th><th>البديل</th><th>ملاحظة</th></tr></thead><tbody id="a-dlist"></tbody></table></div></div>
+        <p class="muted hidden" id="a-locked" style="margin-bottom:8px;"></p>
+        <div id="a-photos" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:8px;"></div><div class="tbl"><table class="list" style="width:100%"><thead><tr id="a-dhead"></tr></thead><tbody id="a-dlist"></tbody></table></div></div>
     </section>
+    <div id="a-lb" class="hidden" style="position:fixed;inset:0;z-index:4000;background:rgba(0,0,0,.85);overflow:auto;text-align:center;padding:12px;">
+      <button class="btn sec small" id="a-lb-x" style="position:sticky;top:0;">✕ قفل</button><br>
+      <img id="a-lb-img" alt="صورة الكشف" style="max-width:100%;margin-top:8px;background:#fff;">
+    </div>
 
     <!-- العطلات -->
     <!-- تصدير البصمة: شيت بنفس شكل شيت المشرف اللي سكيل «ابلود الحضور والبصمة» بيقراه -->
@@ -203,7 +209,8 @@ th{background:#1d2024;}
 <script type="module">
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes } from './shared.js';
+import { db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, fetchPlanBase, planBySite } from './shared.js';
+import { printOrder } from './sheet.js';
 
 // خانة اليوم: 1 حاضر، غ غايب، أو الرمز زي ما هو (ج م ض ر ق ن 8 ...). p = قيمة الحضور (ن = نص يوم)
 function cellOf(e, app) {
@@ -246,6 +253,7 @@ onAuthStateChanged(auth, async user => {
   // أزرار التنقل بين الصفحات بقت في shared.js (حسب الدور)
   if (S.view) { $("tab-approve").textContent = "حالة الاعتماد"; }
   // الشرقية بتظهر في الاختيار اتنين: الشرقية 1 (16→15) والشرقية 2 (الشهر الميلادي)
+  $("a-site").innerHTML = `<option value="*">كل المواقع</option>` + S.sites.map(s => `<option>${esc(s)}</option>`).join("");
   $("r-site").innerHTML = (S.office ? `<option value="*">كل المواقع</option>` : "") + S.sites.flatMap(s => s === SHARQIA ? Object.keys(SH_G) : [s]).map(s => `<option>${esc(s)}</option>`).join("");
   const now = new Date(), m = ymd(now).slice(0, 7);
   $("r-month").value = now.getDate() > 20 ? ymd(new Date(now.getFullYear(), now.getMonth() + 1, 1)).slice(0, 7) : m;
@@ -768,10 +776,10 @@ function apState(d) {
 // ===== الاعتماد =====
 let A = [];
 $("a-go").onclick = async () => {
-  const from = $("a-from").value, to = $("a-to").value, st = $("a-st").value;
+  const from = $("a-from").value, to = $("a-to").value, st = $("a-st").value, site = $("a-site").value;
   show($("a-msg"), "info", "بيحمّل...");
   try {
-    A = (await fetchDays(from, to, "*")).filter(d => !st || d.status === st).sort((a, b) => a.date.localeCompare(b.date) || a.site.localeCompare(b.site));
+    A = (await fetchDays(from, to, site)).filter(d => !st || d.status === st).sort((a, b) => a.date.localeCompare(b.date) || a.site.localeCompare(b.site));
     $("a-list").innerHTML = A.length ? A.map((d, i) => {
       const e = Object.values(d.entries || {}), reps = e.filter(x => x.rep).length, sup = e.filter(x => x.by === "sup").length;
       return `<tr><td>${esc(d.site)}</td><td>${DAYN[new Date(d.date + "T00:00").getDay()]} ${d.date}</td><td>${d.counts?.present ?? ""}</td><td>${d.counts?.absent ?? ""}</td><td>${reps}</td><td>${sup}</td>
@@ -785,7 +793,9 @@ $("a-go").onclick = async () => {
 };
 const canEd = d => S.canApprove && (d.status === "reviewed" || (S.role === "admin" && d.status === "confirmed"));
 // مواقع الحضور والانصراف: الوقت اللي البوابة مش متأكدة منه لازم المحاسب يراجعه قبل الاعتماد
-const tIssues = d => TIME_SITES.includes(d.site) ? Object.values(d.entries || {}).filter(e => e.s === "P" && (e.t_issue || e.min == null)).length : 0;
+// وبديل الراحات قدام الغايب: ساعته مقترحة من البوابة (أو مفيش ساعة في الأيام القديمة) لحد ما المحاسب يأكدها
+const repBad = e => e.s === "A" && e.rep && (e.rep.t_issue || e.rep.min == null);
+const tIssues = d => TIME_SITES.includes(d.site) ? Object.values(d.entries || {}).filter(e => (e.s === "P" && (e.t_issue || e.min == null)) || repBad(e)).length : 0;
 const canAp = d => canEd(d) && !tIssues(d);
 async function setStatus(d, approve) {
   const u = auth.currentUser;
@@ -802,7 +812,12 @@ $("a-list").onclick = async e => {
     // اليوم المعتمد: الأدمن بس يعدّل فيه على طول، والمحاسب يلغي الاعتماد الأول (نفس اللي الـ Rules بتسمح بيه)
     const canEdit = canEd(d) || (d.status === "approved" && S.role === "admin");
     $("a-edit-bar").classList.toggle("hidden", !canEdit);
-    $("a-locked").classList.toggle("hidden", canEdit || d.status !== "approved" || !S.canApprove);
+    // ليه مقفول: معتمد (يلغي الاعتماد الأول)، أو لسه مستني مراجعة الإقليمي
+    const why = canEdit || !S.canApprove ? "" : d.status === "approved"
+      ? "اليوم ده معتمد. لو محتاج تعدّل فيه: دوس «إلغاء الاعتماد» في الجدول، وبعدين افتح التفاصيل تاني وعدّل واعتمد."
+      : d.status === "confirmed" ? "اليوم ده لسه مستني مراجعة الإقليمي. هتقدر تعدّل الحالات والساعات وتعتمد بعد ما الإقليمي يراجعه." : "";
+    $("a-locked").innerHTML = why ? `<b style="color:#a32d2d">${why}</b>` : "";
+    $("a-locked").classList.toggle("hidden", !why);
     const dis = canEdit ? "" : " disabled";
     const ai = { P: "حاضر", A: "غايب", U: "مش واضح", "": "مالوش صف" };
     // «نهار ولا ليل؟»: لو العامل كان متأكد امبارح، بنقترح نفس ورديته (المحاسب لسه بيأكد بالحفظ)
@@ -812,8 +827,15 @@ $("a-list").onclick = async e => {
       try { const p = await getDoc(doc(db, "att_days", d.site + "__" + ymd(pd)));
         Object.entries(p.exists() ? p.data().entries || {} : {}).forEach(([k, e]) => { if (e.s === "P" && e.in && e.min != null && !e.t_issue) A.prev[k] = e.in; }); } catch (er) {}
     }
-    $("a-dlist").innerHTML = Object.values(d.entries || {}).sort((a, b) => (a.s === "A") === (b.s === "A") ? 0 : a.s === "A" ? -1 : 1).map(x =>
-      `<tr><td>${esc(x.name || "")}</td><td>${esc(x.job || "")}</td><td>${x.s === "P" || x.s === "A" ? `<select data-ecode="${esc(Object.keys(d.entries).find(k => d.entries[k] === x))}"${dis}><option value="P" ${x.s === "P" ? "selected" : ""}>حاضر</option><option value="A" ${x.s === "A" ? "selected" : ""}>غايب</option></select>${TIME_SITES.includes(d.site) ? tmCell(x, dis, Object.keys(d.entries).find(k => d.entries[k] === x)) : ""}` : esc(x.c || "")}</td><td>${ai[x.ai ?? ""] || ""}${x.by === "sup" ? " <span class='pill p-wait'>المشرف غيّرها</span>" : ""}</td><td>${esc(x.rep?.name || "")}</td><td>${esc(x.note || "")}</td></tr>`).join("");
+    // نفس ترتيب الكشف الورقي: من «ord» المتسجل مع اليوم، ولو يوم قديم من غير ord بنحسبه من ترتيب الكشف الحالي
+    const pm = Object.values(d.entries || {}).every(x => x.ord != null) ? null : await paperOrder(d);
+    const ordOf = (k, x) => x.ord ?? pm?.get(k) ?? (x.code && pm?.get(x.code)) ?? (x.nid && pm?.get("N" + x.nid)) ?? 1e6;
+    const rowsSorted = Object.entries(d.entries || {}).sort(([ka, a], [kb, b]) => ordOf(ka, a) - ordOf(kb, b) || String(a.name || "").localeCompare(String(b.name || ""), "ar")).map(([, x]) => x);
+    dayPhotos(d);
+    const timedDay = TIME_SITES.includes(d.site);
+    $("a-dhead").innerHTML = `<th>الاسم</th><th>الوظيفة</th><th>الحالة</th>${timedDay ? "<th>الساعات</th>" : ""}<th>قراءة الصورة</th><th>البديل</th><th>ملاحظة</th>`;
+    $("a-dlist").innerHTML = rowsSorted.map(x =>
+      `<tr><td>${esc(x.name || "")}</td><td>${esc(x.job || "")}</td><td>${x.s === "P" || x.s === "A" ? `<select data-ecode="${esc(Object.keys(d.entries).find(k => d.entries[k] === x))}"${dis}><option value="P" ${x.s === "P" ? "selected" : ""}>حاضر</option><option value="A" ${x.s === "A" ? "selected" : ""}>غايب</option></select>${TIME_SITES.includes(d.site) ? tmCell(x, dis, Object.keys(d.entries).find(k => d.entries[k] === x)) : ""}` : esc(x.c || "")}</td>${timedDay ? `<td class="a-hrs">${hrsCell(x)}</td>` : ""}<td>${ai[x.ai ?? ""] || ""}${x.by === "sup" ? " <span class='pill p-wait'>المشرف غيّرها</span>" : ""}</td><td>${esc(x.rep?.name || "")}${x.rep && TIME_SITES.includes(d.site) ? repTm(x, dis) : ""}</td><td>${esc(x.note || "")}</td></tr>`).join("");
     $("a-detail").classList.remove("hidden"); $("a-detail").scrollIntoView({ behavior: "smooth" });
     return;
   }
@@ -821,6 +843,42 @@ $("a-list").onclick = async e => {
   if (t.dataset.un && !confirm("تلغي الاعتماد؟ الإقليمي هيقدر يعدّل اليوم تاني.")) return;
   try { await setStatus(A[+i], !!t.dataset.ap); $("a-go").click(); } catch (er) { show($("a-msg"), "err", "مااتحفظش: " + er.message); }
 };
+// ترتيب الكشف الورقي لأيام اتأكدت قبل ما الترتيب يتسجل مع اليوم: من ترتيب الكشف الحالي للموقع (كشف العمال + الترتيب + الخطة)
+const ORD_CACHE = {};
+async function paperOrder(d) {
+  const key = d.site + "__" + d.date.slice(0, 7);
+  if (ORD_CACHE[key]) return ORD_CACHE[key];
+  try {
+    const [r, o, pl, base] = await Promise.all([getDoc(doc(db, "rosters", d.site)), getDoc(doc(db, "sheet_order", d.site)),
+      getDoc(doc(db, "pools", d.site)), fetchPlanBase(d.date.slice(0, 7)).catch(() => null)]);
+    const subs = (pl.exists() ? pl.data().workers || [] : []).filter(p => /راحات/.test(p.type || "") && String(p.name || "").trim() && /^\d{14}$/.test(String(p.nid || "")) && String(p.job || "").trim());
+    return ORD_CACHE[key] = printOrder({ roster: r.exists() ? r.data().workers || [] : [], subs, order: o.exists() ? o.data() : null, plan: planBySite(base, d.date)[d.site] || {} });
+  } catch (e) { return null; }   // من غير ترتيب: بالاسم
+}
+// صور اليوم: الأحدث الأول وعليها «آخر صورة». الصورة بتفضل على البوابة 14 يوم، وبعد كده على السيرفر بس
+async function dayPhotos(d) {
+  const box = $("a-photos"); box.innerHTML = `<span class="muted">بيحمّل الصور...</span>`;
+  try {
+    const sn = await getDocs(query(collection(db, "att_pages"), where("site", "==", d.site), where("date", "==", d.date)));
+    if (A.cur !== d) return;
+    const ps = []; sn.forEach(x => ps.push({ id: x.id, ...x.data() }));
+    // الصورة المستخدمة = اللي مفيش صورة أحدث لنفس الصفحة (السيرفر بيعلّم القديمة superseded_by). المستخدمة الأول، والأحدث فالأحدث
+    const ids = new Set(ps.map(p => p.id)), old = p => !!(p.superseded_by && ids.has(p.superseded_by));
+    ps.sort((a, b) => old(a) - old(b) || (b.created_at?.seconds || 0) - (a.created_at?.seconds || 0));
+    const tm = p => p.created_at?.toDate ? p.created_at.toDate().toLocaleString("ar-EG", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
+    box.innerHTML = ps.length ? ps.map((p, i) => `<div style="flex:0 0 auto;width:130px;font-size:12px;text-align:center;">
+        ${p.image ? `<img src="data:image/jpeg;base64,${esc(p.image)}" data-lb="${esc(p.id)}" alt="صورة ${ps.length - i}" title="دوس تكبّر" style="width:130px;height:170px;object-fit:cover;border:${!old(p) && p.status === "done" ? "3px solid #1a7f37" : "1px solid #ccc"};${old(p) ? "opacity:.55;" : ""};border-radius:8px;cursor:zoom-in;">`
+          : `<div class="muted" style="width:130px;height:170px;border:1px dashed #ccc;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:6px;">الصورة على السيرفر بس (أقدم من 14 يوم)</div>`}
+        <div>${old(p) ? `<span class="pill p-wait">اتصورت تاني</span><br>` : p.status === "done" ? `<span class="pill p-ok">المستخدمة</span><br>` : ""}${esc(tm(p))}<br><span class="muted">${esc(p.uploaded_email || "")}</span>${p.status === "error" ? `<br><b style="color:#a32d2d">القراية فشلت</b>` : ""}</div></div>`).join("")
+      : `<span class="muted">مفيش صور لليوم ده.</span>`;
+    A.photos = Object.fromEntries(ps.filter(p => p.image).map(p => [p.id, p.image]));
+  } catch (e) { box.innerHTML = `<span class="muted">الصور ماتحمّلتش: ${esc(e.message)}</span>`; }
+}
+$("a-photos").addEventListener("click", e => {
+  const id = e.target.dataset?.lb; if (!id || !A.photos?.[id]) return;
+  $("a-lb-img").src = "data:image/jpeg;base64," + A.photos[id]; $("a-lb").classList.remove("hidden");
+});
+$("a-lb").addEventListener("click", e => { if (e.target.id === "a-lb" || e.target.id === "a-lb-x") $("a-lb").classList.add("hidden"); });
 // مواقع الحضور والانصراف: الوقتين والساعات تحت الحالة، والمحاسب يقدر يصححهم قبل الاعتماد
 function tmCell(x, dis, key) {
   if (x.t_issue === "نهار ولا ليل؟" && A.prev?.[key]) { const g = guessTimes(x.tin, x.tout, isHelperJob(x.job), A.prev[key]); if (g.prev) x = { ...x, in: g.in, out: g.out, t_issue: "زي وردية امبارح، اتأكد" }; }
@@ -832,13 +890,42 @@ function tmCell(x, dis, key) {
     <button type="button" class="btn sec small" data-eflip${dis} title="يقلب الوقتين 12 ساعة">نهار ⇄ ليل</button>
     <span class="muted" style="flex-basis:100%;">${x.mission ? "<b>مأمورية</b> (الوردية العادية) · " : ""}مكتوب في الورقة: ${esc(x.tin || "—")} → ${esc(x.tout || "—")}${h ? " · " + h : ""}${bad ? ` · <b style="color:#a32d2d">${esc(x.t_issue || "محتاج وقت")}</b>` : ""}</span></div>`;
 }
+// عمود «الساعات»: الحاضر ساعاته، والغايب ساعات بديله. بيتحدّث وانت بتعدّل الوقت
+function hrsCell(x, live) {
+  const h = live !== undefined ? live : x.s === "P" ? (x.min != null ? x : null) : x.s === "A" && x.rep ? (x.rep.min != null ? x.rep : null) : undefined;
+  if (h === undefined) return "";
+  if (!h) return `<b style="color:#a32d2d">—</b>`;
+  const who = (live !== undefined ? live.rep : x.s === "A") ? `<br><span class="muted">البديل</span>` : "";
+  return `<b style="font-size:15px">${hrsTxt(h.min)}</b><br><span class="muted" style="font-size:11px;white-space:nowrap">ن ${hrsTxt(h.dmin)} · ل ${hrsTxt(h.nmin)}</span>${h.ot ? `<br><span class="pill p-wait">إضافي ${hrsTxt(h.ot)}</span>` : ""}${who}`;
+}
+function refreshHrs(tr) {
+  const cell = tr.querySelector(".a-hrs"), sel = tr.querySelector("[data-ecode]"); if (!cell || !sel) return;
+  const x = A.cur?.entries?.[sel.dataset.ecode]; if (!x) return;
+  if (sel.value === "P") { const h = calcHours(tr.querySelector("[data-ein]")?.value || "", tr.querySelector("[data-eout]")?.value || "", x.job); cell.innerHTML = hrsCell(x, h); }
+  else if (x.rep) { const h = calcHours(tr.querySelector("[data-rin]")?.value || "", tr.querySelector("[data-rout]")?.value || "", x.job); cell.innerHTML = hrsCell(x, h ? { ...h, rep: true } : null); }
+  else cell.innerHTML = "";
+}
+$("a-dlist").addEventListener("input", e => { if (e.target.matches("input[type=time]")) refreshHrs(e.target.closest("tr")); });
+// ساعة بديل الراحات (تحت اسمه): بتظهر بس والعامل الأصلي غايب
+function repTm(x, dis) {
+  const r = x.rep, helper = isHelperJob(x.job), bad = r.t_issue || r.min == null;
+  const h = r.min != null ? `${hrsTxt(r.min)} س · نهاري ${hrsTxt(r.dmin)} · ليلي ${hrsTxt(r.nmin)}${r.ot ? " · إضافي " + hrsTxt(r.ot) : ""}` : "";
+  return `<div class="a-tm a-rtm" style="margin-top:4px;display:${x.s === "A" ? "flex" : "none"};gap:4px;flex-wrap:wrap;align-items:center;font-size:12px;padding:4px;border-radius:8px;${bad ? "background:#fff6e5;" : ""}">
+    <input type="time" data-rin value="${esc(r.in || "")}"${dis} style="width:auto;padding:3px 4px;">
+    ${helper ? "" : `<input type="time" data-rout value="${esc(r.out || "")}"${dis} style="width:auto;padding:3px 4px;">`}
+    <button type="button" class="btn sec small" data-eflip${dis} title="يقلب الوقتين 12 ساعة">نهار ⇄ ليل</button>
+    <span class="muted" style="flex-basis:100%;">${r.t_src ? `مقترحة من: ${esc(r.t_src)}` : "مفيش ساعة متسجلة"}${h ? " · " + h : ""}${bad ? ` · <b style="color:#a32d2d">${esc(r.t_issue || "اكتب ساعة البديل")}</b>` : ""}</span></div>`;
+}
 $("a-dlist").addEventListener("click", e => {
   const b = e.target.closest("[data-eflip]"); if (!b) return;
   b.closest(".a-tm").querySelectorAll("input[type=time]").forEach(i => { const m = toMin(i.value); if (m != null) i.value = hhmm(m + 720); });
+  refreshHrs(b.closest("tr"));
 });
 $("a-dlist").addEventListener("change", e => {
   if (!e.target.matches("[data-ecode]")) return;
   const tm = e.target.closest("td").querySelector(".a-tm"); if (tm) tm.style.display = e.target.value === "P" ? "flex" : "none";
+  const rt = e.target.closest("tr").querySelector(".a-rtm"); if (rt) rt.style.display = e.target.value === "A" ? "flex" : "none";
+  refreshHrs(e.target.closest("tr"));
 });
 $("a-esave").onclick = async () => {
   const d = A.cur; if (!d) return;
@@ -849,6 +936,17 @@ $("a-esave").onclick = async () => {
     if (e.s !== sel.value) { e.s = sel.value; e.by = "acc"; n++; }
     if (!timed) return;
     const TF = ["in", "out", "min", "dmin", "nmin", "ot", "otd", "otn"];
+    // بديل الراحات قدام الغايب
+    if (e.s === "A" && e.rep) {
+      const row = sel.closest("tr"), rin = row.querySelector("[data-rin]")?.value ?? e.rep.in ?? "", rout = row.querySelector("[data-rout]")?.value ?? e.rep.out ?? "";
+      const rh = calcHours(rin, rout, e.job);
+      if (!rh) bad.push(e.rep.name + " (بديل)");
+      else {
+        if (rin !== (e.rep.in || "") || (!isHelperJob(e.job) && rout !== (e.rep.out || ""))) { e.by = "acc"; n++; }
+        if (e.rep.t_issue) { fixed++; delete e.rep.t_issue; }
+        Object.assign(e.rep, { in: rin, out: isHelperJob(e.job) ? "" : rout, min: rh.min, dmin: rh.dmin, nmin: rh.nmin, ot: rh.ot, otd: rh.otd, otn: rh.otn });
+      }
+    }
     if (e.s !== "P") { TF.concat(["t_issue"]).forEach(f => delete e[f]); return; }
     const cell = sel.closest("td"), tin = cell.querySelector("[data-ein]")?.value ?? e.in ?? "", tout = cell.querySelector("[data-eout]")?.value ?? e.out ?? "";
     const h = calcHours(tin, tout, e.job);
