@@ -369,7 +369,7 @@ function hide(el) { el.className = "msg"; el.textContent = ""; }
 const pad = n => String(n).padStart(2, "0");
 const ymd = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
 
-const S = { regional: false, admin: false, office: false, timed: false, prevIn: {}, prevOut: {}, sites: [], site: null, date: null, roster: [], pages: [], day: null, choice: {}, unsubPages: null, unsubDay: null, plan: {}, lateCount: 0, pool: [], rep: {}, removals: [], unsubRoster: null, unsubPool: null, unsubRem: null, newWorkers: [], unsubNew: null };
+const S = { regional: false, admin: false, office: false, timed: false, prevIn: {}, prevOut: {}, sites: [], site: null, date: null, roster: [], pages: [], day: null, choice: {}, unsubPages: null, unsubDay: null, plan: {}, lateCount: 0, pool: [], rep: {}, removals: [], unsubRoster: null, unsubPool: null, unsubRem: null, newWorkers: [], unsubNew: null, xpick: {} };
 
 // ===== العدد المطلوب من شيت الاحتياج (الحساب نفسه في shared.js — نفس حساب صفحة الإدارة) =====
 async function loadPlan() {
@@ -457,7 +457,7 @@ async function openDay() {
   if (!S.site || !S.date) return;
   S.unsubPages?.(); S.unsubDay?.();
   S.unsubPages = S.unsubDay = null;
-  S.pages = []; S.day = null; S.choice = {};
+  S.pages = []; S.day = null; S.choice = {}; S.xpick = {};
   hide($("up-msg")); hide($("c-msg"));
   // مواقع شيبسي والإمداد: حضورها إكسيل من الأدمن، فالمشرف ليه الكشف والبطايق والطلبات بس (من غير تصوير ولا تأكيد)
   S.photo = ATT_SITES.includes(S.site) && !S.office;
@@ -642,9 +642,11 @@ function aiSubs() {
       map[subKey(m.p)] = { ...r, page: pg.id, w: m.p, match: m.fuzzy ? "fuzzy" : r.match };
     });
     // المكتوبين بخط اليد: مكتوب = حاضر، بس لازم المشرف يأكد
-    (pg.result?.extra || []).forEach(x => {
+    (pg.result?.extra || []).forEach((x, i) => {
       if (matchExtra(x)) return;
-      const p = poolOfExtra(x); if (!p || map[subKey(p)]) return;
+      const pk = S.xpick[pg.id + "|" + i];
+      const p = poolOfExtra(x) || (pk ? (S.pool || []).find(q => (q.nid || q.code) === pk) : null);
+      if (!p || map[subKey(p)]) return;
       map[subKey(p)] = { s: "P", conf: "M", match: "handwritten", note: x.note || "", nid: x.nid || "", page: pg.id, w: p };
     });
   });
@@ -818,7 +820,19 @@ function render() {
       if (r.s === "A" && /^\d{14}$/.test(String(r.nid || "").replace(/\D/g, ""))) { goneAbs++; return; }
       loose.push(`صف ${esc(r.n)}: رقم قومي ${esc(r.nid || "مش مقروء")} — ${r.s === "P" ? "حاضر" : r.s === "A" ? "غايب" : "مش واضح"}`);
     });
-    (p.result?.extra || []).filter(x => !matchExtra(x) && !poolOfExtra(x)).forEach(x => loose.push(`بخط اليد: ${esc(x.name || "اسم مش مقروء")}${x.nid ? " — " + esc(x.nid) : ""}${x.note ? " — " + esc(x.note) : ""} <button class="btn sec small" data-addnew="1">إضافة بالبطاقة</button>`));
+    (p.result?.extra || []).forEach((x, i) => {
+      if (matchExtra(x) || poolOfExtra(x)) return;
+      const key = p.id + "|" + i;
+      if (S.xpick[key]) {
+        const w = (S.pool || []).find(q => (q.nid || q.code) === S.xpick[key]);
+        loose.push(`بخط اليد: ${esc(x.name || "اسم مش مقروء")} — اتسجل على <b>${esc(w?.name || "")}</b> (في البدلاء فوق)${lockedForMe() ? "" : ` <button class="btn sec small" data-xunpick="${esc(key)}">تغيير</button>`}`);
+        return;
+      }
+      const sug = x.name && !lockedForMe() ? candidates(x.name, null, 2) : [];
+      loose.push(`بخط اليد: ${esc(x.name || "اسم مش مقروء")}${x.nid ? " — " + esc(x.nid) : ""}${x.note ? " — " + esc(x.note) : ""}`
+        + (sug.length ? `<div style="margin-top:4px;">تقصد حد من البدلاء؟ ${sug.map(q => `<span class="chip" data-xpick="${esc(key)}" data-who="${esc(q.nid || q.code)}">${esc(q.name)} ✓</span>`).join(" ")}</div>` : "")
+        + ` <button class="btn sec small" data-addnew="1">إضافة بالبطاقة</button>`);
+    });
   });
   $("extra-card").classList.toggle("hidden", !loose.length && !goneAbs);
   $("extras").innerHTML = loose.map(t => `<div class="muted" style="padding:4px 0;border-bottom:1px solid #f0efe9;">${t}</div>`).join("")
@@ -959,12 +973,18 @@ function lev(a, b) {
   for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; }
   return prev[n];
 }
+// «عبد» بتتلزق في اللي بعدها (عبد الرحمن = عبدالرحمن)، بس لو القراءة غلطت (عيد اتقرت عبد) اللزق بيبوّظ المقارنة،
+// فبنقارن بالطريقتين وناخد الأعلى
+const anormSep = s => anorm(s).replace(/عبد(?=\S)/g, "عبد ");
 function nameScore(q, name) {
-  const a = anorm(q).split(" ").filter(Boolean), b = anorm(name).split(" ");
-  if (!a.length) return 0;
-  let tot = 0;
-  a.forEach((t, i) => { const u = b[i] || ""; tot += 1 - lev(t, u) / Math.max(t.length, u.length, 1); });
-  return tot / a.length;
+  const sc = f => {
+    const a = f(q).split(" ").filter(Boolean), b = f(name).split(" ");
+    if (!a.length) return 0;
+    let tot = 0;
+    a.forEach((t, i) => { const u = b[i] || ""; tot += 1 - lev(t, u) / Math.max(t.length, u.length, 1); });
+    return tot / a.length;
+  };
+  return Math.max(sc(anorm), sc(anormSep));
 }
 function usedReps(except) {
   return new Set(Object.entries(S.rep).filter(([c]) => c !== except).map(([, r]) => r.nid || r.code));
@@ -1010,7 +1030,13 @@ $("workers").addEventListener("click", e => {
   const clr = e.target.closest("[data-repclear]"); if (clr) { delete S.rep[clr.dataset.repclear]; return render(); }
   const nr = e.target.closest("[data-newrep]"); if (nr) return openId("replacement", nr.dataset.newrep);
 });
-$("extras").addEventListener("click", e => { if (e.target.closest("[data-addnew]")) openId("roster"); });
+$("extras").addEventListener("click", e => {
+  const pk = e.target.closest("[data-xpick]");
+  if (pk) { S.xpick[pk.dataset.xpick] = pk.dataset.who; render(); return; }
+  const un = e.target.closest("[data-xunpick]");
+  if (un) { delete S.xpick[un.dataset.xunpick]; render(); return; }
+  if (e.target.closest("[data-addnew]")) openId("roster");
+});
 
 // ===== إدارة الكشف =====
 // قوة الفرع: الأسماء بالوظيفة والنوع، وعدد كل وظيفة قصاد المطلوب (أساسي + موسمي)
