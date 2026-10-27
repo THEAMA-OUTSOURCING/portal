@@ -178,7 +178,9 @@ export const toMin = s => { const m = /^(\d{1,2})(?::(\d{2}))?$/.exec(String(s |
 export const hhmm = m => m == null ? "" : String(Math.floor(((m % 1440) + 1440) % 1440 / 60)).padStart(2, "0") + ":" + String(((m % 60) + 60) % 60).padStart(2, "0");
 const near = t => Math.min(...SHIFT_STARTS.map(s => { const d = Math.abs(t - s) % 1440; return Math.min(d, 1440 - d); }));
 // الساعة المكتوبة (1–12) ممكن تبقى صبح أو مسا
+// لو المشرف كاتب ص أو م: السيرفر بيكتب م بنظام 24 ساعة ("3م" → "15:00")، وص بصفر في الأول ("8ص" → "08:00") = الصبح أكيد
 const cands = v => { const t = toMin(v); if (t == null) return [null]; const h = Math.floor(t / 60);
+  if (/^0\d:/.test(String(v).trim())) return [t];
   return h >= 13 || h === 0 ? [t] : h === 12 ? [t, t - 720] : [t, t + 720]; };
 // بيرجّع { in, out, unsure }: unsure = الصبح والمسا محتملين بنفس الدرجة (زي 8 → 8)، والمشرف لازم يأكد
 // prevIn = وقت حضور نفس العامل في اليوم اللي قبله (لو متأكد): لو الصبح والمسا محتملين، بناخد الأقرب لامبارح
@@ -275,3 +277,7 @@ export function codeFor(map, site, job, sec) {
   };
   document.body ? add() : document.addEventListener("DOMContentLoaded", add);
 })();
+
+// جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
+// بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
+import('./notify.js').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));

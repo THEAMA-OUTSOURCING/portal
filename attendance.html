@@ -167,6 +167,9 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
       </div>
       <div class="msg" id="deadline"></div>
       <div class="msg" id="day-state"></div>
+      <div id="refresh-box" class="hidden" style="margin-top:6px;"><button class="btn sec small" id="refresh-times">تحديث الساعات من القراءة</button>
+        <span class="muted" style="font-size:12px;">للأدمن: بعد إعادة قراءة الصور — بيحدّث الساعات ويضيف البدلاء الحاضرين الجداد، من غير ما يغيّر حالة اليوم أو قرارات المشرف</span>
+        <div class="msg" id="refresh-msg" style="white-space:pre-line;"></div></div>
     </div>
 
     <div class="card" id="upload-card">
@@ -355,7 +358,7 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
 </div>
 
 <script type="module">
-import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, TIME_SITES, guessTimes, calcHours, isHelperJob, specialOf, MISSION_SHIFT } from './shared.js';
 import { openPrintView, openOrderEditor, printOrder } from './sheet.js';
@@ -471,7 +474,7 @@ async function openDay() {
   else show($("deadline"), "info", `آخر ميعاد للرفع: ${dl.toLocaleString("ar-EG", { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" })}`);
   if (!S.photo) hide($("deadline"));   // مالوش ميعاد رفع
 
-  S.unsubRoster?.(); S.unsubPool?.(); S.unsubRem?.(); S.rep = {};
+  S.unsubRoster?.(); S.unsubPool?.(); S.unsubRem?.(); S.rep = {}; $("refresh-box").classList.add("hidden"); hide($("refresh-msg"));
   try {
     const r = await getDoc(doc(db, "rosters", S.site));
     S.roster = r.exists() ? (r.data().workers || []) : [];
@@ -495,7 +498,8 @@ async function openDay() {
     S.day = snap.exists() ? snap.data() : null;
     if (S.day) {
       const fromSaved = {};
-      Object.entries(S.day.entries || {}).forEach(([c, e]) => { fromSaved[c] = e.s === "L" && e.c === "ق" ? "Q" : e.s; if (e.rep && !S.rep[c]) S.rep[c] = e.rep; });
+      Object.entries(S.day.entries || {}).forEach(([c, e]) => { fromSaved[c] = e.s === "L" && e.c === "ق" ? "Q" : e.s; if (e.rep && !S.rep[c]) S.rep[c] = e.rep;
+        if (e.rep_for && !S.rep[e.rep_for]) S.rep[e.rep_for] = { nid: e.nid || "", name: e.name, code: e.code || "" }; });
       S.choice = { ...fromSaved, ...S.choice };
       const t = S.day.confirmed_at?.toDate ? S.day.confirmed_at.toDate().toLocaleString("ar-EG") : "";
       const rt = S.day.reviewed_at?.toDate ? S.day.reviewed_at.toDate().toLocaleString("ar-EG") : "";
@@ -503,6 +507,7 @@ async function openDay() {
       else if (S.day.status === "reviewed") show($("day-state"), "ok", `الإقليمي راجع اليوم ده (${esc(S.day.reviewed_email || "")}${rt ? " — " + rt : ""})${S.day.review_late ? " (متأخر)" : ""}. ` + (S.regional || S.admin ? "تقدر تعدّل وتراجع تاني لحد ما المحاسب يعتمده." : "مستني اعتماد المحاسب، ولو فيه تعديل كلّم الإقليمي."));
       else show($("day-state"), "ok", `المشرف أكد اليوم ده${t ? " — " + t : ""}${S.day.late ? " (متأخر)" : ""}. ` + (S.regional ? "راجعه وأكد عشان يروح للمحاسب." : "مستني مراجعة الإقليمي، وتقدر تعدّل لحد ما يراجعه."));
     }
+    $("refresh-box").classList.toggle("hidden", !(S.admin && S.timed && S.day && S.day.status !== "approved"));
     render();
   }, () => {});
   S.unsubPages = onSnapshot(query(collection(db, "att_pages"), where("site", "==", S.site), where("date", "==", S.date)), snap => {
@@ -679,6 +684,16 @@ function repTimes(entries) {
   });
   const top = job => { const m = mode[job]; if (!m) return null; const [k] = Object.entries(m).sort((a, b) => b[1] - a[1])[0]; const [i, o] = k.split("|"); return { in: i, out: o }; };
   Object.entries(entries).forEach(([code, e]) => {
+    // بديل اتسجل مكان بديل راحات غايب (rep_for): ساعة مقترحة بنفس الترتيب، والوردية من بتاعة البديل الغايب امبارح
+    if (e.rep_for && e.s === "P" && !e.in) {
+      const helper = isHelperJob(e.job), k = e.rep_for;
+      let t, src;
+      if (S.prevIn[k] && (helper || S.prevOut[k])) { t = { in: S.prevIn[k], out: S.prevOut[k] }; src = "وردية البديل الغايب امبارح"; }
+      else if ((t = top(e.job))) src = "زي زمايله في الوظيفة النهارده";
+      else { t = { in: MISSION_SHIFT.in, out: MISSION_SHIFT.out }; src = "الوردية العادية (Code&time)"; }
+      Object.assign(e, { in: t.in, out: helper ? "" : t.out, t_src: src, t_issue: "ساعة مقترحة — اتأكد" });
+      return;
+    }
     if (e.s !== "A" || !e.rep) return;
     const helper = isHelperJob(e.job);
     let t, src;
@@ -786,7 +801,8 @@ function render() {
     const ro = lockedForMe() ? "disabled" : "";
     return `<div class="w ${flag ? "flag" : ""}">
       <div class="nm"><b>${esc(w.name)}</b><small>${esc(w.type || "بديل")} — ${esc(w.job || "")} · ${esc(aiTxt)}${why ? ` · <span style="color:#8a5a10">${esc(why)}</span>` : ""}</small></div>
-      <div class="seg"><button class="p" data-c="${esc(k)}" data-v="P" aria-pressed="${def === "P"}" ${ro}>حاضر</button><button class="a" data-c="${esc(k)}" data-v="A" aria-pressed="${def === "A"}" ${ro}>غايب</button></div></div>`;
+      <div class="seg"><button class="p" data-c="${esc(k)}" data-v="P" aria-pressed="${def === "P"}" ${ro}>حاضر</button><button class="a" data-c="${esc(k)}" data-v="A" aria-pressed="${def === "A"}" ${ro}>غايب</button></div></div>` +
+      (def === "A" ? repBlock(w, r, k) : "");
   }).join("") : "";
   $("workers").innerHTML = html + subHtml;
 
@@ -800,7 +816,7 @@ function render() {
   });
   Object.entries(subs).forEach(([k, r]) => {
     const def = S.choice[k] ?? (r.s !== "U" && !needsReview(r) ? r.s : null);
-    if (def === "P") { perJob[r.w.job] ??= 0; perJob[r.w.job]++; }
+    if (def === "P" || (def === "A" && S.rep[k])) { perJob[r.w.job] ??= 0; perJob[r.w.job]++; }
   });
   S.over = Object.entries(perJob).filter(([j, n]) => S.plan[j] != null && n > S.plan[j]).map(([job, n]) => ({ job, n, plan: S.plan[job] }));
   const planRows = Object.keys(perJob).map(j => `<tr><td>${esc(j)}</td><td class="n">${fmt(perJob[j])}</td><td class="n">${S.plan[j] != null ? fmt(S.plan[j]) : "—"}</td>
@@ -882,7 +898,18 @@ $("confirm").addEventListener("click", async () => {
   for (const [k, r] of Object.entries(aiSubs())) {
     const s = S.choice[k] ?? (r.s !== "U" && !needsReview(r) ? r.s : null);
     if (s !== "P" && s !== "A") return show($("c-msg"), "err", "فيه بدلاء لسه محتاجين قرار.");
-    if (s !== "P") continue;
+    if (s !== "P") {
+      const rp = s === "A" && S.rep[k];
+      if (rp) {   // بديل مكان بديل راحات غايب: بيتسجل حاضر في صفه هو، وrep_for بيقول مكان مين
+        const rk = "R" + (rp.nid || rp.code);
+        if (entries[rk]) return show($("c-msg"), "err", `${rp.name} متسجل حاضر في صفه، ومختار كمان بديل مكان ${r.w.name}. شيله من واحد منهم.`);
+        const pw = (S.pool || []).find(q => (q.nid || q.code) === (rp.nid || rp.code)) || {};
+        entries[rk] = { name: rp.name, nid: rp.nid || "", code: rp.code || "", job: r.w.job || "", type: pw.type || "بديل", sub: true, s: "P", ai: "",
+          by: "sup", note: r.note || "", page: r.page || "", rep_for: k, rep_for_name: r.w.name };
+        P++; subsP++;
+      }
+      continue;
+    }
     if (usedRep.has(r.w.nid)) return show($("c-msg"), "err", `${r.w.name} متسجل حاضر في صفه، ومختار كمان بديل لعامل غايب. شيله من واحد منهم.`);
     entries[k] = { name: r.w.name, nid: r.w.nid || "", code: r.w.code || "", job: r.w.job || "", type: r.w.type || "بديل", sub: true, s: "P", ai: r.s,
       by: S.choice[k] && S.choice[k] !== r.s ? "sup" : "ai", note: r.note || "", page: r.page || "" };
@@ -924,6 +951,55 @@ $("confirm").addEventListener("click", async () => {
     show($("c-msg"), "err", "ماتأكدش: " + (err.code === "permission-denied" ? "مش مسموح (يمكن اليوم اتراجع أو اتعتمد)." : err.message));
   }
   $("confirm").disabled = false;
+});
+// ===== تحديث الساعات من القراءة (الأدمن، مواقع الساعات، يوم لسه مااتعتمدش) =====
+// بعد ما الصور تتقري تاني (reread_pages.py على السيرفر): الساعات المحفوظة بتتحسب من جديد من آخر قراءة،
+// والبدلاء الحاضرين اللي القراءة الجديدة لقيتهم ومش متسجلين بيتضافوا. حالة كل عامل وقرارات المشرف/الإقليمي مابتتغيرش.
+const TIME_KEYS = ["tin", "tout", "in", "out", "min", "dmin", "nmin", "ot", "otd", "otn", "t_issue", "t_prev", "t_src", "mission"];
+$("refresh-times").addEventListener("click", async () => {
+  if (!S.admin || !S.day || S.day.status === "approved") return;
+  if (S.pages.some(p => p.status === "pending" || p.status === "reading")) return show($("refresh-msg"), "warn", "فيه صور لسه بتتقري — استنى لحد ما تخلص.");
+  const ai = aiState(), subs = aiSubs();
+  const entries = JSON.parse(JSON.stringify(S.day.entries || {}));
+  const clearT = e => TIME_KEYS.forEach(k => delete e[k]);
+  let nT = 0; const added = [], diff = [];
+  for (const [c, e] of Object.entries(entries)) {
+    if (e.s === "A" && e.rep) { e.rep = { nid: e.rep.nid || "", name: e.rep.name, code: e.rep.code || "" }; continue; }   // repTimes بيحسبها تاني
+    if (e.s !== "P") continue;
+    if (e.rep_for) { clearT(e); continue; }
+    const r = e.sub ? subs[c] : ai[c];
+    if (!r) continue;   // الصف مش في الصور دلوقتي: الساعات زي ما هي
+    clearT(e); Object.assign(e, timeEntry(r, e.job, S.prevIn[c])); nT++;
+  }
+  // البدلاء الحاضرين في القراءة الجديدة ومش متسجلين (ولا مختارين بديل لحد)
+  const usedN = new Set(Object.values(entries).flatMap(e => [e.rep?.nid, e.sub ? e.nid : ""]).filter(Boolean));
+  for (const [k, r] of Object.entries(subs)) {
+    if (entries[k] || r.s !== "P" || needsReview(r) || usedN.has(r.w.nid)) continue;
+    entries[k] = { name: r.w.name, nid: r.w.nid || "", code: r.w.code || "", job: r.w.job || "", type: r.w.type || "بديل", sub: true, s: "P", ai: r.s,
+      by: "ai", note: r.note || "", page: r.page || "", added_by_refresh: true, ...timeEntry(r, r.w.job, S.prevIn[k]) };
+    added.push(r.w.name + " — " + (r.w.job || ""));
+  }
+  // فرق في الحالة بين القراءة الجديدة والمحفوظ (القراءة كانت هي اللي قررت): بيتعرض بس
+  S.roster.forEach(w => {
+    const e = entries[w.code], r = ai[w.code];
+    if (!e || !r || e.by !== "ai" || needsReview(r) || r.s === e.s || (e.s === "L" && specialOf(r))) return;
+    diff.push(`${w.name}: محفوظ ${e.s === "P" ? "حاضر" : e.s === "A" ? "غايب" : "توقف"} والقراءة الجديدة ${r.s === "P" ? "حاضر" : "غايب"}`);
+  });
+  repTimes(entries);
+  const v = Object.values(entries);
+  const counts = { present: v.filter(e => e.s === "P").length, absent: v.filter(e => e.s === "A").length, total: v.length };
+  const stop = v.filter(e => e.s === "L" && e.c === "ق").length; if (stop) counts.stop = stop;
+  const msg = `هيتحدث ساعات ${nT} عامل` + (added.length ? `، وهيتضاف ${added.length} بديل حاضر:\n${added.join("\n")}` : "") + ".\nتكمل؟";
+  if (!confirm(msg)) return;
+  $("refresh-times").disabled = true;
+  try {
+    await updateDoc(doc(db, "att_days", S.site + "__" + S.date), { entries, counts, times_refreshed_at: serverTimestamp(), times_refreshed_by: auth.currentUser.uid });
+    show($("refresh-msg"), "ok", `اتحدث ✓ — ساعات ${nT} عامل${added.length ? `، واتضاف ${added.length} بديل: ${added.join("، ")}` : ""}.`
+      + (diff.length ? `\n\nفرق في الحالة (ماتغيرش — راجعه بنفسك):\n${diff.join("\n")}` : ""));
+  } catch (err) {
+    show($("refresh-msg"), "err", "ماتحدثش: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (att_days — تحديث الساعات للأدمن)." : err.message));
+  }
+  $("refresh-times").disabled = false;
 });
 // ===== طباعة الكشف اليومي وترتيبه (التفاصيل في sheet.js) =====
 // الترتيب محفوظ على الموقع في sheet_order/{الموقع}. بيأثر على الكشف المطبوع بس.
@@ -996,21 +1072,22 @@ function candidates(q, except, limit = 6) {
     .map(p => ({ p, sc: nameScore(q, p.name) })).filter(x => x.sc >= 0.6)
     .sort((a, b) => b.sc - a.sc).slice(0, limit).map(x => x.p);
 }
-function repBlock(w, r) {
+// key = كود العامل الأساسي، أو R+الرقم القومي لبديل راحات مطبوع غايب (بديل مكان البديل)
+function repBlock(w, r, key = w.code) {
   const ro = lockedForMe();
-  const cur = S.rep[w.code];
-  if (cur) return `<div class="rep">البديل: <span class="chip sel">✓ ${esc(cur.name)}</span>${ro ? "" : ` <button class="btn sec small" data-repclear="${w.code}">تغيير</button>`}</div>`;
+  const cur = S.rep[key];
+  if (cur) return `<div class="rep">البديل: <span class="chip sel">✓ ${esc(cur.name)}</span>${ro ? "" : ` <button class="btn sec small" data-repclear="${esc(key)}">تغيير</button>`}</div>`;
   if (ro) return "";
   let sug = "";
   if (r?.note) {
-    const best = candidates(r.note, w.code, 1)[0];
-    sug = best ? `<div class="muted">مكتوب في الملاحظات: "${esc(r.note)}" — تقصد:</div><span class="chip" data-pick="${w.code}" data-who="${esc(best.nid || best.code)}">${esc(best.name)} ✓</span>`
+    const best = candidates(r.note, key, 1)[0];
+    sug = best ? `<div class="muted">مكتوب في الملاحظات: "${esc(r.note)}" — تقصد:</div><span class="chip" data-pick="${esc(key)}" data-who="${esc(best.nid || best.code)}">${esc(best.name)} ✓</span>`
       : `<div class="muted">مكتوب في الملاحظات: "${esc(r.note)}" — مش لاقيه في قايمة البدلاء.</div>`;
   }
-  return `<div class="rep" data-rep="${w.code}">${sug}
-    <input type="text" placeholder="لو فيه بديل، اكتب أول اسمه..." data-search="${w.code}">
-    <div class="hits" id="hits-${w.code}"></div>
-    <button class="btn sec small" data-newrep="${w.code}" style="margin-top:4px;">بديل جديد مش في القايمة (بالبطاقة)</button></div>`;
+  return `<div class="rep" data-rep="${esc(key)}">${sug}
+    <input type="text" placeholder="لو فيه بديل، اكتب أول اسمه..." data-search="${esc(key)}">
+    <div class="hits" id="hits-${esc(key)}"></div>
+    <button class="btn sec small" data-newrep="${esc(key)}" style="margin-top:4px;">بديل جديد مش في القايمة (بالبطاقة)</button></div>`;
 }
 function pickRep(code, who) {
   const p = S.pool.find(x => (x.nid || x.code) === who); if (!p) return;

@@ -256,7 +256,7 @@ onAuthStateChanged(auth, async user => {
   $("a-site").innerHTML = `<option value="*">كل المواقع</option>` + S.sites.map(s => `<option>${esc(s)}</option>`).join("");
   $("r-site").innerHTML = (S.office ? `<option value="*">كل المواقع</option>` : "") + S.sites.flatMap(s => s === SHARQIA ? Object.keys(SH_G) : [s]).map(s => `<option>${esc(s)}</option>`).join("");
   const now = new Date(), m = ymd(now).slice(0, 7);
-  $("r-month").value = now.getDate() > 20 ? ymd(new Date(now.getFullYear(), now.getMonth() + 1, 1)).slice(0, 7) : m;
+  $("r-month").value = m;   // الشهر الحالي لحد ما الشهر يخلص (27 أكتوبر = أكتوبر)
   $("h-month").value = m;
   $("a-to").value = ymd(now); $("a-from").value = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 14));
   $("fp-from").value = ymd(new Date(now.getFullYear(), now.getMonth(), 1)); $("fp-to").value = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
