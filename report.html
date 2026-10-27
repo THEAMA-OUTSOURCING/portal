@@ -494,7 +494,7 @@ async function leaveReport(from, to, sel, jobF, kind) {
         flag: e.deleted_in_sheet ? "اتمسح من الشيت" : e.changed ? "اتعدل في الشيت ولسه مستني مراجعة الـ HR" : "" });
     }
     const sp = await splitSharqia(list, sel); if (sp.err) return show($("r-msg"), "err", sp.err);
-    list.length = 0; list.push(...sp.list);
+    if (sp.list !== list) { list.length = 0; list.push(...sp.list); }
     const jobs = [...new Set(list.map(r => r.job).filter(Boolean))].sort();
     $("r-job").innerHTML = `<option value="">كل الوظايف</option>` + jobs.map(j => `<option ${j === jobF ? "selected" : ""}>${esc(j)}</option>`).join("");
     let rows = jobF ? list.filter(r => r.job === jobF) : list;

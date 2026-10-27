@@ -838,6 +838,7 @@ function latestPerTab(docs){
 const visFmt = d => d.toLocaleString('ar-EG',{weekday:'long',day:'numeric',month:'long',hour:'numeric',minute:'2-digit'});
 async function showPayVis(){
   const box = document.getElementById('pay-vis'); if(!box) return;
+  const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const meta = await loadPayVis();
   const tabs = Object.entries(meta?.tabs || {}).filter(([,v])=>v?.visible_until?.toDate);
   if(!tabs.length && meta?.visible_until?.toDate) tabs.push(['', meta]);   // رفعة قديمة بميعاد واحد للكل
