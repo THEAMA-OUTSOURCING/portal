@@ -77,6 +77,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
 .ev .nm{font-size:16px;line-height:1.45;}
 .ev .ft{border-top:1px solid #f0f1f3;}
 .ev .ft input{flex:1 1 100%;}
+/* صناديق التعديل (عمودي): من غير التفاف — وإلا خانة «سبب التعديل» بتاخد عمود لوحدها والأزرار بتطلع برّه الشاشة */
+.ev .ft.edit{flex-wrap:nowrap;} .ev .ft.edit input{flex:none;}
 @media(max-width:600px){.grid{grid-template-columns:1fr;}}
 }
 </style>
@@ -628,7 +630,7 @@ function render() {
         ${e.changed ? `<div class="warn">السطر اتعدل في الشيت بعد القرار — راجعه${changedHtml(e)}<div style="margin-top:4px;">«اعتماد» أو «رفض» بيتطبق على البيانات الجديدة دي.</div></div>` : ""}
         ${e.deleted_in_sheet ? `<div class="warn">السطر اتمسح من الشيت</div>` : ""}
       </div>
-      ${EDIT === e.id ? `<div class="ft" style="flex-direction:column;align-items:stretch;background:#fffdf5">
+      ${EDIT === e.id ? `<div class="ft edit" style="flex-direction:column;align-items:stretch;background:#fffdf5">
         <label class="f">النوع<select data-et><option value="sick" ${e.type === "sick" ? "selected" : ""}>مرضي</option><option value="leave" ${e.type === "leave" ? "selected" : ""}>إجازة</option><option value="resign" ${e.type === "resign" ? "selected" : ""}>استقالة</option></select></label>
         <label class="f">نوع الإجازة (لو إجازة)<select data-ek><option value="annual" ${e.kind !== "unpaid" ? "selected" : ""}>ج — إجازة (ليه رصيد)</option><option value="unpaid" ${e.kind === "unpaid" ? "selected" : ""}>خ — بدون أجر (ملوش رصيد)</option></select></label>
         <div class="row"><label class="f">من (أو تاريخ الاستقالة)<input type="date" data-ef value="${esc(e.type === "resign" ? e.entry_date : e.from)}"></label>
@@ -636,7 +638,7 @@ function render() {
         ${e.type === "sick" ? `<span class="muted" style="font-size:12px;">لو مرضي:</span>${sickFields(e)}` : ""}
         <input placeholder="سبب التعديل" data-note="${e.id}">
         <div class="row"><button class="btn ok small" data-esave="${e.id}">احفظ و${toClient ? "ابعت للعميل" : "اعتمد"}</button><button class="btn sec small" data-ecancel="1">إلغاء</button></div></div>` : ""}
-      ${CEDIT === e.id ? `<div class="ft" style="flex-direction:column;align-items:stretch;background:#f4f8fd">
+      ${CEDIT === e.id ? `<div class="ft edit" style="flex-direction:column;align-items:stretch;background:#f4f8fd">
         <b style="font-size:13px;">العميل وافق بمدة تانية</b>
         <div class="row"><label class="f">من<input type="date" data-cf value="${esc(e.from)}"></label><label class="f">لحد<input type="date" data-cto value="${esc(e.to)}"></label></div>
         <input placeholder="ملاحظة العميل (اختياري)" data-cnote="${e.id}">
