@@ -714,13 +714,14 @@ function defOf(k, r) {
 }
 // المشرف بيأكد حاضر/غايب بس زي باقي المواقع. الوقت المقروء من الورقة بيتحفظ مع اليوم بتخمين البوابة (صبح ولا مسا)،
 // والمحاسب هو اللي بيراجعه ويصححه في صفحة الاعتماد. الساعات بتتحفظ بس لو الوقت واضح (t_issue = محتاج مراجعة)
+// tq: السيرفر شاكك في رقم من الوقت (٢/٣، ٦/٨) — بيتعلّم «راجع الوقت مع الورقة» لحد ما حد يصححه
 function timeEntry(r, job, prevIn) {
   const helper = isHelperJob(job);
   // مأمورية: الوردية العادية من جدول Code&time
   if (specialOf(r) === "mission" && r?.s !== "P") { const m = calcHours(MISSION_SHIFT.in, MISSION_SHIFT.out, job);
     return { tin: r?.tin || "", tout: r?.tout || "", in: MISSION_SHIFT.in, out: helper ? "" : MISSION_SHIFT.out, mission: true, min: m.min, dmin: m.dmin, nmin: m.nmin, ot: m.ot, otd: m.otd, otn: m.otn }; }
   const t = guessTimes(r?.tin, r?.tout, helper, prevIn), h = calcHours(t.in, t.out, job);
-  const issue = !t.in ? "مفيش وقت حضور" : !helper && !t.out ? "مفيش وقت انصراف" : t.unsure ? "نهار ولا ليل؟" : h && h.min > 16 * 60 ? "أكتر من 16 ساعة" : "";
+  const issue = !t.in ? "مفيش وقت حضور" : !helper && !t.out ? "مفيش وقت انصراف" : r?.tq ? "راجع الوقت مع الورقة" : t.unsure ? "نهار ولا ليل؟" : h && h.min > 16 * 60 ? "أكتر من 16 ساعة" : "";
   return { tin: r?.tin || "", tout: r?.tout || "", in: t.in, out: helper ? "" : t.out, ...(t.prev ? { t_prev: true } : {}),
     ...(issue ? { t_issue: issue } : { min: h.min, dmin: h.dmin, nmin: h.nmin, ot: h.ot, otd: h.otd, otn: h.otn }) };
 }
