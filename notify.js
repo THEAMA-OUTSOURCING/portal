@@ -33,19 +33,23 @@ export function initBell(auth, db, sites) {
     try { c = (await user.getIdTokenResult()).claims || {}; } catch (e) { return; }
     if (!STAFF_ROLES.includes(c.role)) return;   // العمال: مفيش جرس
     const sites = Array.isArray(c.sites) && c.sites.length ? c.sites : null;
-    ME = { uid: user.uid, role: c.role, sites, regional: false, regionalEmails: [] };
+    // بنجهّز الحساب في متغير محلي، ونحطه في ME بس لو لسه نفس المستخدم داخل (لو عمل خروج وإحنا مستنيين، نقف)
+    const me = { uid: user.uid, role: c.role, sites, regional: false, regionalEmails: [] };
     // الإقليمي: config/regionals مسموح يتقري للإقليمي والأدمن بس (نفس طريقة attendance.html)
     if (c.role === "supervisor" || c.role === "admin") {
       try {
         const r = await getDoc(doc(DB, "config", "regionals"));
-        if (c.role === "supervisor") ME.regional = r.exists();
-        else ME.regionalEmails = emailsIn(r.exists() ? r.data() : {});
+        if (c.role === "supervisor") me.regional = r.exists();
+        else me.regionalEmails = emailsIn(r.exists() ? r.data() : {});
       } catch (e) {}
     }
-    ME.admin = c.role === "admin";
-    ME.officeAll = (c.role === "hr" || c.role === "accountant") && !sites;
-    ME.canSend = ME.admin || c.role === "hr" || c.role === "accountant" || ME.regional;
-    ME.label = ME.admin ? "ادمن" : c.role === "hr" ? "HR" : c.role === "accountant" ? "الحسابات" : ME.regional ? "الاقليمى" : "";
+    if (AUTH.currentUser?.uid !== user.uid) return;
+    me.admin = c.role === "admin";
+    me.officeAll = (c.role === "hr" || c.role === "accountant") && !sites;
+    me.canSend = me.admin || c.role === "hr" || c.role === "accountant" || me.regional;
+    me.label = me.admin ? "ادمن" : c.role === "hr" ? "HR" : c.role === "accountant" ? "الحسابات" : me.regional ? "الاقليمى" : "";
+    teardown();   // لو جرس قديم اتركّب في الوقت ده
+    ME = me;
     mount();
     refreshCount();
     TIMER = setInterval(() => { if (document.visibilityState === "visible") refreshCount(); }, COUNT_EVERY_MS);
@@ -130,12 +134,14 @@ function setBadge(n) {
 // الرقم على الجرس: إشعاراتي اللي لسه مااتقرتش + (للأدمن) اللي مستني اعتماده
 let PENDING_N = 0;
 async function refreshCount() {
-  if (!ME) return;
+  const me = ME;   // ME ممكن تبقى null وإحنا مستنيين (خروج من الحساب) — نشتغل على نسخة ثابتة
+  if (!me) return;
   let n = 0;
-  try { n = (await getCountFromServer(query(collection(DB, "notif_inbox"), where("uid", "==", ME.uid), where("read_at", "==", null)))).data().count; } catch (e) {}
-  if (ME.admin) {
+  try { n = (await getCountFromServer(query(collection(DB, "notif_inbox"), where("uid", "==", me.uid), where("read_at", "==", null)))).data().count; } catch (e) {}
+  if (me.admin) {
     try { PENDING_N = (await getCountFromServer(query(collection(DB, "notifications"), where("status", "==", "pending")))).data().count; } catch (e) {}
   }
+  if (ME !== me) return;   // الحساب اتغير — مانحدّثش جرس مش بتاعه
   setBadge(n + PENDING_N);
 }
 
@@ -144,6 +150,7 @@ let TAB = "inbox";
 function togglePanel() {
   const old = document.getElementById("nb-panel");
   if (old) { old.remove(); return; }
+  if (!ME) return;
   const p = document.createElement("div");
   p.id = "nb-panel"; p.setAttribute("role", "dialog"); p.setAttribute("aria-label", "الإشعارات");
   const tabs = [["inbox", "الإشعارات"]];
