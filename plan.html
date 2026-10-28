@@ -198,7 +198,13 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
         </div>
         <div class="card">
           <h2>التغيير عن الشهر اللي فات <span class="muted" id="prev-label"></span></h2>
-          <div class="row" style="margin-bottom:8px;"><button class="chip" id="chg-only" aria-pressed="true">التغييرات بس</button></div>
+          <div class="row" style="margin-bottom:8px;"><button class="chip" id="chg-only" aria-pressed="true">التغييرات بس</button>
+            <button class="btn sec small admin-only" id="chg-send"><i class="ti ti-bell"></i> ابعت التغييرات</button></div>
+          <div id="chg-box" class="hidden" style="margin-bottom:12px;">
+            <div class="msg" id="chg-msg"></div>
+            <div id="chg-preview"></div>
+            <div class="row" id="chg-acts" style="margin-top:10px;"><button class="btn" id="chg-go">تأكيد الإرسال</button><button class="btn sec" id="chg-cancel">إلغاء</button></div>
+          </div>
           <div class="tbl"><table><thead><tr><th>الموقع في شيت العميل</th><th>الوظيفة</th><th class="n">اللي فات</th><th class="n">الحالي</th><th class="n">الفرق</th></tr></thead><tbody id="months"></tbody></table></div>
         </div>
         <div class="card" id="unplanned-card"><h2>موجودين ومالهمش مكان في شيت العميل</h2><div id="unplanned" class="muted"></div></div>
@@ -396,7 +402,8 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
 <script type="module">
 import { getFirestore, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC } from './shared.js';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite } from './shared.js';
+import { bellStaff, bellLabel, sendPersonal } from './notify.js';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====
@@ -676,6 +683,87 @@ document.querySelectorAll(".chip[data-f]").forEach(b => b.addEventListener("clic
 $("chg-only").addEventListener("click", e => { chgOnly = !chgOnly; e.currentTarget.setAttribute("aria-pressed", chgOnly); e.currentTarget.textContent = chgOnly ? "التغييرات بس" : "كل السطور"; renderDash(); });
 $("sites").addEventListener("click", e => { const s = e.target.closest(".site"); if (!s) return; $("site-sel").value = s.dataset.site; renderDetail(); $("detail").scrollIntoView({ behavior: "smooth", block: "center" }); });
 $("sites").addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.classList.contains("site")) { e.preventDefault(); e.target.click(); } });
+
+// ===== إرسال تغييرات الاحتياج على الجرس =====
+// كل حساب بيوصله إشعار بمواقعه هو بس (بأسماء المواقع والوظايف اللي على البوابة):
+// المشرف موقعه، الإقليمي مواقعه، HR/المحاسب بفروع فروعهم، واللي من غير فروع (HR/محاسب/مشاهد/أدمن تاني) كل المواقع.
+// الحساب المشترك (الشرقية) مالوش احتياج، فمش بيوصله. اللي مواقعه ما اتغيرتش مش بيوصله حاجة.
+let CHG = null;
+const BODY_MAX = 2900;   // الـ Rules: نص الإشعار لحد 3000 حرف
+async function siteChanges(m) {
+  const pm = prevMonthKey(m);
+  if (!pm) throw new Error("مفيش شهر سابق للمقارنة.");
+  const [cb, pb] = await Promise.all([fetchPlanBase(m), fetchPlanBase(pm)]);
+  if (!cb || !pb) throw new Error("مش قادر أحمّل شيت الاحتياج أو إعدادات الربط.");
+  const cur = planBySite(cb, m + "-01"), prev = planBySite(pb, monthEnd(pm));
+  const out = {};
+  new Set([...Object.keys(cur), ...Object.keys(prev)]).forEach(site => {
+    const c = cur[site] || {}, p = prev[site] || {};
+    const rows = [...new Set([...Object.keys(c), ...Object.keys(p)])].map(job => ({ job, prev: p[job] || 0, cur: c[job] || 0 }))
+      .filter(r => r.prev !== r.cur).sort((a, b) => a.job.localeCompare(b.job, "ar"));
+    if (rows.length) out[site] = rows;
+  });
+  return { pm, out };
+}
+function siteText(site, rows) {
+  return site + "\n" + rows.map(r => { const d = r.cur - r.prev;
+    return `• ${r.job}: كان ${r.prev}، بقى ${r.cur} (${d > 0 ? "+" + d : d})`; }).join("\n");
+}
+// نص الإشعار، ولو طويل يتقسم على كذا إشعار (بالموقع)
+function chgMessages(m, sites, out) {
+  const head = `الأعداد المطلوبة من 1 ${monthLabel(m)} — الوظايف اللي اتغيرت عن ${monthLabel(prevMonthKey(m))}:`;
+  const parts = []; let cur = [];
+  sites.forEach(site => {
+    const t = siteText(site, out[site]);
+    if (cur.length && (head + "\n\n" + [...cur, t].join("\n\n")).length > BODY_MAX) { parts.push(cur); cur = []; }
+    cur.push(t);
+  });
+  if (cur.length) parts.push(cur);
+  return parts.map((p, i) => ({ title: `تغيير الأعداد المطلوبة — ${monthLabel(m)}` + (parts.length > 1 ? ` (${i + 1}/${parts.length})` : ""),
+    body: (head + "\n\n" + p.join("\n\n")).slice(0, BODY_MAX) }));
+}
+$("chg-send").addEventListener("click", async () => {
+  const box = $("chg-box"), msg = $("chg-msg"), m = S.month;
+  box.classList.remove("hidden"); $("chg-preview").innerHTML = ""; $("chg-acts").classList.add("hidden"); CHG = null;
+  show(msg, "info", "بجهّز التغييرات...");
+  try {
+    const { out } = await siteChanges(m);
+    const changed = Object.keys(out);
+    if (!changed.length) return show(msg, "info", "مفيش تغيير في أي موقع على البوابة.");
+    const me = auth.currentUser.uid, items = [], list = [];
+    (await bellStaff()).forEach(a => {
+      if (a.uid === me) return;
+      const own = a.sites || [];
+      let mine;
+      if (a.role === "supervisor") { if (!own.length) return; mine = changed.filter(s => own.includes(s)); }
+      else mine = own.length ? changed.filter(s => own.includes(s)) : changed;
+      if (!mine.length) return;
+      mine.sort((x, y) => x.localeCompare(y, "ar"));
+      const msgs = chgMessages(m, mine, out);
+      msgs.forEach(x => items.push({ uid: a.uid, ...x }));
+      list.push({ label: bellLabel(a), sites: mine, msgs });
+    });
+    if (!items.length) return show(msg, "info", "التغييرات في مواقع مالهاش حسابات على البوابة.");
+    list.sort((a, b) => a.label.localeCompare(b.label, "ar"));
+    CHG = { m, items };
+    show(msg, "info", `هيتبعت لـ ${list.length} حساب (${items.length} إشعار). دوس على أي حساب تشوف هيوصله إيه:`);
+    $("chg-preview").innerHTML = list.map(x => `<details style="margin:4px 0;"><summary>${esc(x.label)} — ${x.sites.length} موقع</summary>
+      ${x.msgs.map(t => `<div style="white-space:pre-wrap;background:#f7f7f7;border-radius:8px;padding:8px;margin-top:6px;"><b>${esc(t.title)}</b>\n${esc(t.body)}</div>`).join("")}</details>`).join("");
+    $("chg-acts").classList.remove("hidden");
+  } catch (e) { show(msg, "err", e.message || String(e)); }
+});
+$("chg-cancel").addEventListener("click", () => { CHG = null; $("chg-box").classList.add("hidden"); });
+$("chg-go").addEventListener("click", async () => {
+  if (!CHG) return;
+  if (CHG.m !== S.month) return show($("chg-msg"), "err", "الشهر اتغير — دوس «ابعت التغييرات» تاني.");
+  $("chg-go").disabled = true;
+  try {
+    const n = await sendPersonal(CHG.items);
+    show($("chg-msg"), "ok", `اتبعت ${n} إشعار على الجرس. تقدر تتابع مين قرا من الجرس ← «اللي بعته».`);
+    $("chg-preview").innerHTML = ""; $("chg-acts").classList.add("hidden"); CHG = null;
+  } catch (e) { show($("chg-msg"), "err", e.message || String(e)); }
+  $("chg-go").disabled = false;
+});
 
 // ===== التعديلات =====
 function renderAmends() {

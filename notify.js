@@ -373,6 +373,34 @@ function recipients(st, target, tsites, senderUid) {
   return st.filter(a => a.uid !== senderUid && pick(a));
 }
 
+// ----- إشعار مختلف لكل حساب (زي تغييرات شيت الاحتياج) — للأدمن بس -----
+// bellStaff: الحسابات (مع مين إقليمي). sendPersonal: items = [{ uid, title, body }] — كل واحد إشعار لوحده بـ target «accounts»
+export async function bellStaff() {
+  if (!ME?.admin) throw new Error("الإرسال للأدمن بس — استنى ثانية لحد ما الجرس يظهر وجرّب تاني.");
+  return staff();
+}
+export const bellLabel = a => labelOf(a);
+export async function sendPersonal(items) {
+  const me = ME;
+  if (!me?.admin) throw new Error("الإرسال للأدمن بس.");
+  const byUid = new Map((await staff()).map(a => [a.uid, a]));
+  let sent = 0;
+  for (let i = 0; i < items.length; i += 200) {   // كل إشعار = كتابتين (الإشعار + نسخة المستلم)، والـ batch حده 500
+    const bt = writeBatch(DB);
+    items.slice(i, i + 200).forEach(it => {
+      const a = byUid.get(it.uid); if (!a) return;
+      const ref = doc(collection(DB, "notifications"));
+      const n = { title: it.title, body: it.body, target: "accounts", target_sites: [a.uid], has_file: false, status: "sent",
+                  sender_uid: me.uid, sender_label: me.label, created_at: serverTimestamp(), recipients_n: 1 };
+      bt.set(ref, n);
+      bt.set(doc(DB, "notif_inbox", a.uid + "__" + ref.id), inboxDoc(a, ref.id, n));
+      sent++;
+    });
+    await bt.commit();
+  }
+  return sent;
+}
+
 // ----- اللي بعته -----
 async function tabMine() {
   const b = body();
