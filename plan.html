@@ -342,7 +342,7 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
         <div class="grid-form">
           <label>الإيميل<input type="email" id="ac-email" placeholder="name@theama-egy.com" dir="ltr"></label>
           <label>الدور<select id="ac-role"><option value="supervisor">مشرف / إقليمي</option><option value="hr">HR</option><option value="accountant">محاسب</option><option value="viewer">مشاهد (عرض بس)</option></select></label>
-          <label class="wide">المواقع (المشرف: من غير مواقع = الحساب المشترك — HR والمحاسب: من غير مواقع = كل الفروع ومعاها الشرقية)<span id="ac-sites" class="row" style="gap:12px;color:#222;"></span></label>
+          <label class="wide">المواقع (المشرف: من غير مواقع = مشرف الشرقية للدخان — HR والمحاسب: من غير مواقع = كل الفروع ومعاها الشرقية)<span id="ac-sites" class="row" style="gap:12px;color:#222;"></span></label>
           <label class="row hidden" id="ac-payroll-box" style="flex-direction:row;gap:6px;color:#222;"><input type="checkbox" id="ac-payroll"> رفع المرتبات الشهرية (للمحاسب)</label>
           <label class="row" style="flex-direction:row;gap:6px;color:#222;"><input type="checkbox" id="ac-disabled"> الحساب متوقف</label>
           <div><button class="btn" id="ac-save">حفظ</button></div>
@@ -1026,7 +1026,7 @@ function initAccounts() {
 // HR والمحاسب: من غير مواقع = كل الفروع (ومعاها الشرقية)
 function sitesText(a) {
   const pay = a.role === "accountant" && a.payroll ? " + رفع المرتبات" : "";
-  if (a.role === "supervisor") return (a.sites || []).join("، ") || "الكل ما عدا مواقع الحضور";
+  if (a.role === "supervisor") return (a.sites || []).join("، ") || "مشرف الشرقية للدخان";
   if (a.role === "hr" || a.role === "accountant") return ((a.sites || []).join("، ") || "كل الفروع") + pay;
   return "—";
 }
@@ -1068,7 +1068,7 @@ function saveAccount() {
   const payroll = role === "accountant" && $("ac-payroll").checked;
   if (!email || !email.includes("@")) return show($("ac-msg"), "err", "اكتب الإيميل.");
   if (role === "supervisor" && !sites.length && email !== SHARED_EMAIL
-      && !confirm("مشرف من غير مواقع = نفس صلاحيات الحساب المشترك (كل العمال ما عدا مواقع الحضور). متأكد؟")) return;
+      && !confirm("مشرف من غير مواقع = نفس صلاحيات مشرف الشرقية للدخان. متأكد؟")) return;
   return runAccountTask("account_save", { email, role, sites, payroll, disabled: $("ac-disabled").checked });
 }
 async function runAccountTask(type, extra) {

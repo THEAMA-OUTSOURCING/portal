@@ -51,6 +51,7 @@ const ICON = {
   check:  '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM9 13l2 2 4-4"/>',
   upload: '<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>',
   home:   '<path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/>',
+  shirt:  '<path d="M9 3 4 6l2 4 2-1v12h8V9l2 1 2-4-5-3a3 3 0 0 1-6 0z"/>',
 };
 export const NAV_PAGES = [
   { href: "attendance.html", label: "تسجيل الحضور اليومي",  icon: "camera", can: c => ["admin", "hr", "accountant"].includes(c.role) || (c.role === "supervisor" && hasSites(c)) },
@@ -58,6 +59,8 @@ export const NAV_PAGES = [
   { href: "plan.html",       label: "الاحتياج والأعداد",     icon: "list",   can: c => OFFICE.includes(c.role) },
   { href: "hr.html",         label: "اعتماد الحالات",        icon: "check",  can: c => ["admin", "hr", "viewer"].includes(c.role) },
   { href: "upload.html",     label: "رفع حضور إكسيل",       icon: "upload", can: c => c.role === "admin" },
+  // العُهد: المشرف (ومشرف الشرقية للدخان) يعلّم، والإقليمي والمكتب يشوفوا
+  { href: "custody.html",    label: "العُهد",                icon: "shirt",  can: c => OFFICE.includes(c.role) || c.role === "supervisor" },
   { href: "index.html",      label: "البوابة",               icon: "home",   can: c => !!c.role && c.role !== "employee" },
 ];
 
@@ -88,7 +91,7 @@ export function renderNav(el, claims) {
   if (!claims || !claims.role) return;
   const here = (location.pathname.split("/").pop() || "index.html").toLowerCase();
   const pages = NAV_PAGES.filter(p => p.can(claims));
-  if (pages.length < 2) return;   // صفحة واحدة بس (زي الحساب المشترك) = مفيش داعي لأزرار
+  if (pages.length < 2) return;   // صفحة واحدة بس = مفيش داعي لأزرار
   navStyle();
   for (const p of pages) {
     const a = document.createElement("a");

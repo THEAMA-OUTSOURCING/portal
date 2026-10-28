@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>العُهد - Theama</title>
+<meta name="description" content="بوابة تيما: الحضور اليومي والرواتب والتقارير">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="بوابة تيما">
+<meta property="og:locale" content="ar_EG">
+<meta property="og:title" content="العُهد - Theama">
+<meta property="og:description" content="بوابة تيما: الحضور اليومي والرواتب والتقارير">
+<meta property="og:url" content="https://portal.theamahr.com/custody.html">
+<meta property="og:image" content="https://portal.theamahr.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="شعار تيما — بوابة الحضور والرواتب">
+<meta name="twitter:card" content="summary_large_image">
+<script src="sentry.js"></script>
+<script src="https://js-de.sentry-cdn.com/9e9117440dc053dd5910abeaf878fa7a.min.js" crossorigin="anonymous"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'IBM Plex Sans Arabic','Segoe UI',Tahoma,sans-serif;background:#f2f3f5;color:#1d2024;padding:12px;font-size:14px;line-height:1.6;}
+input,button,select{font-family:inherit;font-size:14px;}
+input,select{min-height:44px;padding:8px 12px;border:1px solid #e6e7ea;border-radius:12px;background:#f8f9fa;color:#1d2024;}
+input:focus,select:focus{border-color:#a61b12;background:#fff;outline:none;}
+.wrap{max-width:760px;margin:0 auto;}
+.card{background:#fff;border-radius:20px;padding:14px 16px;margin-bottom:12px;}
+h1{font-size:19px;font-weight:700;} h2{font-size:15px;font-weight:600;margin-bottom:8px;}
+.muted{color:#6a6e75;font-size:13px;}
+.row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
+label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#4a4e55;}
+.btn{min-height:44px;padding:9px 16px;font-weight:600;cursor:pointer;background:#a61b12;color:#fff;border:none;border-radius:12px;}
+.btn:hover{background:#8c160f;} .btn:disabled{opacity:.5;cursor:not-allowed;}
+.btn.sec{background:#fff;color:#1d2024;border:1px solid #e6e7ea;} .btn.small{min-height:36px;padding:4px 12px;font-size:13px;border-radius:10px;}
+.msg{padding:9px 12px;border-radius:10px;font-size:13px;margin-top:10px;display:none;white-space:pre-line;}
+.msg.show{display:block;} .msg.ok{background:#e7f3ec;color:#16683a;} .msg.err{background:#fdecea;color:#a61b12;} .msg.warn{background:#fdf3df;color:#6b4700;} .msg.info{background:#eef4fb;color:#185fa5;}
+.hidden{display:none !important;}
+.center{max-width:380px;margin:50px auto;}
+.chip{display:inline-block;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;white-space:nowrap;}
+.chip.red{background:#fdecea;color:#a61b12;} .chip.green{background:#e7f3ec;color:#16683a;} .chip.gray{background:#eef0f3;color:#3d4148;} .chip.amber{background:#fdf3df;color:#6b4700;}
+/* الملخص */
+.sum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;text-align:center;}
+.sum>div{display:flex;flex-direction:column;align-items:center;gap:4px;}
+.sum b{font-size:14px;}
+/* الفلتر */
+.seg{display:flex;background:#e6e7ea;border-radius:12px;padding:3px;}
+.seg button{flex:1;min-height:38px;border:0;border-radius:10px;background:transparent;color:#4a4e55;font-weight:500;cursor:pointer;}
+.seg button.on{background:#fff;color:#1d2024;font-weight:600;}
+/* الوظايف والعمال */
+details.job{background:#fff;border-radius:16px;margin-bottom:10px;padding:0 14px;}
+details.job>summary{list-style:none;display:flex;align-items:center;gap:8px;min-height:52px;cursor:pointer;}
+details.job>summary::-webkit-details-marker{display:none;}
+details.job>summary .t{flex:1;font-size:15px;font-weight:600;}
+.hdr{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid #e6e7ea;font-size:11px;color:#6a6e75;}
+.hdr span:first-child{flex:1;}
+.hdr span:not(:first-child){width:44px;text-align:center;}
+.w{display:flex;align-items:center;gap:8px;padding:10px 0;border-top:1px solid #f0f1f3;}
+.w .n{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.w .n b{font-size:14px;font-weight:500;line-height:1.45;}
+.w .n small{font-size:12px;color:#6a6e75;}
+.w .n small.bad{color:#a61b12;}
+.it{width:44px;height:44px;flex:0 0 44px;border-radius:12px;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;
+  border:1.5px dashed #c7cad0;background:#fff;color:#9aa0a8;}
+.it.on{border:1.5px solid #b9dcc6;background:#e7f3ec;color:#16683a;}
+.it:disabled{cursor:default;opacity:.55;}
+.it svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.left .w .n small{white-space:normal;}
+table{border-collapse:collapse;width:100%;font-size:13px;}
+th,td{border-bottom:1px solid #eee;padding:7px 6px;text-align:right;}
+th{color:#6a6e75;font-weight:500;}
+.num{font-variant-numeric:tabular-nums;text-align:center;}
+@media(max-width:600px){body{padding:10px;} .row>label.f{flex:1 1 calc(50% - 10px);} .row>label.f :is(input,select){width:100%;}}
+</style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#c0392b">
+<link rel="icon" href="icon-192.png">
+</head>
+<body>
+<div class="wrap">
+  <div id="login" class="card center hidden">
+    <h2>العُهد</h2>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <input type="email" id="l-email" placeholder="الإيميل" dir="ltr">
+      <input type="password" id="l-pass" placeholder="الباسورد" dir="ltr">
+      <button class="btn" id="l-btn">دخول</button>
+    </div>
+    <div class="msg err" id="l-err"></div>
+  </div>
+  <div id="denied" class="card center hidden"><h2>الصفحة دي مش متاحة للحساب ده</h2><button class="btn sec" id="d-out" style="margin-top:10px;">خروج</button></div>
+
+  <div id="app" class="hidden">
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div><h1>العُهد</h1><div class="muted" id="who"></div></div>
+      <div class="row"><button class="btn sec small" id="logout">خروج</button></div>
+    </div>
+    <nav id="pnav" class="pnav" aria-label="صفحات البوابة"></nav>
+
+    <div class="card">
+      <div class="row" style="align-items:center;">
+        <label class="f" style="flex:1;min-width:180px;">الفرع<select id="site"></select></label>
+        <span class="chip gray" id="cycle-chip">—</span>
+      </div>
+      <div class="msg" id="cy-msg"></div>
+    </div>
+
+    <!-- الأدمن: الدورة والمخزون -->
+    <div class="card hidden" id="admin-card">
+      <h2>الدورة والمخزون (ادمن)</h2>
+      <div class="row">
+        <label class="f">بداية الدورة<input type="month" id="cy-start"></label>
+        <span class="muted" id="cy-end" style="padding-bottom:10px;"></span>
+        <button class="btn sec" id="cy-go">ابدأ دورة</button>
+      </div>
+      <div class="row" style="margin-top:14px;">
+        <label class="f">الصنف<select id="st-item"><option value="shoe">سيفتي</option><option value="tshirt">تيشرت (بالقطعة)</option><option value="vest">فيست</option></select></label>
+        <label class="f">المقاس<select id="st-size"></select></label>
+        <label class="f">العدد<input type="number" id="st-qty" step="1" style="width:110px" placeholder="مثلاً 12"></label>
+        <label class="f" style="flex:1;min-width:150px;">ملاحظة (اختياري)<input type="text" id="st-note" maxlength="200"></label>
+        <button class="btn" id="st-add">اضف للمخزون</button>
+      </div>
+      <p class="muted" style="margin-top:6px;">الدفعة مش بتتمسح ولا تتعدّل. لو فيه غلط سجّل نفس الصنف والمقاس بالسالب (مثلاً -3).</p>
+      <div class="msg" id="st-msg"></div>
+      <details style="margin-top:8px;"><summary class="muted" style="cursor:pointer;">سجل الدفعات</summary>
+        <div style="overflow-x:auto;"><table><thead><tr><th>التاريخ</th><th>الصنف</th><th>المقاس</th><th class="num">العدد</th><th>ملاحظة</th></tr></thead><tbody id="st-log"></tbody></table></div>
+      </details>
+    </div>
+
+    <div class="card">
+      <div class="sum" id="sum"></div>
+    </div>
+
+    <div class="card" style="padding:10px 12px;">
+      <input type="search" id="q" placeholder="ابحث بالاسم أو الكود أو الرقم القومي" style="width:100%;">
+      <div class="seg" style="margin-top:8px;">
+        <button id="f-all" class="on">الكل</button>
+        <button id="f-wait">ما استلموش</button>
+      </div>
+    </div>
+    <div class="msg" id="w-msg"></div>
+    <div id="jobs"></div>
+
+    <div class="card left hidden" id="left-card">
+      <h2>خرجوا ومعاهم عهدة الدورة دي</h2>
+      <p class="muted">مش في الكشف دلوقتي. لو رجّع القطعة دوس «رجّع» عشان ترجع للمخزون وتتسلم لعامل تاني.</p>
+      <div id="left"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { collection, doc, getDoc, setDoc, addDoc, query, where, onSnapshot, runTransaction, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { db, auth, actorEmail, SUP_SITES } from './shared.js';
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
+function hide(el) { el.className = "msg"; }
+const ymd = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+const ym = d => ymd(d).slice(0, 7);
+const addMonths = (m, n) => { const [y, mo] = m.split("-").map(Number); return ym(new Date(y, mo - 1 + n, 1)); };
+const MONTHS = ["يناير", "فبراير", "مارس", "ابريل", "مايو", "يونيو", "يوليو", "اغسطس", "سبتمبر", "اكتوبر", "نوفمبر", "ديسمبر"];
+const monthAr = m => { const [y, mo] = (m || "").split("-").map(Number); return y ? MONTHS[mo - 1] + " " + y : ""; };
+// البحث: أ/إ/آ = ا، ى = ي، ة = ه، والأرقام العربي = الإنجليزي
+const qn = s => String(s ?? "").replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه").replace(/\s+/g, " ").trim().toLowerCase();
+
+const SHARQIA = "الشرقية للدخان";
+const ITEMS = [
+  { id: "shoe",   ar: "سيفتي", pieces: 1, svg: '<path d="M3 17V8h4l1 3h3l2-2 7 4a2 2 0 0 1 1 2v2z"/><path d="M3 17h18v2H3z"/>' },
+  { id: "tshirt", ar: "تيشرت", pieces: 2, svg: '<path d="M9 3 4 6l2 4 2-1v12h8V9l2 1 2-4-5-3a3 3 0 0 1-6 0z"/>' },
+  { id: "vest",   ar: "فيست",  pieces: 1, svg: '<path d="M8 3h2l2 5 2-5h2l3 4v14h-6V12h-2v9H5V7z"/><path d="M5 14h14"/>' },
+];
+const ITEM = Object.fromEntries(ITEMS.map(i => [i.id, i]));
+const SIZES = { shoe: ["40", "41", "42", "43", "44", "45", "46", "47"], tshirt: ["M", "L", "XL", "XXL", "3XL", "4XL", "5XL"], vest: ["واحد"] };
+
+const S = { user: null, admin: false, canEdit: false, sites: [], site: "", cycle: null, roster: [], docs: {}, stock: [], removals: {},
+            filter: "all", q: "", busy: new Set(), unsubs: [] };
+
+// ===== الدخول =====
+$("l-btn").onclick = async () => { try { await signInWithEmailAndPassword(auth, $("l-email").value.trim(), $("l-pass").value); } catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); } };
+$("logout").onclick = () => signOut(auth); $("d-out").onclick = () => signOut(auth);
+
+onAuthStateChanged(auth, async user => {
+  ["login", "denied", "app"].forEach(id => $(id).classList.add("hidden"));
+  stopWatch();
+  if (!user) { $("login").classList.remove("hidden"); return; }
+  let claims = {};
+  try { claims = (await user.getIdTokenResult()).claims || {}; } catch (e) {}
+  const role = claims.role || "";
+  const mySites = Array.isArray(claims.sites) && claims.sites.length ? claims.sites : null;
+  const ALL = [...SUP_SITES, SHARQIA];
+  let regional = false;
+  if (role === "supervisor" && mySites) {
+    for (let i = 0; i < 2 && !regional; i++) {
+      try { regional = (await getDoc(doc(db, "config", "regionals"))).exists(); break; }
+      catch (e) { if (e.code === "permission-denied") break; }
+    }
+  }
+  S.user = user; S.admin = role === "admin";
+  if (role === "admin" || role === "viewer") S.sites = ALL;
+  else if (role === "hr" || role === "accountant") S.sites = mySites ? ALL.filter(s => mySites.includes(s)) : ALL;
+  else if (role === "supervisor") S.sites = mySites ? mySites.filter(s => ALL.includes(s)) : [SHARQIA];
+  else S.sites = [];
+  if (!S.sites.length) { $("denied").classList.remove("hidden"); return; }
+  // يعلّم: الأدمن والمشرف (مش الإقليمي). الباقي مشاهدة بس
+  S.canEdit = S.admin || (role === "supervisor" && !regional);
+  $("who").textContent = role === "admin" ? "ادمن"
+    : role === "supervisor" ? (mySites ? (regional ? "الاقليمى" : "مشرف " + mySites.join("، ")) : "مشرف " + SHARQIA) + (regional ? " — مشاهدة" : "")
+    : user.email + " — مشاهدة";
+  $("site").innerHTML = S.sites.map(s => `<option>${esc(s)}</option>`).join("");
+  $("admin-card").classList.toggle("hidden", !S.admin);
+  fillSizes();
+  $("app").classList.remove("hidden");
+  openSite();
+});
+$("site").addEventListener("change", openSite);
+
+// ===== فتح فرع =====
+function stopWatch() { S.unsubs.forEach(u => { try { u(); } catch (e) {} }); S.unsubs = []; }
+function openSite() {
+  stopWatch();
+  S.site = $("site").value; S.cycle = null; S.roster = []; S.docs = {}; S.stock = []; S.removals = {};
+  hide($("w-msg")); hide($("cy-msg"));
+  render();
+  const err = what => e => show($("w-msg"), "err", "مقدرتش أقرا " + what + ": " + (e.code === "permission-denied" ? "مفيش صلاحية" : e.message));
+  S.unsubs.push(onSnapshot(doc(db, "custody_cycles", S.site), snap => { S.cycle = snap.exists() ? snap.data() : null; render(); }, err("الدورة")));
+  S.unsubs.push(onSnapshot(doc(db, "rosters", S.site), snap => { S.roster = snap.exists() ? (snap.data().workers || []) : []; render(); }, err("كشف الفرع")));
+  S.unsubs.push(onSnapshot(query(collection(db, "custody"), where("site", "==", S.site)), snap => {
+    S.docs = {}; snap.forEach(d => S.docs[d.id] = d.data()); render();
+  }, err("العهد")));
+  S.unsubs.push(onSnapshot(query(collection(db, "custody_stock"), where("site", "==", S.site)), snap => {
+    S.stock = []; snap.forEach(d => S.stock.push(d.data())); render();
+  }, err("المخزون")));
+  // تاريخ الشيل من الكشف (للي خرجوا) — الشرقية مالهاش، بيتكتب «مش في الكشف»
+  if (S.site !== SHARQIA) S.unsubs.push(onSnapshot(query(collection(db, "sheet_removals"), where("site", "==", S.site)), snap => {
+    S.removals = {}; snap.forEach(d => { const r = d.data(); S.removals[r.code] = r; }); render();
+  }, () => {}));
+}
+
+// ===== الحسابات =====
+const key = item => S.cycle ? S.cycle.start + "__" + item : null;
+const hasItem = (nid, item) => { const k = key(item); const e = k && S.docs[nid]?.issues?.[k]; return !!(e && !e.returned_at); };
+function stockOf(item) {
+  const got = S.stock.filter(s => s.item === item).reduce((a, s) => a + (Number(s.qty) || 0), 0);
+  let out = 0;
+  Object.values(S.docs).forEach(d => Object.entries(d.issues || {}).forEach(([k, e]) => { if (k.endsWith("__" + item) && !e.returned_at) out++; }));
+  out *= ITEM[item].pieces;
+  return { got, out, left: got - out };
+}
+const sizeTxt = w => {
+  const p = []; if (w.shoe) p.push("جزمة " + w.shoe); if (w.tshirt) p.push("تيشرت " + w.tshirt);
+  return p.length ? p.join(" · ") : "";
+};
+const validNid = nid => /^[0-9]{14}$/.test(String(nid || ""));
+
+// ===== الرسم =====
+function render() {
+  // الدورة
+  const cy = S.cycle;
+  if (cy) {
+    const now = ym(new Date());
+    const n = Math.min(6, Math.max(1, (Number(now.slice(0, 4)) - Number(cy.start.slice(0, 4))) * 12 + Number(now.slice(5)) - Number(cy.start.slice(5)) + 1));
+    $("cycle-chip").textContent = `دورة ${monthAr(cy.start)} ← ${monthAr(cy.end)} · الشهر ${n} من 6`;
+    $("cycle-chip").className = "chip " + (now > cy.end ? "red" : "gray");
+    if (now > cy.end) show($("cy-msg"), "warn", "الدورة دي خلصت. التسليم الجديد بيبدأ لما الأدمن يبدأ الدورة الجاية.");
+    else hide($("cy-msg"));
+  } else {
+    $("cycle-chip").textContent = "مفيش دورة";
+    $("cycle-chip").className = "chip amber";
+    show($("cy-msg"), "warn", S.admin ? "ابدأ دورة للفرع ده من الكارت اللي تحت عشان المشرف يقدر يعلّم." : "الأدمن لسه ما بدأش دورة للفرع ده — العلامات هتشتغل أول ما يبدأها.");
+  }
+  if (S.admin) {
+    const st = $("cy-start");
+    if (!st.value) st.value = cy ? addMonths(cy.end, 1) : ym(new Date());
+    $("cy-end").textContent = st.value ? "لحد " + monthAr(addMonths(st.value, 5)) : "";
+    $("cy-go").textContent = cy ? "ابدأ الدورة الجاية" : "ابدأ دورة";
+    $("st-log").innerHTML = S.stock.slice().sort((a, b) => (b.at?.seconds || 0) - (a.at?.seconds || 0)).map(s =>
+      `<tr><td>${s.at?.toDate ? ymd(s.at.toDate()) : "…"}</td><td>${esc(ITEM[s.item]?.ar || s.item)}</td><td>${esc(s.size)}</td><td class="num" dir="ltr">${s.qty}</td><td>${esc(s.note || "")}</td></tr>`
+    ).join("") || `<tr><td colspan="5" class="muted">لسه مفيش دفعات.</td></tr>`;
+  }
+
+  // الملخص
+  const waiting = {};
+  ITEMS.forEach(i => waiting[i.id] = S.roster.filter(w => !hasItem(w.nid, i.id)).length);
+  $("sum").innerHTML = ITEMS.map(i => {
+    const s = stockOf(i.id), needP = waiting[i.id] * i.pieces, diff = s.left - needP;
+    const chip = !cy ? `<span class="chip gray">—</span>`
+      : diff < 0 ? `<span class="chip red">ناقص ${-diff}</span>` : diff > 0 ? `<span class="chip green">زيادة ${diff}</span>` : `<span class="chip gray">مظبوط</span>`;
+    const w = i.pieces > 1 ? `${waiting[i.id]} (${needP} قطعة)` : waiting[i.id];
+    return `<div><b>${i.ar}${i.pieces > 1 ? " ×" + i.pieces : ""}</b><span class="muted" style="line-height:1.5">في المخزن ${s.left}<br>مستنيين ${w}</span>${chip}</div>`;
+  }).join("");
+
+  // الفلتر
+  const waitN = S.roster.filter(w => ITEMS.some(i => !hasItem(w.nid, i.id))).length;
+  $("f-all").textContent = `الكل (${S.roster.length})`;
+  $("f-wait").textContent = `ما استلموش (${waitN})`;
+  $("f-all").classList.toggle("on", S.filter === "all");
+  $("f-wait").classList.toggle("on", S.filter === "wait");
+
+  // العمال بالوظيفة
+  const q = qn(S.q);
+  const list = S.roster.filter(w => (S.filter === "all" || ITEMS.some(i => !hasItem(w.nid, i.id)))
+    && (!q || qn(w.name).includes(q) || qn(w.code).includes(q) || String(w.nid || "").includes(q)));
+  const open = new Set([...document.querySelectorAll("details.job[open]")].map(d => d.dataset.job));
+  const byJob = new Map();
+  list.forEach(w => { const j = w.job || "بدون وظيفة"; if (!byJob.has(j)) byJob.set(j, []); byJob.get(j).push(w); });
+  const allByJob = new Map();
+  S.roster.forEach(w => { const j = w.job || "بدون وظيفة"; allByJob.set(j, (allByJob.get(j) || []).concat(w)); });
+  const dis = !S.canEdit || !cy || ym(new Date()) > (cy?.end || "");
+  $("jobs").innerHTML = !S.roster.length ? `<div class="card muted">الكشف فاضي أو لسه بيتحمل.</div>`
+    : !list.length ? `<div class="card muted">مفيش نتايج.</div>`
+    : [...byJob.entries()].map(([job, ws]) => {
+        const all = allByJob.get(job) || ws;
+        const done = all.filter(w => ITEMS.every(i => hasItem(w.nid, i.id))).length;
+        const isOpen = q || open.has(job) || byJob.size === 1;
+        return `<details class="job" data-job="${esc(job)}"${isOpen ? " open" : ""}>
+          <summary><span class="t">${esc(job)}</span><span class="chip ${done === all.length ? "green" : "amber"}">${done} / ${all.length}</span></summary>
+          <div class="hdr"><span>${ws.length} عامل</span>${ITEMS.map(i => `<span>${i.ar}${i.pieces > 1 ? " ×" + i.pieces : ""}</span>`).join("")}</div>
+          ${ws.map(w => {
+            const sz = sizeTxt(w);
+            const ok = validNid(w.nid);
+            return `<div class="w"><div class="n"><b>${esc(w.name)}</b>
+              <small class="${sz && ok ? "" : "bad"}">${ok ? (sz ? esc(sz) : "ما سجلش مقاسه") : "الرقم القومي ناقص — مينفعش يتعلّم"}${w.code ? " · " + esc(w.code) : ""}</small></div>
+              ${ITEMS.map(i => {
+                const on = hasItem(w.nid, i.id), busy = S.busy.has(w.nid + i.id);
+                return `<button class="it${on ? " on" : ""}" data-nid="${esc(w.nid)}" data-item="${i.id}" aria-pressed="${on}"
+                  aria-label="${i.ar} — ${esc(w.name)}"${dis || !ok || busy ? " disabled" : ""}><svg viewBox="0 0 24 24" aria-hidden="true">${i.svg}</svg></button>`;
+              }).join("")}</div>`;
+          }).join("")}
+        </details>`;
+      }).join("");
+
+  // اللي خرجوا ومعاهم عهدة الدورة دي
+  const inRoster = new Set(S.roster.map(w => String(w.nid)));
+  const gone = cy ? Object.values(S.docs).filter(d => !inRoster.has(String(d.nid)) && ITEMS.some(i => hasItem(d.nid, i.id))) : [];
+  $("left-card").classList.toggle("hidden", !gone.length);
+  $("left").innerHTML = gone.map(d => {
+    const rem = S.removals[d.code];
+    const when = rem ? `اتشال ${rem.at?.toDate ? ymd(rem.at.toDate()) : ""} (${esc(rem.reason || "")})` : "مش في الكشف";
+    const items = ITEMS.filter(i => hasItem(d.nid, i.id));
+    const iss = items.map(i => `${i.ar} ${esc(d.issues[key(i.id)].at || "")}`).join(" · ");
+    return `<div class="w"><div class="n"><b>${esc(d.name)}</b><small>${when}<br>استلم: ${iss}</small></div>
+      ${S.canEdit ? items.map(i => `<button class="btn sec small" data-ret="${esc(d.nid)}" data-item="${i.id}">رجّع ${i.ar}</button>`).join("") : ""}</div>`;
+  }).join("");
+}
+
+// ===== التعليم =====
+$("jobs").addEventListener("click", async e => {
+  const b = e.target.closest("button.it");
+  if (!b || b.disabled) return;
+  const w = S.roster.find(x => String(x.nid) === b.dataset.nid);
+  if (!w) return;
+  const item = b.dataset.item, want = !hasItem(w.nid, item);
+  if (!want && !confirm(`تشيل علامة استلام ${ITEM[item].ar} من ${w.name}؟`)) return;
+  await mark(w, item, want);
+});
+// الإيكونات بتتعلّم واحدة واحدة — العامل اللي اتنقل من فرع تاني بتتنقل عهدته معاه لما تعلّم هنا
+async function mark(w, item, want) {
+  const k = key(item); if (!k) return;
+  const ref = doc(db, "custody", String(w.nid));
+  S.busy.add(w.nid + item); render();
+  try {
+    await runTransaction(db, async tx => {
+      const snap = await tx.get(ref);
+      const cur = snap.exists() ? snap.data() : {};
+      const issues = { ...(cur.issues || {}) };
+      if (want) { if (!issues[k] || issues[k].returned_at) issues[k] = { at: ymd(new Date()), by: actorEmail(S.user) }; }
+      else delete issues[k];
+      tx.set(ref, { nid: String(w.nid), code: String(w.code || ""), name: String(w.name || "").slice(0, 200), job: String(w.job || "").slice(0, 100),
+                    site: S.site, issues, updated_by: S.user.uid, updated_at: serverTimestamp() });
+    });
+  } catch (err) {
+    show($("w-msg"), "err", "ماتسجلش: " + (err.code === "permission-denied" ? "مفيش صلاحية" : err.message));
+  } finally { S.busy.delete(w.nid + item); render(); }
+}
+// رجّع القطعة (للي خرج): بتفضل في السجل، بس بترجع للمخزون ومش بتتحسب عليه
+$("left").addEventListener("click", async e => {
+  const b = e.target.closest("button[data-ret]");
+  if (!b) return;
+  const d = S.docs[b.dataset.ret], item = b.dataset.item, k = key(item);
+  if (!d || !k || !confirm(`${d.name} رجّع ${ITEM[item].ar}؟ القطعة هترجع للمخزون.`)) return;
+  b.disabled = true;
+  try {
+    await runTransaction(db, async tx => {
+      const ref = doc(db, "custody", String(d.nid));
+      const snap = await tx.get(ref);
+      if (!snap.exists()) return;
+      const cur = snap.data(), issues = { ...(cur.issues || {}) };
+      if (!issues[k]) return;
+      issues[k] = { ...issues[k], returned_at: ymd(new Date()), returned_by: actorEmail(S.user) };
+      tx.set(ref, { ...cur, issues, updated_by: S.user.uid, updated_at: serverTimestamp() });
+    });
+  } catch (err) { b.disabled = false; show($("w-msg"), "err", "ماتسجلش: " + (err.code === "permission-denied" ? "مفيش صلاحية" : err.message)); }
+});
+
+// ===== البحث والفلتر =====
+let qt = null;
+$("q").addEventListener("input", () => { clearTimeout(qt); qt = setTimeout(() => { S.q = $("q").value; render(); }, 150); });
+$("f-all").onclick = () => { S.filter = "all"; render(); };
+$("f-wait").onclick = () => { S.filter = "wait"; render(); };
+
+// ===== الأدمن: الدورة والمخزون =====
+function fillSizes() { $("st-size").innerHTML = SIZES[$("st-item").value].map(s => `<option>${s}</option>`).join(""); }
+$("st-item").addEventListener("change", fillSizes);
+$("cy-start").addEventListener("change", render);
+$("cy-go").onclick = async () => {
+  const start = $("cy-start").value;
+  if (!/^20\d{2}-\d{2}$/.test(start)) return show($("st-msg"), "err", "اختار شهر البداية.");
+  const end = addMonths(start, 5);
+  if (S.cycle && start <= S.cycle.end) return show($("st-msg"), "err", `الدورة الحالية لسه لحد ${monthAr(S.cycle.end)} — الجديدة لازم تبدأ بعدها.`);
+  if (!confirm(`تبدأ دورة ${S.site}: ${monthAr(start)} ← ${monthAr(end)}؟\nكل العمال هيبقوا «ما استلموش» في الدورة الجديدة.`)) return;
+  try {
+    await setDoc(doc(db, "custody_cycles", S.site), { site: S.site, start, end, started_by: S.user.uid, started_at: serverTimestamp() });
+    show($("st-msg"), "ok", "الدورة اتبدأت.");
+    $("cy-start").value = "";
+  } catch (err) { show($("st-msg"), "err", "ماتسجلتش: " + (err.code === "permission-denied" ? "مفيش صلاحية" : err.message)); }
+};
+$("st-add").onclick = async () => {
+  const item = $("st-item").value, size = $("st-size").value, qty = Number($("st-qty").value), note = $("st-note").value.trim();
+  if (!Number.isInteger(qty) || qty === 0 || Math.abs(qty) > 5000) return show($("st-msg"), "err", "اكتب العدد (رقم صحيح، والسالب للتصحيح).");
+  if (!confirm(`${qty > 0 ? "تضيف" : "تخصم"} ${Math.abs(qty)} ${ITEM[item].ar} مقاس ${size} ${qty > 0 ? "لـ" : "من"} مخزون ${S.site}؟`)) return;
+  $("st-add").disabled = true;
+  try {
+    const d = { site: S.site, item, size, qty, by: S.user.uid, at: serverTimestamp() };
+    if (note) d.note = note.slice(0, 200);
+    await addDoc(collection(db, "custody_stock"), d);
+    show($("st-msg"), "ok", "اتسجلت."); $("st-qty").value = ""; $("st-note").value = "";
+  } catch (err) { show($("st-msg"), "err", "ماتسجلتش: " + (err.code === "permission-denied" ? "مفيش صلاحية" : err.message)); }
+  finally { $("st-add").disabled = false; }
+};
+</script>
+</body>
+</html>
