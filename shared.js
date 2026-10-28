@@ -153,7 +153,7 @@ export function planBySite(base, date) {
   const cmap = new Map();
   plan.rows.forEach(r => { const k = ckey(r.loc, r.pos); const e = cmap.get(k) || { loc: pnorm(r.loc), pos: pnorm(r.pos), value: 0 }; e.value += Number(r.hc) || 0; cmap.set(k, e); });
   cmap.forEach((e, k) => { const hits = amends.filter(a => ckey(a.loc, a.pos) === k && a.effective_date <= day); if (hits.length) e.value = hits[hits.length - 1].to; });
-  const add = (site, job, n) => { if (!site) return; (out[site] ??= {})[job] = (out[site][job] || 0) + n; };
+  const add = (site, job, n) => { if (!site) return; (out[site] = out[site] || {})[job] = (out[site][job] || 0) + n; };
   cmap.forEach(e => {
     const job = set.posMap?.[pkey(e.pos)]; if (!job) return;
     const split = (set.splits || []).find(x => ckey(x.loc, x.pos) === ckey(e.loc, e.pos));

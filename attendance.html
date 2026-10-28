@@ -680,7 +680,7 @@ function repTimes(entries) {
   const mode = {};
   Object.values(entries).forEach(e => {
     if (e.s !== "P" || e.t_issue || e.mission || e.min == null || !e.in) return;
-    const k = (e.in) + "|" + (e.out || ""); ((mode[e.job] ??= {})[k] = (mode[e.job][k] || 0) + 1);
+    const k = (e.in) + "|" + (e.out || ""); ((mode[e.job] = mode[e.job] || {})[k] = (mode[e.job][k] || 0) + 1);
   });
   const top = job => { const m = mode[job]; if (!m) return null; const [k] = Object.entries(m).sort((a, b) => b[1] - a[1])[0]; const [i, o] = k.split("|"); return { in: i, out: o }; };
   Object.entries(entries).forEach(([code, e]) => {
@@ -766,7 +766,7 @@ function render() {
   });
   const ordered = S.roster.map((w, i) => ({ w, k: at[w.code] ?? 1e9 + i })).sort((a, b) => a.k - b.k).map(x => x.w);
   const groups = {};
-  ordered.forEach(w => { const g = (w.type === "موسمي" ? "موسمي — " : "") + w.job; (groups[g] ??= []).push(w); });
+  ordered.forEach(w => { const g = (w.type === "موسمي" ? "موسمي — " : "") + w.job; (groups[g] = groups[g] || []).push(w); });
   let P = 0, A = 0, Q = 0, open = 0, flagged = 0;
   const html = Object.entries(groups).map(([g, ws]) => `<div class="grp">${esc(g)} (${fmt(ws.length)})</div>` + ws.map(w => {
     const r = ai[w.code];
@@ -811,12 +811,12 @@ function render() {
   S.roster.forEach(w => {
     const r = ai[w.code];
     const def = defOf(w.code, r);
-    perJob[w.job] ??= 0; if (def === "P" || def === "Q") perJob[w.job]++;   // ق بيتحسب في عدد اليوم
+    perJob[w.job] = perJob[w.job] || 0; if (def === "P" || def === "Q") perJob[w.job]++;   // ق بيتحسب في عدد اليوم
     if (def === "A" && S.rep[w.code]) perJob[w.job]++;
   });
   Object.entries(subs).forEach(([k, r]) => {
     const def = S.choice[k] ?? (r.s !== "U" && !needsReview(r) ? r.s : null);
-    if (def === "P" || (def === "A" && S.rep[k])) { perJob[r.w.job] ??= 0; perJob[r.w.job]++; }
+    if (def === "P" || (def === "A" && S.rep[k])) { perJob[r.w.job] = perJob[r.w.job] || 0; perJob[r.w.job]++; }
   });
   S.over = Object.entries(perJob).filter(([j, n]) => S.plan[j] != null && n > S.plan[j]).map(([job, n]) => ({ job, n, plan: S.plan[job] }));
   const planRows = Object.keys(perJob).map(j => `<tr><td>${esc(j)}</td><td class="n">${fmt(perJob[j])}</td><td class="n">${S.plan[j] != null ? fmt(S.plan[j]) : "—"}</td>

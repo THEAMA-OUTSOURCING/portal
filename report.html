@@ -303,7 +303,7 @@ $("fp-go").onclick = async () => {
     const rows = {};
     days.forEach(d => Object.entries(d.entries || {}).forEach(([k, e]) => {
       const nid = String(e.nid || "").replace(/\D/g, "");
-      const r = rows[d.site + "|" + (nid || k)] ??= { site: d.site, key: k, name: e.name || "", nid, job: e.job || "", cells: {} };
+      const rk = d.site + "|" + (nid || k), r = rows[rk] = rows[rk] || { site: d.site, key: k, name: e.name || "", nid, job: e.job || "", cells: {} };
       r.cells[d.date] = fpCell(e, off(d.date));
     }));
     const list = Object.values(rows).sort((a, b) => sites.indexOf(a.site) - sites.indexOf(b.site) || a.job.localeCompare(b.job) || a.name.localeCompare(b.name));
@@ -463,7 +463,7 @@ async function leaveReport(from, to, sel, jobF, kind) {
   try {
     // مين في الموقع: من حضور الفترة (عشان مواقع الإكسيل كمان) + كشوف المواقع
     const who = {}, byCode = {}, anyCode = {};
-    const put = (s, code, nid, name, job) => { const w = { site: s, code: String(code || ""), nid: nid || "", name: name || "", job: job || "" }; if (w.nid) who[w.nid] ??= w; if (w.code) { byCode[s + "|" + w.code] ??= w; anyCode[w.code] ??= w; } };
+    const put = (s, code, nid, name, job) => { const w = { site: s, code: String(code || ""), nid: nid || "", name: name || "", job: job || "" }; if (w.nid) who[w.nid] = who[w.nid] || w; if (w.code) { const bk = s + "|" + w.code; byCode[bk] = byCode[bk] || w; anyCode[w.code] = anyCode[w.code] || w; } };
     let codes = {};
     try { const m = await getDoc(doc(db, "sharqia_map", "codes")); codes = m.exists() ? m.data().codes || {} : {}; } catch (e) {}
     for (const d of await fetchDays(from, to, site))
@@ -558,7 +558,7 @@ $("r-go").onclick = async () => {
       try { const r = await getDoc(doc(db, "rosters", s)); (r.exists() ? r.data().workers : []).forEach(w => roster[s + "|" + w.code] = { ...w, site: s }); } catch (e) {}
     }
     const rows = {};
-    const getRow = (key, base) => rows[key] ??= { ...base, cells: {} };
+    const getRow = (key, base) => rows[key] || (rows[key] = { ...base, cells: {} });
     for (const d of days) {
       Object.entries(d.entries || {}).forEach(([code, e]) => {
         const w = roster[d.site + "|" + code] || {};
@@ -621,13 +621,13 @@ $("r-q").oninput = filterRows;
 // ===== تنزيل إكسيل منسّق زي الجدول اللي على البوابة (ExcelJS بتتحمّل بس لما تدوس الزرار) =====
 let excelJsP = null;
 function loadExcelJS() {
-  return excelJsP ??= new Promise((res, rej) => {
+  return excelJsP || (excelJsP = new Promise((res, rej) => {
     const s = document.createElement("script");
     s.src = "https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js";
     s.onload = () => res(window.ExcelJS);
     s.onerror = () => { excelJsP = null; rej(new Error("مكتبة الإكسيل ماتحمّلتش")); };
     document.head.appendChild(s);
-  });
+  }));
 }
 // رموز الإجازة بأجر (ج ورموز الإجازة في شيتات العملاء) بالأخضر،
 // والمرضي والإجازة بدون أجر (خ) وباقي الرموز (استقالة، توقف، راحة، إصابة) بالأزرق — عشان يبان الفرق

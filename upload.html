@@ -186,7 +186,7 @@ function selected() {
 function renderPreview() {
   const by = {};
   for (const [, d] of selected()) {
-    const c = counts(d.entries), x = by[d.site] ??= { days: 0, from: d.date, to: d.date, workers: new Set(), p: 0, a: 0, l: 0 };
+    const c = counts(d.entries), x = by[d.site] = by[d.site] || { days: 0, from: d.date, to: d.date, workers: new Set(), p: 0, a: 0, l: 0 };
     x.days++; x.from = d.date < x.from ? d.date : x.from; x.to = d.date > x.to ? d.date : x.to;
     Object.keys(d.entries).forEach(k => x.workers.add(k)); x.p += c.present; x.a += c.absent; x.l += c.leave;
   }

@@ -630,7 +630,7 @@ function renderDash() {
     <div class="kpi"><div class="v" style="direction:ltr;text-align:right">${prevTotal === null ? "—" : sign(curTotal - prevTotal)}</div><div class="l">التغيير عن ${pm ? monthLabel(pm) : "الشهر اللي فات"}</div></div>`;
 
   const by = {};
-  planned.forEach(r => { by[r.site] ??= { plan: 0, actual: 0 }; by[r.site].plan += r.plan; by[r.site].actual += r.actual; });
+  planned.forEach(r => { by[r.site] = by[r.site] || { plan: 0, actual: 0 }; by[r.site].plan += r.plan; by[r.site].actual += r.actual; });
   const list = Object.entries(by).sort((a, b) => (a[1].actual - a[1].plan) - (b[1].actual - b[1].plan));
   const max = Math.max(1, ...list.map(([, v]) => Math.max(v.plan, v.actual)));
   $("sites").innerHTML = list.map(([s, v]) => {

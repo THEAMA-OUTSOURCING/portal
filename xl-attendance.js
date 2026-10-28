@@ -75,7 +75,7 @@ export function parseChipsy(wb, XLSX) {
       const m = mark(r[i], "chipsy"); if (!m) return;
       if (m.bad) return out.issues.push(`رمز مش مفهوم "${m.bad}" — ${clean(r[iName])} يوم ${ymd(d)}`);
       const k = site + "__" + ymd(d);
-      (out.days[k] ??= { site, date: ymd(d), entries: {} }).entries[nid] =
+      (out.days[k] = out.days[k] || { site, date: ymd(d), entries: {} }).entries[nid] =
         { name: clean(r[iName]), nid, job, sub, pj, type: clean(r[iType]), code: clean(r[iCode]), ...m };
     });
   }
@@ -113,7 +113,7 @@ export function parseEmdad(wb, XLSX, sheetName, year) {
       const k = site + "__" + ymd(d);
       // في الإمداد الرقم غير 1 = ساعات شغل فعلية في يوم الراحة (منسقين) → إضافي
       if (m.s === "P" && m.c) m.x = 1;
-      (out.days[k] ??= { site, date: ymd(d), entries: {} }).entries[nid || gp] =
+      (out.days[k] = out.days[k] || { site, date: ymd(d), entries: {} }).entries[nid || gp] =
         { name: clean(r[1]), nid, job: job.replace(/\s*theama\s*/i, "").trim() || job, pj: EMDAD_JOB(job), code: gp, ...m };
     });
   }
@@ -141,7 +141,7 @@ export function parseSharqia(wb, XLSX) {
       const m = mark(r[i], "sharqia"); if (!m) return;
       if (m.bad) return out.issues.push(`رمز مش مفهوم "${m.bad}" — ${clean(r[iName])} يوم ${ymd(d)}`);
       const k = site + "__" + ymd(d);
-      (out.days[k] ??= { site, date: ymd(d), entries: {} }).entries[code] =
+      (out.days[k] = out.days[k] || { site, date: ymd(d), entries: {} }).entries[code] =
         { name: clean(r[iName]), nid: "", job: clean(r[iJob]), loc: clean(r[iLoc]), sector: clean(r[iSec]), code, ...m };
     });
   }
