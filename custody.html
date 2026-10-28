@@ -38,6 +38,7 @@ label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#4a4e55;
 .msg{padding:9px 12px;border-radius:10px;font-size:13px;margin-top:10px;display:none;white-space:pre-line;}
 .msg.show{display:block;} .msg.ok{background:#e7f3ec;color:#16683a;} .msg.err{background:#fdecea;color:#a61b12;} .msg.warn{background:#fdf3df;color:#6b4700;} .msg.info{background:#eef4fb;color:#185fa5;}
 .hidden{display:none !important;}
+body.store .br{display:none !important;} body:not(.store) .st{display:none !important;}
 .center{max-width:380px;margin:50px auto;}
 .chip{display:inline-block;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;white-space:nowrap;}
 .chip.red{background:#fdecea;color:#a61b12;} .chip.green{background:#e7f3ec;color:#16683a;} .chip.gray{background:#eef0f3;color:#3d4148;} .chip.amber{background:#fdf3df;color:#6b4700;}
@@ -101,13 +102,53 @@ th{color:#6a6e75;font-weight:500;}
     <div class="card">
       <div class="row" style="align-items:center;">
         <label class="f" style="flex:1;min-width:180px;">الفرع<select id="site"></select></label>
-        <span class="chip gray" id="cycle-chip">—</span>
+        <span class="chip gray br" id="cycle-chip">—</span>
       </div>
-      <div class="msg" id="cy-msg"></div>
+      <div class="msg br" id="cy-msg"></div>
+    </div>
+
+    <!-- المخزن العام (الأدمن بس): شراء، وصرف للفروع في اتجاه واحد -->
+    <div class="card st">
+      <h2>رصيد المخزن العام</h2>
+      <div style="overflow-x:auto;"><table><thead><tr><th>الصنف</th><th>المقاس</th><th class="num">الرصيد</th></tr></thead><tbody id="sto-bal"></tbody></table></div>
+    </div>
+    <div class="card st">
+      <h2>شراء / رصيد بداية</h2>
+      <div class="row">
+        <label class="f">الصنف<select id="sb-item" class="itsel"><option value="shoe">سيفتي</option><option value="tshirt">تيشرت (بالقطعة)</option><option value="vest">فيست</option></select></label>
+        <label class="f">المقاس<select id="sb-size"></select></label>
+        <label class="f">العدد<input type="number" id="sb-qty" step="1" style="width:110px" placeholder="مثلاً 50"></label>
+        <label class="f" style="flex:1;min-width:150px;">ملاحظة (اختياري)<input type="text" id="sb-note" maxlength="200" placeholder="مثلاً: رصيد بداية / فاتورة 123"></label>
+        <button class="btn" id="sb-add">سجّل في المخزن</button>
+      </div>
+      <p class="muted" style="margin-top:6px;">الغلط يتصلح بنفس الصنف والمقاس بالسالب.</p>
+      <h2 style="margin-top:14px;">صرف لفرع</h2>
+      <div class="row">
+        <label class="f" style="min-width:150px;">الفرع<select id="so-site"></select></label>
+        <label class="f">الصنف<select id="so-item" class="itsel"><option value="shoe">سيفتي</option><option value="tshirt">تيشرت (بالقطعة)</option><option value="vest">فيست</option></select></label>
+        <label class="f">المقاس<select id="so-size"></select></label>
+        <label class="f">العدد<input type="number" id="so-qty" step="1" min="1" style="width:110px"></label>
+        <button class="btn" id="so-add">اصرف</button>
+      </div>
+      <p class="muted" style="margin-top:6px;">الكمية بتنقص من المخزن العام وتزيد في مخزون الفرع مع بعض. الصرف في اتجاه واحد بس.</p>
+      <div class="msg" id="so-msg"></div>
+    </div>
+    <div class="card st">
+      <div class="row" style="justify-content:space-between;align-items:center;">
+        <h2 style="margin:0;">فين المخزون</h2>
+        <button class="btn sec small" id="where-go">اعرض</button>
+      </div>
+      <p class="muted">رصيد المخزن العام وكل فرع (اللي اتسلم للفرع ناقص اللي اتوزع على العمال).</p>
+      <div id="where-out" style="margin-top:8px;"></div>
+    </div>
+    <div class="card st">
+      <details><summary class="muted" style="cursor:pointer;">سجل حركات المخزن العام</summary>
+        <div style="overflow-x:auto;"><table><thead><tr><th>التاريخ</th><th>الحركة</th><th>الصنف</th><th>المقاس</th><th class="num">العدد</th><th>ملاحظة</th></tr></thead><tbody id="sto-log"></tbody></table></div>
+      </details>
     </div>
 
     <!-- الأدمن: الدورة والمخزون -->
-    <div class="card hidden" id="admin-card">
+    <div class="card hidden br" id="admin-card">
       <h2>الدورة والمخزون (ادمن)</h2>
       <div class="row">
         <label class="f">بداية الدورة<input type="month" id="cy-start"></label>
@@ -128,28 +169,28 @@ th{color:#6a6e75;font-weight:500;}
       </details>
     </div>
 
-    <div class="card">
+    <div class="card br">
       <div class="sum" id="sum"></div>
     </div>
 
-    <div class="card" style="padding:10px 12px;">
+    <div class="card br" style="padding:10px 12px;">
       <input type="search" id="q" placeholder="ابحث بالاسم أو الكود أو الرقم القومي" style="width:100%;">
       <div class="seg" style="margin-top:8px;">
         <button id="f-all" class="on">الكل</button>
         <button id="f-wait">ما استلموش</button>
       </div>
     </div>
-    <div class="msg" id="w-msg"></div>
-    <div id="jobs"></div>
+    <div class="msg br" id="w-msg"></div>
+    <div id="jobs" class="br"></div>
 
-    <div class="card left hidden" id="left-card">
+    <div class="card left hidden br" id="left-card">
       <h2>خرجوا ومعاهم عهدة الدورة دي</h2>
       <p class="muted">مش في الكشف دلوقتي. لو رجّع القطعة دوس «رجّع» عشان ترجع للمخزون وتتسلم لعامل تاني.</p>
       <div id="left"></div>
     </div>
 
     <!-- التقارير: الأدمن والمحاسب والـ HR والمشاهد والإقليمي (فروعهم) -->
-    <div class="card hidden" id="rep-card">
+    <div class="card hidden br" id="rep-card">
       <h2>تقارير العُهد</h2>
       <div class="row">
         <label class="f" style="flex:1;min-width:170px;">الفروع<select id="rep-scope"><option value="one">الفرع المختار فوق</option><option value="all">كل فروعي</option></select></label>
@@ -163,7 +204,7 @@ th{color:#6a6e75;font-weight:500;}
 </div>
 
 <script type="module">
-import { collection, doc, getDoc, getDocs, setDoc, addDoc, query, where, onSnapshot, runTransaction, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { collection, doc, getDoc, getDocs, setDoc, addDoc, writeBatch, query, where, onSnapshot, runTransaction, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { db, auth, actorEmail, SUP_SITES } from './shared.js';
 
@@ -187,10 +228,11 @@ const ITEMS = [
 ];
 const ITEM = Object.fromEntries(ITEMS.map(i => [i.id, i]));
 const SIZES = { shoe: ["40", "41", "42", "43", "44", "45", "46", "47"], tshirt: ["M", "L", "XL", "XXL", "3XL", "4XL", "5XL"], vest: ["واحد"] };
-const UNSIZED = "مش معروف";   // مخزون اتسجل من غير مقاس (اتشرى قبل ما نعرف المقاسات)
+const UNSIZED = "مش معروف";
+const STORE = "المخزن العام";   // الأدمن بس — مش فرع، ومالوش كشف ولا دورة   // مخزون اتسجل من غير مقاس (اتشرى قبل ما نعرف المقاسات)
 
 const S = { user: null, admin: false, canEdit: false, sites: [], site: "", cycle: null, roster: [], docs: {}, stock: [], removals: {},
-            filter: "all", q: "", busy: new Set(), unsubs: [] };
+            filter: "all", q: "", busy: new Set(), unsubs: [], store: [] };
 
 // ===== الدخول =====
 $("l-btn").onclick = async () => { try { await signInWithEmailAndPassword(auth, $("l-email").value.trim(), $("l-pass").value); } catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); } };
@@ -226,7 +268,9 @@ onAuthStateChanged(auth, async user => {
   $("who").textContent = role === "admin" ? "ادمن"
     : role === "supervisor" ? (mySites ? (regional ? "الاقليمى" : "مشرف " + mySites.join("، ")) : "مشرف " + SHARQIA) + (regional ? " — مشاهدة" : "")
     : user.email + " — مشاهدة";
-  $("site").innerHTML = S.sites.map(s => `<option>${esc(s)}</option>`).join("");
+  $("site").innerHTML = (S.admin ? `<option value="${STORE}">${STORE}</option>` : "") + S.sites.map(s => `<option>${esc(s)}</option>`).join("");
+  $("so-site").innerHTML = S.sites.map(s => `<option>${esc(s)}</option>`).join("");
+  if (S.admin) $("site").value = S.sites[0];
   $("admin-card").classList.toggle("hidden", !S.admin);
   fillSizes();
   $("app").classList.remove("hidden");
@@ -238,6 +282,8 @@ $("site").addEventListener("change", openSite);
 function stopWatch() { S.unsubs.forEach(u => { try { u(); } catch (e) {} }); S.unsubs = []; }
 function openSite() {
   stopWatch();
+  document.body.classList.toggle("store", $("site").value === STORE);
+  if ($("site").value === STORE) return openStore();
   S.site = $("site").value; S.cycle = null; S.roster = []; S.docs = {}; S.stock = []; S.removals = {};
   hide($("w-msg")); hide($("cy-msg"));
   render();
@@ -422,10 +468,12 @@ $("f-wait").onclick = () => { S.filter = "wait"; render(); };
 
 // ===== الأدمن: الدورة والمخزون =====
 function fillSizes() {
-  const it = $("st-item").value;
-  $("st-size").innerHTML = SIZES[it].concat(it === "vest" ? [] : [UNSIZED]).map(s => `<option>${s}</option>`).join("");
+  [["st-item", "st-size"], ["sb-item", "sb-size"], ["so-item", "so-size"]].forEach(([a, b]) => {
+    const it = $(a).value;
+    $(b).innerHTML = SIZES[it].concat(it === "vest" ? [] : [UNSIZED]).map(s => `<option>${s}</option>`).join("");
+  });
 }
-$("st-item").addEventListener("change", fillSizes);
+document.querySelectorAll("#st-item, .itsel").forEach(el => el.addEventListener("change", fillSizes));
 $("cy-start").addEventListener("change", render);
 $("cy-go").onclick = async () => {
   const start = $("cy-start").value;
@@ -523,8 +571,17 @@ $("rep-needs").onclick = async () => {
     const cyTxt = data.length === 1 && data[0].cycle ? ` — الدورة الجاية تبدأ ${monthAr(addMonths(data[0].cycle.end, 1))}` : "";
     let html = `<p class="muted" style="margin-bottom:6px;">المطلوب = عمال الكشف دلوقتي (التيشرت قطعتين للعامل). في المخزن = الباقي من نفس المقاس. «من غير مقاس» = العامل ما سجلش مقاسه في «مطلوب وهام». «مش معروف» = مخزون اتسجل من غير مقاس — راجعه قبل الشراء لأنه ممكن يغطي جزء من «هنشتري»${cyTxt}.</p>`;
     if (data.length > 1) {
-      html += `<h2 style="margin-top:6px;">الإجمالي</h2>` + `<div style="overflow-x:auto;"><table><thead><tr><th>الصنف</th><th>المقاس</th><th>المطلوب</th><th>في المخزن</th><th>هنشتري</th></tr></thead><tbody>${
-        Object.values(tot).map(t => `<tr><td>${esc(t[0])}</td><td>${esc(t[1])}</td><td class="num">${t[2]}</td><td class="num">${t[3]}</td><td class="num"><b>${t[4]}</b></td></tr>`).join("")}</tbody></table></div><h2 style="margin-top:12px;">بالفرع</h2>`;
+      // الأدمن: رصيد المخزن العام بيتطرح من «هنشتري» في الإجمالي
+      let sto = null;
+      if (S.admin) { try { sto = storeBalance(await loadStore()); } catch (e) { sto = null; } }
+      if (sto) Object.entries(sto).forEach(([k, n]) => {
+        const [it, sz] = k.split("|"); if (n <= 0) return;
+        const lab = ITEM[it].ar + (ITEM[it].pieces > 1 ? " (قطعة)" : "");
+        const t = (tot[ITEM[it].ar + "|" + sz] = tot[ITEM[it].ar + "|" + sz] || [lab, sz, 0, 0, 0]);
+        t[5] = n; t[4] = Math.max(0, t[2] - t[3] - n);
+      });
+      html += `<h2 style="margin-top:6px;">الإجمالي</h2>` + `<div style="overflow-x:auto;"><table><thead><tr><th>الصنف</th><th>المقاس</th><th>المطلوب</th><th>في الفروع</th>${sto ? "<th>في المخزن العام</th>" : ""}<th>هنشتري</th></tr></thead><tbody>${
+        Object.values(tot).map(t => `<tr><td>${esc(t[0])}</td><td>${esc(t[1])}</td><td class="num">${t[2]}</td><td class="num">${t[3]}</td>${sto ? `<td class="num">${t[5] || 0}</td>` : ""}<td class="num"><b>${t[4]}</b></td></tr>`).join("")}</tbody></table></div><h2 style="margin-top:12px;">بالفرع</h2>`;
     }
     $("rep-out").innerHTML = html + repTable(["الفرع", "الصنف", "المقاس", "المطلوب", "في المخزن", "هنشتري"], rows, "احتياجات العهد", "الاحتياجات");
   } catch (e) { $("rep-out").innerHTML = ""; repErr(e); }
@@ -558,6 +615,90 @@ $("rep-left").onclick = async () => {
       + repTable(["الاسم", "الكود", "الرقم القومى", "الوظيفة", "الفرع", "استلم", "تاريخ الاستلام", "تاريخ الخروج", "السبب", "باقى (شهور)"], rows, "خصم عهدة", "خرجوا قبل الدورة");
   } catch (e) { $("rep-out").innerHTML = ""; repErr(e); }
 };
+
+// ===== المخزن العام (الأدمن بس) =====
+// custody_store: { type: "buy" (شراء/رصيد بداية/تصحيح بالسالب) | "out" (صرف لفرع), item, size, qty, to_site?, note?, by, at }
+// الصرف = مستندين بنفس الـ id في batch واحد: custody_store (out) + custody_stock للفرع — الـ Rules بتتأكد إنهم متطابقين
+const loadStore = async () => { const out = []; (await getDocs(collection(db, "custody_store"))).forEach(d => out.push(d.data())); return out; };
+function storeBalance(list) {
+  const b = {};
+  list.forEach(m => { const k = m.item + "|" + m.size; b[k] = (b[k] || 0) + (m.type === "out" ? -1 : 1) * (Number(m.qty) || 0); });
+  return b;
+}
+function openStore() {
+  S.site = STORE; $("where-out").innerHTML = ""; hide($("so-msg"));
+  S.unsubs.push(onSnapshot(collection(db, "custody_store"), snap => {
+    S.store = []; snap.forEach(d => S.store.push(d.data())); renderStore();
+  }, e => show($("so-msg"), "err", "مقدرتش أقرا المخزن العام: " + (e.code === "permission-denied" ? "مفيش صلاحية — حدّث الـ Rules" : e.message))));
+  renderStore();
+}
+function renderStore() {
+  const bal = storeBalance(S.store);
+  const keys = Object.keys(bal).filter(k => bal[k] !== 0).sort((a, b) => {
+    const [ia, sa] = a.split("|"), [ib, sb] = b.split("|");
+    return ITEMS.findIndex(i => i.id === ia) - ITEMS.findIndex(i => i.id === ib) || (SIZES[ia].indexOf(sa) + 1 || 99) - (SIZES[ib].indexOf(sb) + 1 || 99);
+  });
+  $("sto-bal").innerHTML = keys.map(k => { const [it, sz] = k.split("|");
+    return `<tr><td>${ITEM[it].ar}</td><td>${esc(sz)}</td><td class="num"${bal[k] < 0 ? ' style="color:#a61b12"' : ""}><b>${bal[k]}</b></td></tr>`; }).join("")
+    || `<tr><td colspan="3" class="muted">المخزن فاضي — سجّل الرصيد اللي عندك دلوقتي من «شراء / رصيد بداية».</td></tr>`;
+  $("sto-log").innerHTML = S.store.slice().sort((a, b) => (b.at?.seconds || 0) - (a.at?.seconds || 0)).map(m =>
+    `<tr><td>${m.at?.toDate ? ymd(m.at.toDate()) : "…"}</td><td>${m.type === "out" ? "صرف لـ " + esc(m.to_site) : "شراء"}</td><td>${ITEM[m.item]?.ar || esc(m.item)}</td><td>${esc(m.size)}</td><td class="num" dir="ltr">${m.type === "out" ? -m.qty : m.qty}</td><td>${esc(m.note || "")}</td></tr>`
+  ).join("") || `<tr><td colspan="6" class="muted">لسه مفيش حركات.</td></tr>`;
+}
+const fbErr = e => e.code === "permission-denied" ? "مفيش صلاحية" : e.message;
+$("sb-add").onclick = async () => {
+  const item = $("sb-item").value, size = $("sb-size").value, qty = Number($("sb-qty").value), note = $("sb-note").value.trim();
+  if (!Number.isInteger(qty) || qty === 0 || Math.abs(qty) > 5000) return show($("so-msg"), "err", "اكتب العدد (رقم صحيح، والسالب للتصحيح).");
+  if (!confirm(`${qty > 0 ? "تضيف" : "تخصم"} ${Math.abs(qty)} ${ITEM[item].ar} مقاس ${size} ${qty > 0 ? "للمخزن العام" : "من المخزن العام"}؟`)) return;
+  $("sb-add").disabled = true;
+  try {
+    const d = { type: "buy", item, size, qty, by: S.user.uid, at: serverTimestamp() };
+    if (note) d.note = note.slice(0, 200);
+    await addDoc(collection(db, "custody_store"), d);
+    show($("so-msg"), "ok", "اتسجلت في المخزن العام."); $("sb-qty").value = ""; $("sb-note").value = "";
+  } catch (e) { show($("so-msg"), "err", "ماتسجلتش: " + fbErr(e)); }
+  finally { $("sb-add").disabled = false; }
+};
+$("so-add").onclick = async () => {
+  const site = $("so-site").value, item = $("so-item").value, size = $("so-size").value, qty = Number($("so-qty").value);
+  if (!Number.isInteger(qty) || qty <= 0 || qty > 5000) return show($("so-msg"), "err", "اكتب العدد (رقم صحيح أكبر من صفر).");
+  const have = storeBalance(S.store)[item + "|" + size] || 0;
+  if (qty > have) return show($("so-msg"), "err", `الرصيد في المخزن العام من ${ITEM[item].ar} مقاس ${size} = ${have} بس.`);
+  if (!confirm(`تصرف ${qty} ${ITEM[item].ar} مقاس ${size} من المخزن العام لـ ${site}؟`)) return;
+  $("so-add").disabled = true;
+  try {
+    const id = doc(collection(db, "custody_store")).id, b = writeBatch(db);
+    b.set(doc(db, "custody_store", id), { type: "out", item, size, qty, to_site: site, by: S.user.uid, at: serverTimestamp() });
+    b.set(doc(db, "custody_stock", id), { site, item, size, qty, note: "صرف من المخزن العام", by: S.user.uid, at: serverTimestamp() });
+    await b.commit();
+    show($("so-msg"), "ok", `اتصرف لـ ${site}.`); $("so-qty").value = "";
+  } catch (e) { show($("so-msg"), "err", "مااتصرفش: " + fbErr(e)); }
+  finally { $("so-add").disabled = false; }
+};
+// فين المخزون: المخزن العام + كل فرع (المستلم ناقص الموزع على العمال) — بيتقري لما تدوس «اعرض»
+$("where-go").onclick = async () => {
+  $("where-out").innerHTML = `<p class="muted">بيتحمل…</p>`;
+  try {
+    const data = await Promise.all(S.sites.map(s => loadSite(s, false)));
+    const sto = storeBalance(S.store);
+    const sum = id => Object.entries(sto).filter(([k]) => k.startsWith(id + "|")).reduce((a, [, n]) => a + n, 0);
+    const rows = [[STORE, ...ITEMS.map(i => sum(i.id))]];
+    data.forEach(d => rows.push([d.site, ...ITEMS.map(i => {
+      const got = d.stock.filter(x => x.item === i.id).reduce((a, x) => a + (Number(x.qty) || 0), 0);
+      let out = 0; d.docs.forEach(c => Object.entries(c.issues || {}).forEach(([k, e]) => { if (k.endsWith("__" + i.id) && !e.returned_at) out++; }));
+      return got - out * i.pieces;
+    })]));
+    const tot = ["الإجمالي", ...ITEMS.map((i, j) => rows.reduce((a, r) => a + r[j + 1], 0))];
+    $("where-out").innerHTML = repTable(["المكان", ...ITEMS.map(i => i.ar + (i.pieces > 1 ? " (قطعة)" : ""))], [...rows, tot], "مخزون العهد", "فين المخزون");
+  } catch (e) { $("where-out").innerHTML = ""; show($("so-msg"), "err", "مقدرتش أجيب الفروع: " + fbErr(e)); }
+};
+$("where-out").addEventListener("click", e => {
+  if (e.target.id !== "rep-xl" || !S.repRows) return;
+  const { head, rows, file, sheet } = S.repRows;
+  const ws = XLSX.utils.aoa_to_sheet([head, ...rows]); ws["!views"] = [{ RTL: true }];
+  const wb = XLSX.utils.book_new(); wb.Workbook = { Views: [{ RTL: true }] };
+  XLSX.utils.book_append_sheet(wb, ws, sheet); XLSX.writeFile(wb, file + " " + ymd(new Date()) + ".xlsx");
+});
 </script>
 </body>
 </html>
