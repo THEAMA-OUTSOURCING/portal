@@ -45,7 +45,7 @@ table{border-collapse:collapse;font-size:12px;}
 th,td{border:1px solid #e5e5e5;padding:3px 5px;text-align:center;white-space:nowrap;}
 th{background:#2b2b2b;color:#fff;position:sticky;top:0;z-index:1;font-weight:500;}
 td.nm{text-align:right;} td.off,th.off{background:#fde9d9;} th.off{color:#a32d2d;}
-td.a{color:#a32d2d;font-weight:600;} td.lv{color:#185fa5;font-weight:600;} td.lvg{color:#3b6d11;font-weight:600;} td.conf{outline:2px solid #e0a020;outline-offset:-2px;} td.unapp{background:#fffbea;} td.wt{color:#8a5a10;background:#fff5de;font-weight:600;}
+td.a{color:#a32d2d;font-weight:600;} td.lv{color:#185fa5;font-weight:600;} td.lvg{color:#3b6d11;font-weight:600;} td.conf{outline:2px solid #e0a020;outline-offset:-2px;} td.unapp{background:#fffbea;} td.wt{color:#8a5a10;background:#fff5de;font-weight:600;} td.tb{background:#fde2c4;}
 tr.foot td{background:#f3f3ef;font-weight:600;}
 .list td{padding:6px 8px;font-size:13px;} .list th{padding:6px 8px;font-size:13px;}
 .pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:600;}
@@ -212,6 +212,14 @@ import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from
 import { db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, fetchPlanBase, planBySite } from './shared.js';
 import { printOrder } from './sheet.js';
 
+// مواقع الساعات: الإضافي النهاري والليلي (بالدقايق) على خانة اليوم — والوقت اللي محتاج مراجعة بيتعلّم ومايتحسبش
+const TB_TIP = "الوقت محتاج مراجعة — اليوم ده مش محسوب في الإضافي";
+function otInto(cell, x, site) {
+  if (!cell || !x || !TIME_SITES.includes(site)) return;
+  if (x.t_issue || x.min == null) cell.tbad = true;
+  else { cell.otd = x.otd || 0; cell.otn = x.otn || 0; }
+}
+const hrsNum = m => m ? Math.round(m / 60 * 100) / 100 : null;   // ساعات بكسور عشان الإكسيل يجمعها
 // خانة اليوم: 1 حاضر، غ غايب، أو الرمز زي ما هو (ج م ض ر ق ن 8 ...). p = قيمة الحضور (ن = نص يوم)
 function cellOf(e, app) {
   if (e.s === "P") return { v: e.c || "1", p: e.c === "ن" ? 0.5 : 1, hrs: !!e.x, app };   // x = ساعات في يوم راحة (الإمداد) → إضافي
@@ -564,10 +572,12 @@ $("r-go").onclick = async () => {
         const w = roster[d.site + "|" + code] || {};
         const r = getRow(d.site + "|" + code, { site: d.site, code, name: e.name || w.name || code, nid: e.nid || w.nid || "", job: e.job || w.job || "", loc: e.loc || "", rep: !!e.sub });
         r.cells[d.date] = cellOf(e, d.status === "approved");
+        if (e.s === "P") otInto(r.cells[d.date], e, d.site);
         if (e.s === "A" && e.rep) {
           const k = d.site + "|R" + (e.rep.nid || e.rep.code || e.rep.name);
           const rr = getRow(k, { site: d.site, code: e.rep.code || "", name: e.rep.name, nid: e.rep.nid || "", job: e.job || w.job || "", rep: true });
           rr.cells[d.date] = { v: "1", p: 1, app: d.status === "approved" };
+          otInto(rr.cells[d.date], e.rep, d.site);
         }
       });
     }
@@ -580,30 +590,34 @@ $("r-go").onclick = async () => {
     if (jobF) list = list.filter(r => r.job === jobF);
     list.sort((a, b) => a.site.localeCompare(b.site) || a.rep - b.rep || a.job.localeCompare(b.job) || (a.loc || "").localeCompare(b.loc || "") || a.name.localeCompare(b.name));
     // الإضافي: شغل في جمعة أو عطلة، أو ساعات مكتوبة بالرقم (زي 8 في يوم راحة منسقين الإمداد)
-    list.forEach(r => { r.total = 0; r.extra = 0; dates.forEach(d => { const c = r.cells[d]; if (c?.p) { r.total += c.p; if (off(d) || c.hrs) r.extra += c.p; } }); });
+    list.forEach(r => { r.total = 0; r.extra = 0; r.otd = 0; r.otn = 0; r.tbad = 0; dates.forEach(d => { const c = r.cells[d]; if (c?.p) { r.total += c.p; if (off(d) || c.hrs) r.extra += c.p; }
+      if (c?.tbad) r.tbad++; else if (c) { r.otd += c.otd || 0; r.otn += c.otn || 0; } }); });
+    // مواقع الساعات: عمودين للإضافي (نهاري / ليلي) بالساعات — الأيام اللي وقتها محتاج مراجعة مش بتتحسب فيهم
+    const timed = list.some(r => TIME_SITES.includes(r.site));
+    const otSum = k => list.reduce((a, r) => a + (r[k] || 0), 0), nBad = list.reduce((a, r) => a + r.tbad, 0);
     const hasLoc = list.some(r => r.loc);
     const late = days.filter(d => d.late).length, unapp = days.filter(d => d.status !== "approved").length;
-    S.report = { kind: "att", from, to, dates, list, off, hol, site: sel, late, hasLoc };
+    S.report = { kind: "att", from, to, dates, list, off, hol, site: sel, late, hasLoc, timed };
     // جدول
     const multi = site === "*";
     let h = `<thead><tr><th>م</th>${multi ? "<th>الموقع</th>" : ""}<th>الاسم</th><th>${list.some(r => !r.nid) ? "الرقم القومي / الكود" : "الرقم القومي"}</th><th>الوظيفة</th>${hasLoc ? "<th>المكان</th>" : ""}` +
       dates.map(d => `<th class="${off(d) ? "off" : ""}" title="${esc(hol[d] || "")}">${+d.slice(8)}<br>${"حنثرخجس"[new Date(d + "T00:00").getDay()]}</th>`).join("") +
-      `<th>الإجمالي</th><th>إضافي</th></tr></thead><tbody>`;
+      `<th>الإجمالي</th><th>إضافي</th>${timed ? "<th>إضافي نهاري</th><th>إضافي ليلي</th>" : ""}</tr></thead><tbody>`;
     list.forEach((r, i) => {
       h += `<tr data-i="${i}"><td>${i + 1}</td>${multi ? `<td>${esc(r.site)}</td>` : ""}<td class="nm">${esc(r.name)}${r.rep ? " <span class='muted'>(بديل)</span>" : ""}</td><td>${esc(r.nid || r.code)}</td><td>${esc(r.job)}</td>${hasLoc ? `<td>${esc(r.loc)}</td>` : ""}` +
-        dates.map(d => { const c = r.cells[d]; return `<td class="${off(d) ? "off" : ""} ${c?.a ? "a" : ""} ${c?.l ? (isLeave(c) ? "lvg" : "lv") : ""} ${c?.conf ? "conf" : ""} ${c?.w ? "wt" : ""} ${c && !c.app ? "unapp" : ""}"${c?.ev || c?.conf ? ` title="${esc(c.ev || c.conf)}"` : ""}>${c ? esc(c.v) : ""}</td>`; }).join("") +
-        `<td><b>${r.total}</b></td><td>${r.extra || ""}</td></tr>`;
+        dates.map(d => { const c = r.cells[d]; return `<td class="${off(d) ? "off" : ""} ${c?.a ? "a" : ""} ${c?.l ? (isLeave(c) ? "lvg" : "lv") : ""} ${c?.conf ? "conf" : ""} ${c?.w ? "wt" : ""} ${c && !c.app ? "unapp" : ""} ${c?.tbad ? "tb" : ""}"${c?.ev || c?.conf || c?.tbad ? ` title="${esc(c.ev || c.conf || TB_TIP)}"` : ""}>${c ? esc(c.v) : ""}</td>`; }).join("") +
+        `<td><b>${r.total}</b></td><td>${r.extra || ""}</td>${timed ? (TIME_SITES.includes(r.site) ? `<td>${r.otd ? hrsTxt(r.otd) : ""}</td><td>${r.otn ? hrsTxt(r.otn) : ""}</td>` : "<td></td><td></td>") : ""}</tr>`;
     });
     const span = (multi ? 5 : 4) + (hasLoc ? 1 : 0);
-    const footRow = (label, f) => `<tr class="foot"><td colspan="${span}" style="text-align:right">${esc(label)}</td>` +
-      dates.map(d => `<td class="${off(d) ? "off" : ""}">${f(d) || ""}</td>`).join("") + `<td></td><td></td></tr>`;
+    const footRow = (label, f, tail = timed ? "<td></td><td></td>" : "") => `<tr class="foot"><td colspan="${span}" style="text-align:right">${esc(label)}</td>` +
+      dates.map(d => `<td class="${off(d) ? "off" : ""}">${f(d) || ""}</td>`).join("") + `<td></td><td></td>${tail}</tr>`;
     const pres = (rs, d) => rs.reduce((a, r) => a + (r.cells[d]?.p || 0), 0);
     (jobF ? [jobF] : jobs).forEach(j => h += footRow("حاضرين — " + j, d => pres(list.filter(r => r.job === j), d)));
-    h += footRow("إجمالي الحاضرين", d => pres(list, d)) + "</tbody>";
+    h += footRow("إجمالي الحاضرين", d => pres(list, d), timed ? `<td>${hrsTxt(otSum("otd"))}</td><td>${hrsTxt(otSum("otn"))}</td>` : "") + "</tbody>";
     $("r-table").innerHTML = h;
     const sTitle = multi ? "كل المواقع" : sel;
     $("print-head").innerHTML = `<b>تقرير حضور ${esc(sTitle)}${jobF ? " — " + esc(jobF) : ""}</b> — من ${from} لحد ${to}`;
-    $("r-sum").textContent = `${list.length} عامل · ${days.length} يوم حضور متأكد · ${unapp} لسه مااتعتمدش · رفع متأخر: ${late} مرة` + (Object.keys(hol).length ? ` · العطلات: ${Object.entries(hol).filter(([d]) => d >= from && d <= to).map(([d, n]) => d.slice(8) + " " + n).join("، ")}` : "");
+    $("r-sum").textContent = `${list.length} عامل · ${days.length} يوم حضور متأكد · ${unapp} لسه مااتعتمدش · رفع متأخر: ${late} مرة` + (timed && nBad ? ` · ${nBad} يوم وقته محتاج مراجعة (برتقالي) ومش محسوب في الإضافي` : "") + (Object.keys(hol).length ? ` · العطلات: ${Object.entries(hol).filter(([d]) => d >= from && d <= to).map(([d, n]) => d.slice(8) + " " + n).join("، ")}` : "");
     $("r-out").classList.remove("hidden"); hide($("r-msg")); filterRows();
     $("r-print").disabled = false; $("r-xlsx").disabled = false;
   } catch (e) { show($("r-msg"), "err", "حصل خطأ: " + e.message); }
@@ -639,8 +653,8 @@ const DAY_FULL = ["الأحد", "الاتنين", "التلات", "الأربع"
 function buildReportWorkbook(ExcelJS, R) {
   const multi = R.site === "*";
   const fixed = ["م", ...(multi ? ["الموقع"] : []), "الاسم", "الرقم القومي", "الوظيفة", ...(R.hasLoc ? ["المكان"] : []), "النوع"];
-  const nF = fixed.length, nD = R.dates.length, nAll = nF + nD + 2;
-  const C = { dark: "FF2B2B2B", off: "FFFDE9D9", offTxt: "FFA32D2D", abs: "FFA32D2D", lv: "FF185FA5", lvg: "FF3B6D11", unapp: "FFFFFBEA", wt: "FFFFF5DE", wtTxt: "FF8A5A10", foot: "FFF3F3EF", conf: "FFE0A020", grid: "FFBFBFBF" };
+  const nF = fixed.length, nD = R.dates.length, nAll = nF + nD + 2 + (R.timed ? 2 : 0);
+  const C = { dark: "FF2B2B2B", off: "FFFDE9D9", offTxt: "FFA32D2D", abs: "FFA32D2D", lv: "FF185FA5", lvg: "FF3B6D11", unapp: "FFFFFBEA", wt: "FFFFF5DE", wtTxt: "FF8A5A10", foot: "FFF3F3EF", conf: "FFE0A020", grid: "FFBFBFBF", tb: "FFFDE2C4" };
   const fill = argb => ({ type: "pattern", pattern: "solid", fgColor: { argb } });
   const thin = { style: "thin", color: { argb: C.grid } };
   const box = { top: thin, left: thin, bottom: thin, right: thin };
@@ -669,12 +683,13 @@ function buildReportWorkbook(ExcelJS, R) {
     head(2, nF + 1 + i, +d.slice(8) + "/" + +d.slice(5, 7), off);
     head(3, nF + 1 + i, DAY_FULL[wd] + (R.hol[d] ? "\n" + R.hol[d] : ""), off);
   });
-  [["الإجمالي", nF + nD + 1], ["إضافي", nF + nD + 2]].forEach(([h, c]) => { ws.mergeCells(2, c, 3, c); head(2, c, h); });
+  [["الإجمالي", nF + nD + 1], ["إضافي", nF + nD + 2], ...(R.timed ? [["إضافي نهاري (ساعة)", nF + nD + 3], ["إضافي ليلي (ساعة)", nF + nD + 4]] : [])].forEach(([h, c]) => { ws.mergeCells(2, c, 3, c); head(2, c, h); });
   ws.getRow(2).height = 20; ws.getRow(3).height = Object.keys(R.hol).length ? 34 : 20;
   // 4...) العمال
   R.list.forEach((r, i) => {
     const vals = [i + 1, ...(multi ? [r.site] : []), r.name, r.nid || r.code, r.job, ...(R.hasLoc ? [r.loc] : []), r.rep ? "بديل" : "",
-      ...R.dates.map(d => { const c = r.cells[d]; return !c ? null : c.v === "1" ? 1 : (isNaN(+c.v) ? c.v : +c.v); }), r.total, r.extra || null];
+      ...R.dates.map(d => { const c = r.cells[d]; return !c ? null : c.v === "1" ? 1 : (isNaN(+c.v) ? c.v : +c.v); }), r.total, r.extra || null,
+      ...(R.timed ? (TIME_SITES.includes(r.site) ? [hrsNum(r.otd), hrsNum(r.otn)] : [null, null]) : [])];
     const row = ws.addRow(vals);
     row.eachCell({ includeEmpty: true }, (cell, col) => {
       cell.border = box; cell.font = { name: "Arial", size: 10 };
@@ -687,7 +702,8 @@ function buildReportWorkbook(ExcelJS, R) {
         if (c?.l) cell.font = { name: "Arial", size: 10, bold: true, color: { argb: isLeave(c) ? C.lvg : C.lv } };
         if (c?.w) { cell.fill = fill(C.wt); cell.font = { name: "Arial", size: 10, bold: true, color: { argb: C.wtTxt } }; }
         if (c?.conf) { const o = { style: "medium", color: { argb: C.conf } }; cell.border = { top: o, left: o, bottom: o, right: o }; }
-        if (c?.ev || c?.conf) cell.note = c.ev || c.conf;
+        if (c?.tbad) cell.fill = fill(C.tb);
+        if (c?.ev || c?.conf || c?.tbad) cell.note = c.ev || c.conf || TB_TIP;
       }
       if (col > nF + nD) cell.font = { name: "Arial", size: 10, bold: true };
     });
@@ -697,8 +713,8 @@ function buildReportWorkbook(ExcelJS, R) {
   });
   // صفوف الإجماليات
   const pres = (rs, d) => rs.reduce((a, r) => a + (r.cells[d]?.p || 0), 0);
-  const foot = (label, f) => {
-    const row = ws.addRow([...Array(nF).fill(null), ...R.dates.map(d => f(d) || null), null, null]);
+  const foot = (label, f, tail) => {
+    const row = ws.addRow([...Array(nF).fill(null), ...R.dates.map(d => f(d) || null), null, null, ...(R.timed ? (tail || [null, null]) : [])]);
     ws.mergeCells(row.number, 1, row.number, nF);
     ws.getCell(row.number, 1).value = label;
     row.eachCell({ includeEmpty: true }, (cell, col) => {
@@ -707,17 +723,19 @@ function buildReportWorkbook(ExcelJS, R) {
     });
   };
   [...new Set(R.list.map(r => r.job))].forEach(j => foot("حاضرين — " + j, d => pres(R.list.filter(r => r.job === j), d)));
-  foot("إجمالي الحاضرين", d => pres(R.list, d));
+  foot("إجمالي الحاضرين", d => pres(R.list, d), R.timed ? [hrsNum(R.list.reduce((a, r) => a + (r.otd || 0), 0)), hrsNum(R.list.reduce((a, r) => a + (r.otn || 0), 0))] : null);
   // دليل الألوان
   ws.addRow([]);
   const legend = [["غ", "غايب", C.abs], ["ج", "إجازة", C.lvg], ["خ", "إجازة بدون أجر", C.lv], ["م", "مرضي", C.lv], ["س", "استقالة", C.lv], ["م؟", "مرضي في انتظار اعتماد العميل", C.wtTxt]];
   legend.forEach(([k, v, color]) => { const row = ws.addRow([k, v]); row.getCell(1).font = { name: "Arial", bold: true, color: { argb: color } }; row.getCell(2).font = { name: "Arial", size: 9 }; });
   const l3 = ws.addRow(["", "جمعة أو عطلة رسمية"]); l3.getCell(1).fill = fill(C.off); l3.getCell(2).font = { name: "Arial", size: 9 };
   const l4 = ws.addRow(["", "يوم لسه مااتعتمدش من المحاسب"]); l4.getCell(1).fill = fill(C.unapp); l4.getCell(2).font = { name: "Arial", size: 9 };
+  if (R.timed) { const l5 = ws.addRow(["", TB_TIP]); l5.getCell(1).fill = fill(C.tb); l5.getCell(2).font = { name: "Arial", size: 9 }; }
   // عرض الأعمدة
   fixed.forEach((h, i) => ws.getColumn(i + 1).width = h === "م" ? 5 : h === "الاسم" ? 30 : h === "الرقم القومي" ? 16 : h === "الوظيفة" ? 18 : h === "المكان" ? 14 : h === "الموقع" ? 14 : 7);
   R.dates.forEach((d, i) => ws.getColumn(nF + 1 + i).width = 7);
   ws.getColumn(nF + nD + 1).width = 9; ws.getColumn(nF + nD + 2).width = 7;
+  if (R.timed) { ws.getColumn(nF + nD + 3).width = 11; ws.getColumn(nF + nD + 4).width = 11; }
   return wb;
 }
 $("r-xlsx").onclick = async () => {
@@ -740,9 +758,10 @@ $("r-xlsx").onclick = async () => {
 function xlsxPlain() {   // الطريقة القديمة (من غير تنسيق) — احتياطي لو مكتبة التنسيق ماتحمّلتش
   const R = S.report; if (!R) return;
   const multi = R.site === "*";
-  const head = ["م", ...(multi ? ["الموقع"] : []), "الاسم", "الرقم القومي", "الوظيفة", ...(R.hasLoc ? ["المكان"] : []), "النوع", ...R.dates.map(d => d.slice(5) + (R.off(d) ? " *" : "")), "الإجمالي", "إضافي"];
+  const head = ["م", ...(multi ? ["الموقع"] : []), "الاسم", "الرقم القومي", "الوظيفة", ...(R.hasLoc ? ["المكان"] : []), "النوع", ...R.dates.map(d => d.slice(5) + (R.off(d) ? " *" : "")), "الإجمالي", "إضافي", ...(R.timed ? ["إضافي نهاري (ساعة)", "إضافي ليلي (ساعة)"] : [])];
   const aoa = [[`تقرير حضور ${multi ? "كل المواقع" : R.site} — من ${R.from} لحد ${R.to} (* = جمعة أو عطلة)`], head];
-  R.list.forEach((r, i) => aoa.push([i + 1, ...(multi ? [r.site] : []), r.name, r.nid || r.code, r.job, ...(R.hasLoc ? [r.loc] : []), r.rep ? "بديل" : "", ...R.dates.map(d => { const c = r.cells[d]; return !c ? "" : c.v === "1" ? 1 : c.v; }), r.total, r.extra]));
+  R.list.forEach((r, i) => aoa.push([i + 1, ...(multi ? [r.site] : []), r.name, r.nid || r.code, r.job, ...(R.hasLoc ? [r.loc] : []), r.rep ? "بديل" : "", ...R.dates.map(d => { const c = r.cells[d]; return !c ? "" : c.v === "1" ? 1 : c.v; }), r.total, r.extra,
+    ...(R.timed ? (TIME_SITES.includes(r.site) ? [hrsNum(r.otd), hrsNum(r.otn)] : ["", ""]) : [])]));
   const pre = (multi ? 6 : 5) + (R.hasLoc ? 1 : 0);
   const pres = (rs, d) => rs.reduce((a, r) => a + (r.cells[d]?.p || 0), 0);
   [...new Set(R.list.map(r => r.job))].forEach(j => aoa.push(["", ...Array(pre - 2).fill(""), "حاضرين — " + j, ...R.dates.map(d => pres(R.list.filter(r => r.job === j), d)), "", ""]));
