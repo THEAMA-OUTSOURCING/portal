@@ -964,18 +964,24 @@ $("refresh-times").addEventListener("click", async () => {
   const entries = JSON.parse(JSON.stringify(S.day.entries || {}));
   const clearT = e => TIME_KEYS.forEach(k => delete e[k]);
   let nT = 0; const added = [], diff = [];
+  // عامل من الكشف اتنقل بعدين لقايمة البدلاء (اتغير نوعه): القراءة الجديدة بتلاقيه «بديل» بنفس الرقم القومي.
+  // ده نفس العامل — ساعاته تروح على سطره الأصلي، ومايتضافش تاني. والمتكرر اللي اتضاف قبل كده بيتشال.
+  const mainN = new Set(Object.values(entries).filter(e => !e.sub && e.nid).map(e => String(e.nid)));
+  const subByNid = {}; Object.values(subs).forEach(r => { if (r.w?.nid) subByNid[String(r.w.nid)] = r; });
+  const dups = Object.keys(entries).filter(k => entries[k].sub && entries[k].added_by_refresh && mainN.has(String(entries[k].nid || "")));
+  dups.forEach(k => delete entries[k]);
   for (const [c, e] of Object.entries(entries)) {
     if (e.s === "A" && e.rep) { e.rep = { nid: e.rep.nid || "", name: e.rep.name, code: e.rep.code || "" }; continue; }   // repTimes بيحسبها تاني
     if (e.s !== "P") continue;
     if (e.rep_for) { clearT(e); continue; }
-    const r = e.sub ? subs[c] : ai[c];
+    const r = e.sub ? subs[c] : (ai[c] || (e.nid ? subByNid[String(e.nid)] : null));
     if (!r) continue;   // الصف مش في الصور دلوقتي: الساعات زي ما هي
     clearT(e); Object.assign(e, timeEntry(r, e.job, S.prevIn[c])); nT++;
   }
   // البدلاء الحاضرين في القراءة الجديدة ومش متسجلين (ولا مختارين بديل لحد)
-  const usedN = new Set(Object.values(entries).flatMap(e => [e.rep?.nid, e.sub ? e.nid : ""]).filter(Boolean));
+  const usedN = new Set(Object.values(entries).flatMap(e => [e.rep?.nid, e.nid]).filter(Boolean).map(String));
   for (const [k, r] of Object.entries(subs)) {
-    if (entries[k] || r.s !== "P" || needsReview(r) || usedN.has(r.w.nid)) continue;
+    if (entries[k] || r.s !== "P" || needsReview(r) || usedN.has(String(r.w.nid || ""))) continue;
     entries[k] = { name: r.w.name, nid: r.w.nid || "", code: r.w.code || "", job: r.w.job || "", type: r.w.type || "بديل", sub: true, s: "P", ai: r.s,
       by: "ai", note: r.note || "", page: r.page || "", added_by_refresh: true, ...timeEntry(r, r.w.job, S.prevIn[k]) };
     added.push(r.w.name + " — " + (r.w.job || ""));
@@ -990,12 +996,13 @@ $("refresh-times").addEventListener("click", async () => {
   const v = Object.values(entries);
   const counts = { present: v.filter(e => e.s === "P").length, absent: v.filter(e => e.s === "A").length, total: v.length };
   const stop = v.filter(e => e.s === "L" && e.c === "ق").length; if (stop) counts.stop = stop;
-  const msg = `هيتحدث ساعات ${nT} عامل` + (added.length ? `، وهيتضاف ${added.length} بديل حاضر:\n${added.join("\n")}` : "") + ".\nتكمل؟";
+  const msg = `هيتحدث ساعات ${nT} عامل` + (added.length ? `، وهيتضاف ${added.length} بديل حاضر:\n${added.join("\n")}` : "")
+    + (dups.length ? `\nوهيتشال ${dups.length} اسم متكرر (نفس العامل اتسجل مرتين)` : "") + ".\nتكمل؟";
   if (!confirm(msg)) return;
   $("refresh-times").disabled = true;
   try {
     await updateDoc(doc(db, "att_days", S.site + "__" + S.date), { entries, counts, times_refreshed_at: serverTimestamp(), times_refreshed_by: auth.currentUser.uid });
-    show($("refresh-msg"), "ok", `اتحدث ✓ — ساعات ${nT} عامل${added.length ? `، واتضاف ${added.length} بديل: ${added.join("، ")}` : ""}.`
+    show($("refresh-msg"), "ok", `اتحدث ✓ — ساعات ${nT} عامل${added.length ? `، واتضاف ${added.length} بديل: ${added.join("، ")}` : ""}${dups.length ? `، واتشال ${dups.length} اسم متكرر` : ""}.`
       + (diff.length ? `\n\nفرق في الحالة (ماتغيرش — راجعه بنفسك):\n${diff.join("\n")}` : ""));
   } catch (err) {
     show($("refresh-msg"), "err", "ماتحدثش: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (att_days — تحديث الساعات للأدمن)." : err.message));
