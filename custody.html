@@ -19,6 +19,7 @@
 <script src="sentry.js"></script>
 <script src="https://js-de.sentry-cdn.com/9e9117440dc053dd5910abeaf878fa7a.min.js" crossorigin="anonymous"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'IBM Plex Sans Arabic','Segoe UI',Tahoma,sans-serif;background:#f2f3f5;color:#1d2024;padding:12px;font-size:14px;line-height:1.6;}
@@ -146,11 +147,23 @@ th{color:#6a6e75;font-weight:500;}
       <p class="muted">مش في الكشف دلوقتي. لو رجّع القطعة دوس «رجّع» عشان ترجع للمخزون وتتسلم لعامل تاني.</p>
       <div id="left"></div>
     </div>
+
+    <!-- التقارير: الأدمن والمحاسب والـ HR والمشاهد والإقليمي (فروعهم) -->
+    <div class="card hidden" id="rep-card">
+      <h2>تقارير العُهد</h2>
+      <div class="row">
+        <label class="f" style="flex:1;min-width:170px;">الفروع<select id="rep-scope"><option value="one">الفرع المختار فوق</option><option value="all">كل فروعي</option></select></label>
+        <button class="btn sec" id="rep-needs">احتياجات الدورة الجاية</button>
+        <button class="btn sec" id="rep-left">خرجوا قبل نهاية الدورة</button>
+      </div>
+      <div class="msg" id="rep-msg"></div>
+      <div id="rep-out" style="margin-top:10px;"></div>
+    </div>
   </div>
 </div>
 
 <script type="module">
-import { collection, doc, getDoc, setDoc, addDoc, query, where, onSnapshot, runTransaction, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { collection, doc, getDoc, getDocs, setDoc, addDoc, query, where, onSnapshot, runTransaction, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { db, auth, actorEmail, SUP_SITES } from './shared.js';
 
@@ -174,6 +187,7 @@ const ITEMS = [
 ];
 const ITEM = Object.fromEntries(ITEMS.map(i => [i.id, i]));
 const SIZES = { shoe: ["40", "41", "42", "43", "44", "45", "46", "47"], tshirt: ["M", "L", "XL", "XXL", "3XL", "4XL", "5XL"], vest: ["واحد"] };
+const UNSIZED = "مش معروف";   // مخزون اتسجل من غير مقاس (اتشرى قبل ما نعرف المقاسات)
 
 const S = { user: null, admin: false, canEdit: false, sites: [], site: "", cycle: null, roster: [], docs: {}, stock: [], removals: {},
             filter: "all", q: "", busy: new Set(), unsubs: [] };
@@ -206,6 +220,9 @@ onAuthStateChanged(auth, async user => {
   if (!S.sites.length) { $("denied").classList.remove("hidden"); return; }
   // يعلّم: الأدمن والمشرف (مش الإقليمي). الباقي مشاهدة بس
   S.canEdit = S.admin || (role === "supervisor" && !regional);
+  S.reports = ["admin", "hr", "accountant", "viewer"].includes(role) || regional;
+  $("rep-card").classList.toggle("hidden", !S.reports);
+  $("rep-out").innerHTML = ""; hide($("rep-msg"));
   $("who").textContent = role === "admin" ? "ادمن"
     : role === "supervisor" ? (mySites ? (regional ? "الاقليمى" : "مشرف " + mySites.join("، ")) : "مشرف " + SHARQIA) + (regional ? " — مشاهدة" : "")
     : user.email + " — مشاهدة";
@@ -366,7 +383,9 @@ async function mark(w, item, want) {
       const snap = await tx.get(ref);
       const cur = snap.exists() ? snap.data() : {};
       const issues = { ...(cur.issues || {}) };
-      if (want) { if (!issues[k] || issues[k].returned_at) issues[k] = { at: ymd(new Date()), by: actorEmail(S.user) }; }
+      if (want) { if (!issues[k] || issues[k].returned_at) { issues[k] = { at: ymd(new Date()), by: actorEmail(S.user) };
+                  // المقاس وقت الاستلام — عشان المخزون بالمقاس في تقرير الاحتياجات
+                  const sz = item === "vest" ? "واحد" : w[item]; if (sz) issues[k].size = String(sz); } }
       else delete issues[k];
       tx.set(ref, { nid: String(w.nid), code: String(w.code || ""), name: String(w.name || "").slice(0, 200), job: String(w.job || "").slice(0, 100),
                     site: S.site, issues, updated_by: S.user.uid, updated_at: serverTimestamp() });
@@ -402,7 +421,10 @@ $("f-all").onclick = () => { S.filter = "all"; render(); };
 $("f-wait").onclick = () => { S.filter = "wait"; render(); };
 
 // ===== الأدمن: الدورة والمخزون =====
-function fillSizes() { $("st-size").innerHTML = SIZES[$("st-item").value].map(s => `<option>${s}</option>`).join(""); }
+function fillSizes() {
+  const it = $("st-item").value;
+  $("st-size").innerHTML = SIZES[it].concat(it === "vest" ? [] : [UNSIZED]).map(s => `<option>${s}</option>`).join("");
+}
 $("st-item").addEventListener("change", fillSizes);
 $("cy-start").addEventListener("change", render);
 $("cy-go").onclick = async () => {
@@ -429,6 +451,112 @@ $("st-add").onclick = async () => {
     show($("st-msg"), "ok", "اتسجلت."); $("st-qty").value = ""; $("st-note").value = "";
   } catch (err) { show($("st-msg"), "err", "ماتسجلتش: " + (err.code === "permission-denied" ? "مفيش صلاحية" : err.message)); }
   finally { $("st-add").disabled = false; }
+};
+
+// ===== التقارير =====
+// بيتقروا مرة لما تدوس الزرار (مش متابعة لحظية) عشان القراءات
+const repSites = () => $("rep-scope").value === "all" ? S.sites : [S.site];
+const monthsLeft = (fromYm, endYm) => Math.max(0, (Number(endYm.slice(0, 4)) - Number(fromYm.slice(0, 4))) * 12 + Number(endYm.slice(5)) - Number(fromYm.slice(5)));
+async function loadSite(site, withExits) {
+  const [cy, ro, cu, st] = await Promise.all([
+    getDoc(doc(db, "custody_cycles", site)), getDoc(doc(db, "rosters", site)),
+    getDocs(query(collection(db, "custody"), where("site", "==", site))),
+    getDocs(query(collection(db, "custody_stock"), where("site", "==", site)))]);
+  const out = { site, cycle: cy.exists() ? cy.data() : null, roster: ro.exists() ? (ro.data().workers || []) : [], docs: [], stock: [], removals: {}, gone: {} };
+  cu.forEach(d => out.docs.push(d.data())); st.forEach(d => out.stock.push(d.data()));
+  if (withExits) {
+    // تاريخ الخروج: الشيل من الكشف (من غير «نقل»)، أو «مشي» من الإدارة
+    try { (await getDocs(query(collection(db, "sheet_removals"), where("site", "==", site)))).forEach(d => { const r = d.data(); out.removals[r.code] = r; }); } catch (e) {}
+    try { (await getDocs(query(collection(db, "roster_overrides"), where("site", "==", site)))).forEach(d => { const r = d.data(); if (r.type === "مشي") out.gone[r.code] = r; }); } catch (e) {}
+  }
+  return out;
+}
+const repErr = e => show($("rep-msg"), "err", "مقدرتش أجيب التقرير: " + (e.code === "permission-denied" ? "مفيش صلاحية" : e.message));
+function repTable(head, rows, file, sheet) {
+  S.repRows = { head, rows, file, sheet };
+  return `<div class="row" style="justify-content:flex-end;margin-bottom:6px;"><button class="btn sec small" id="rep-xl">تنزيل Excel</button></div>
+    <div style="overflow-x:auto;"><table><thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead>
+    <tbody>${rows.map(r => `<tr>${r.map(c => `<td${typeof c === "number" ? ' class="num"' : ""}>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+$("rep-out").addEventListener("click", e => {
+  if (e.target.id !== "rep-xl" || !S.repRows) return;
+  const { head, rows, file, sheet } = S.repRows;
+  const ws = XLSX.utils.aoa_to_sheet([head, ...rows]);
+  ws["!cols"] = head.map((h, i) => ({ wch: Math.max(10, ...rows.map(r => String(r[i] ?? "").length + 2)) }));
+  ws["!views"] = [{ RTL: true }];
+  const wb = XLSX.utils.book_new(); wb.Workbook = { Views: [{ RTL: true }] };
+  XLSX.utils.book_append_sheet(wb, ws, sheet);
+  XLSX.writeFile(wb, file + " " + ymd(new Date()) + ".xlsx");
+});
+
+// 1) احتياجات الدورة الجاية: كل اللي في الكشف دلوقتي هياخد جديد، ناقص اللي في المخزن من نفس المقاس
+$("rep-needs").onclick = async () => {
+  hide($("rep-msg")); $("rep-out").innerHTML = `<p class="muted">بيتحمل…</p>`;
+  try {
+    const data = await Promise.all(repSites().map(s => loadSite(s, false)));
+    const rows = [], tot = {};
+    data.forEach(d => {
+      ITEMS.forEach(i => {
+        const need = {}, have = {};
+        d.roster.forEach(w => { const sz = i.id === "vest" ? "واحد" : (w[i.id] || "من غير مقاس"); need[sz] = (need[sz] || 0) + i.pieces; });
+        d.stock.filter(x => x.item === i.id).forEach(x => have[x.size] = (have[x.size] || 0) + (Number(x.qty) || 0));
+        d.docs.forEach(c => Object.entries(c.issues || {}).forEach(([k, e]) => {
+          if (k.endsWith("__" + i.id) && !e.returned_at) { const sz = i.id === "vest" ? "واحد" : (e.size || "من غير مقاس"); have[sz] = (have[sz] || 0) - i.pieces; }
+        }));
+        // المخزون اللي مقاسه «مش معروف»: اللي اتسلم بمقاسات مالهاش مخزون بيتخصم منه الأول، والباقي بيظهر في سطر لوحده
+        let pool = have[UNSIZED] || 0; delete have[UNSIZED];
+        Object.keys(have).forEach(sz => { if (have[sz] < 0 && pool > 0) { const t = Math.min(pool, -have[sz]); pool -= t; have[sz] += t; } });
+        const sizes = [...new Set([...Object.keys(need), ...Object.keys(have)])]
+          .sort((a, b) => (SIZES[i.id].indexOf(a) + 1 || 99) - (SIZES[i.id].indexOf(b) + 1 || 99));
+        if (pool > 0) sizes.push(UNSIZED);
+        sizes.forEach(sz => {
+          const unk = sz === UNSIZED;
+          const n = unk ? 0 : need[sz] || 0, h = unk ? pool : Math.max(0, have[sz] || 0), buy = unk ? 0 : Math.max(0, n - h);
+          if (!n && !h) return;
+          rows.push([d.site, i.ar + (i.pieces > 1 ? " (قطعة)" : ""), sz, n, h, buy]);
+          const t = (tot[i.ar + "|" + sz] = tot[i.ar + "|" + sz] || [i.ar + (i.pieces > 1 ? " (قطعة)" : ""), sz, 0, 0, 0]);
+          t[2] += n; t[3] += h; t[4] += buy;
+        });
+      });
+    });
+    if (!rows.length) { $("rep-out").innerHTML = `<p class="muted">مفيش عمال في الكشوف دي.</p>`; return; }
+    const cyTxt = data.length === 1 && data[0].cycle ? ` — الدورة الجاية تبدأ ${monthAr(addMonths(data[0].cycle.end, 1))}` : "";
+    let html = `<p class="muted" style="margin-bottom:6px;">المطلوب = عمال الكشف دلوقتي (التيشرت قطعتين للعامل). في المخزن = الباقي من نفس المقاس. «من غير مقاس» = العامل ما سجلش مقاسه في «مطلوب وهام». «مش معروف» = مخزون اتسجل من غير مقاس — راجعه قبل الشراء لأنه ممكن يغطي جزء من «هنشتري»${cyTxt}.</p>`;
+    if (data.length > 1) {
+      html += `<h2 style="margin-top:6px;">الإجمالي</h2>` + `<div style="overflow-x:auto;"><table><thead><tr><th>الصنف</th><th>المقاس</th><th>المطلوب</th><th>في المخزن</th><th>هنشتري</th></tr></thead><tbody>${
+        Object.values(tot).map(t => `<tr><td>${esc(t[0])}</td><td>${esc(t[1])}</td><td class="num">${t[2]}</td><td class="num">${t[3]}</td><td class="num"><b>${t[4]}</b></td></tr>`).join("")}</tbody></table></div><h2 style="margin-top:12px;">بالفرع</h2>`;
+    }
+    $("rep-out").innerHTML = html + repTable(["الفرع", "الصنف", "المقاس", "المطلوب", "في المخزن", "هنشتري"], rows, "احتياجات العهد", "الاحتياجات");
+  } catch (e) { $("rep-out").innerHTML = ""; repErr(e); }
+};
+
+// 2) خرجوا قبل نهاية الدورة ومعاهم عهدة ما رجعتش — للمحاسب (من غير مبالغ لحد دلوقتي)
+$("rep-left").onclick = async () => {
+  hide($("rep-msg")); $("rep-out").innerHTML = `<p class="muted">بيتحمل…</p>`;
+  try {
+    const data = await Promise.all(repSites().map(s => loadSite(s, true)));
+    const rows = [];
+    data.forEach(d => {
+      if (!d.cycle) return;
+      const inRoster = new Set(d.roster.map(w => String(w.nid)));
+      d.docs.filter(c => !inRoster.has(String(c.nid))).forEach(c => {
+        const items = ITEMS.filter(i => { const e = c.issues?.[d.cycle.start + "__" + i.id]; return e && !e.returned_at; });
+        if (!items.length) return;
+        const rem = d.removals[c.code], ov = d.gone[c.code];
+        if (rem && rem.reason === "نقل لموقع تاني") return;   // اتنقل = العهدة معاه، مش خروج
+        const exitDate = rem?.at?.toDate ? ymd(rem.at.toDate()) : (ov?.from || "");
+        const why = rem ? (rem.reason || "اتشال من الكشف") : ov ? "مشي (الإدارة)" : "مش في الكشف";
+        const left = monthsLeft((exitDate || ymd(new Date())).slice(0, 7), d.cycle.end);
+        rows.push([c.name, c.code, c.nid, c.job, d.site,
+          items.map(i => i.ar).join(" + "), items.map(i => c.issues[d.cycle.start + "__" + i.id].at).join(" / "),
+          exitDate || "—", why, left]);
+      });
+    });
+    if (!rows.length) { $("rep-out").innerHTML = `<p class="muted">مفيش حد خرج ومعاه عهدة من الدورة الحالية.</p>`; return; }
+    rows.sort((a, b) => String(a[4]).localeCompare(String(b[4]), "ar") || String(a[0]).localeCompare(String(b[0]), "ar"));
+    $("rep-out").innerHTML = `<p class="muted" style="margin-bottom:6px;">«باقي» = الشهور من الخروج لحد نهاية دورة الفرع. اللي رجّع القطعة مش ظاهر هنا.</p>`
+      + repTable(["الاسم", "الكود", "الرقم القومى", "الوظيفة", "الفرع", "استلم", "تاريخ الاستلام", "تاريخ الخروج", "السبب", "باقى (شهور)"], rows, "خصم عهدة", "خرجوا قبل الدورة");
+  } catch (e) { $("rep-out").innerHTML = ""; repErr(e); }
 };
 </script>
 </body>
