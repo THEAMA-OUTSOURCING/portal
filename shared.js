@@ -281,6 +281,9 @@ export function codeFor(map, site, job, sec) {
   document.body ? add() : document.addEventListener("DOMContentLoaded", add);
 })();
 
+// علامة إن كود الصفحة اتحمّل كامل (sentry.js بيشيّك عليها: لو مش موجودة بعد تحميل الصفحة يبقى الكود ماتحملش ويظهر شريط «تحديث»)
+window.__portalReady = true;
+
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
 import('./notify.js').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
