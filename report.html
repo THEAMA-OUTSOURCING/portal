@@ -170,7 +170,8 @@ th{background:#1d2024;}
       <div class="card hidden" id="a-detail"><h2 id="a-dtitle"></h2>
         <div class="row" id="a-edit-bar" style="margin-bottom:8px;"><span class="muted">تقدر تغيّر حالة أي عامل من هنا وبعدين:</span><button class="btn small" id="a-esave">احفظ التعديل واعتمد</button></div>
         <p class="muted hidden" id="a-locked" style="margin-bottom:8px;"></p>
-        <div id="a-photos" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:8px;"></div><div class="tbl"><table class="list" style="width:100%"><thead><tr id="a-dhead"></tr></thead><tbody id="a-dlist"></tbody></table></div></div>
+        <div id="a-photos" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:8px;"></div>
+        <div class="row" style="margin-bottom:8px;position:sticky;top:0;z-index:2;background:var(--card,#fff);padding:4px 0;"><input id="a-dq" placeholder="ابحث عن عامل في اليوم ده: الاسم أو الرقم القومى أو الكود" style="flex:1;min-width:220px;"><span class="muted" id="a-dq-n"></span></div><div class="tbl"><table class="list" style="width:100%"><thead><tr id="a-dhead"></tr></thead><tbody id="a-dlist"></tbody></table></div></div>
     </section>
     <div id="a-lb" class="hidden" style="position:fixed;inset:0;z-index:4000;background:rgba(0,0,0,.85);overflow:auto;text-align:center;padding:12px;">
       <button class="btn sec small" id="a-lb-x" style="position:sticky;top:0;">✕ قفل</button><br>
@@ -841,6 +842,16 @@ function renderQ() {
         `<tr><td>${DAYN[new Date(r.d.date + "T00:00").getDay()]} ${r.d.date}</td><td>${esc(r.d.site)}</td><td>${esc(r.name || "")}</td><td>${esc(r.job || "")}</td><td>${r.st}</td><td>${r.tm}</td><td>${AP_TXT[r.d.status] || esc(r.d.status || "")}</td><td><button class="btn sec small" data-view="${r.i}">تفاصيل</button></td></tr>`).join("")}</tbody></table></div>`
     : `<p class="muted">مفيش عامل بالاسم ده في الأيام المعروضة${$("a-st").value ? " — جرّب الحالة «الكل»" : ""}.</p>`;
 }
+// بحث جوه تفاصيل اليوم: بيخفي الصفوف اللي مش مطابقة (اسم العامل أو بديله، أو الرقم القومى أو الكود)
+// التعديلات في الصفوف المخفية مابتضيعش — الحفظ بياخد كل الصفوف
+function filterDay() {
+  const raw = $("a-dq").value.trim(), q = qNorm(raw), dg = raw.replace(/\D/g, "");
+  const trs = [...$("a-dlist").querySelectorAll("tr[data-q]")];
+  let n = 0;
+  trs.forEach(tr => { const ok = !q || tr.dataset.q.includes(dg.length >= 4 ? dg : q); tr.style.display = ok ? "" : "none"; if (ok) n++; });
+  $("a-dq-n").textContent = q ? (n ? `${n} من ${trs.length}` : "مفيش") : "";
+}
+$("a-dq").oninput = filterDay;
 let qT = null;
 $("a-q").oninput = () => { clearTimeout(qT); qT = setTimeout(renderQ, 200); };
 $("a-qres").onclick = e => { const v = e.target.dataset.view; if (v !== undefined) $("a-list").onclick({ target: e.target }); };
@@ -888,7 +899,8 @@ $("a-list").onclick = async e => {
     const timedDay = TIME_SITES.includes(d.site);
     $("a-dhead").innerHTML = `<th>الاسم</th><th>الوظيفة</th><th>الحالة</th>${timedDay ? "<th>الساعات</th>" : ""}<th>قراءة الصورة</th><th>البديل</th><th>ملاحظة</th>`;
     $("a-dlist").innerHTML = rowsSorted.map(x =>
-      `<tr><td>${esc(x.name || "")}</td><td>${esc(x.job || "")}</td><td>${x.s === "P" || x.s === "A" ? `<select data-ecode="${esc(Object.keys(d.entries).find(k => d.entries[k] === x))}"${dis}><option value="P" ${x.s === "P" ? "selected" : ""}>حاضر</option><option value="A" ${x.s === "A" ? "selected" : ""}>غايب</option></select>${TIME_SITES.includes(d.site) ? tmCell(x, dis, Object.keys(d.entries).find(k => d.entries[k] === x)) : ""}` : esc(x.c || "")}</td>${timedDay ? `<td class="a-hrs">${hrsCell(x)}</td>` : ""}<td>${ai[x.ai ?? ""] || ""}${x.by === "sup" ? " <span class='pill p-wait'>المشرف غيّرها</span>" : ""}</td><td>${esc(x.rep?.name || "")}${x.rep && TIME_SITES.includes(d.site) ? repTm(x, dis) : ""}</td><td>${esc(x.note || "")}</td></tr>`).join("");
+      `<tr data-q="${esc(qNorm([x.name, x.nid, x.code, x.rep?.name, x.rep?.nid, x.rep?.code].filter(Boolean).join(" ")))}"><td>${esc(x.name || "")}</td><td>${esc(x.job || "")}</td><td>${x.s === "P" || x.s === "A" ? `<select data-ecode="${esc(Object.keys(d.entries).find(k => d.entries[k] === x))}"${dis}><option value="P" ${x.s === "P" ? "selected" : ""}>حاضر</option><option value="A" ${x.s === "A" ? "selected" : ""}>غايب</option></select>${TIME_SITES.includes(d.site) ? tmCell(x, dis, Object.keys(d.entries).find(k => d.entries[k] === x)) : ""}` : esc(x.c || "")}</td>${timedDay ? `<td class="a-hrs">${hrsCell(x)}</td>` : ""}<td>${ai[x.ai ?? ""] || ""}${x.by === "sup" ? " <span class='pill p-wait'>المشرف غيّرها</span>" : ""}</td><td>${esc(x.rep?.name || "")}${x.rep && TIME_SITES.includes(d.site) ? repTm(x, dis) : ""}</td><td>${esc(x.note || "")}</td></tr>`).join("");
+    $("a-dq").value = ""; filterDay();
     $("a-detail").classList.remove("hidden"); $("a-detail").scrollIntoView({ behavior: "smooth" });
     return;
   }
