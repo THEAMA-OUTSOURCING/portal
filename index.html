@@ -1000,17 +1000,20 @@ function waitTask(ref, onWorking, timeoutMs){
   });
 }
 
-// كود الموظف زي ما المشرف بيكتبه: أرقام عربي ← إنجليزي، من غير مسافات، حروف كبيرة،
-// ولو كتب الأرقام بس (من غير T) بنضيف T قدامها — الكود في الشيت T + مسلسل
+// كود الموظف زي ما المشرف بيكتبه: أرقام عربي ← إنجليزي، من غير مسافات، حروف كبيرة
 function staffCode(v){
-  let c = String(v||'').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/\s+/g,'').toUpperCase();
-  if(/^\d{1,8}$/.test(c)) c = 'T' + c;
-  return c;
+  return String(v||'').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/\s+/g,'').toUpperCase();
+}
+// الأكواد اللي نجربها بالترتيب: الكود زي ما اتكتب الأول (عمال الشرقية أكوادهم أرقام بس)،
+// ولو أرقام بس ومنفعش، نجرب بـ T قدامه (باقي العمال T + مسلسل والمشرف ممكن ينسى الـ T)
+function staffCodes(v){
+  const c = staffCode(v);
+  return /^\d{1,8}$/.test(c) ? [c, 'T' + c] : (c ? [c] : []);
 }
 
 // ===== إعادة تعيين باسورد موظف =====
 async function resetEmployeePass(){
-  const code = staffCode(document.getElementById('reset-code').value);
+  const codes = staffCodes(document.getElementById('reset-code').value), code = codes[0];
   const successEl = document.getElementById('reset-success');
   const errEl = document.getElementById('reset-error');
   const btn = document.getElementById('reset-btn');
@@ -1019,7 +1022,13 @@ async function resetEmployeePass(){
   if(!code){ fail('من فضلك ادخل كود الموظف'); return; }
   btn.innerHTML='<span class="spinner" style="border-color:rgba(186,117,23,0.3);border-top-color:#ba7517;"></span> جاري...'; btn.disabled=true;
   try{
-    const ref = await createTask('reset', code);
+    // الـ Rules بترفض الطلب لو الكود مش تبع المشرف — نجرب الكود التاني (بـ T) قبل ما نقول مرفوض
+    let ref = null, denied = null;
+    for(const c of codes){
+      try{ ref = await createTask('reset', c); break; }
+      catch(e){ if(e && e.code==='permission-denied'){ denied = e; continue; } throw e; }
+    }
+    if(!ref) throw denied;
     const r = await waitTask(ref, null, 30000);
     if(r.status==='done'){
       document.getElementById('reset-success-msg').textContent = r.message;
@@ -1624,8 +1633,9 @@ window.exportRequests = exportRequests;
 // ===== بحث عن كارنيه طبي (أدمن + مشرف) =====
 let adminCardUrl = null;
 let adminCardType = null;
+let adminCardCode = '';
 async function searchMedicalCard(){
-  const code = staffCode(document.getElementById('search-card-code').value);
+  const codes = staffCodes(document.getElementById('search-card-code').value), code = codes[0];
   const errEl = document.getElementById('search-card-error');
   const loading = document.getElementById('search-card-loading');
   const result = document.getElementById('search-card-result');
@@ -1638,10 +1648,17 @@ async function searchMedicalCard(){
   }
   loading.style.display = 'block';
   if(adminCardUrl){ URL.revokeObjectURL(adminCardUrl); adminCardUrl = null; }
+  adminCardCode = '';
   try{
-    const snap = await getDoc(doc(db,'medical_cards',code));
+    // نجرب الكود زي ما اتكتب، وبعدين بـ T لو أرقام بس — أول كارنيه موجود ومسموح بيه
+    let snap = null, denied = null;
+    for(const c of codes){
+      try{ const s = await getDoc(doc(db,'medical_cards',c)); if(s.exists()){ snap = s; adminCardCode = c; break; } }
+      catch(e){ if(e && e.code==='permission-denied'){ denied = e; continue; } throw e; }
+    }
+    if(!snap && denied) throw denied;
     loading.style.display = 'none';
-    if(!snap.exists()){
+    if(!snap){
       document.getElementById('search-card-error-msg').textContent = 'مفيش كارنيه مسجّل للكود ده';
       errEl.style.display = 'block';
       return;
@@ -1674,7 +1691,7 @@ window.openAdminCardNewTab = openAdminCardNewTab;
 function downloadAdminCard(){
   if(!adminCardUrl) return;
   const ext = (adminCardType && adminCardType.indexOf('pdf') !== -1) ? 'pdf' : 'jpg';
-  const code = staffCode(document.getElementById('search-card-code').value) || 'card';
+  const code = adminCardCode || 'card';
   const a = document.createElement('a');
   a.href = adminCardUrl;
   a.download = 'card_' + code + '.' + ext;
