@@ -362,6 +362,7 @@ import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteD
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, TIME_SITES, guessTimes, calcHours, isHelperJob, specialOf, MISSION_SHIFT } from './shared.js';
 import { openPrintView, openOrderEditor, printOrder } from './sheet.js';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js';
 
 
 const $ = id => document.getElementById(id);
@@ -379,6 +380,8 @@ async function loadPlan() {
   S.plan = {};
   try { S.plan = planBySite(await fetchPlanBase(S.date.slice(0, 7)), S.date)[S.site] || {}; }
   catch (e) { S.plan = {}; }
+  // شيبسي مالهاش شيت احتياج على البوابة: المخطط الثابت (HC CFI)
+  if (!Object.keys(S.plan).length && CHIPSY_SITE_PLAN[S.site]) S.plan = { ...CHIPSY_SITE_PLAN[S.site] };
 }
 // أيام موقع في فترة بس (بدل كل أيام الموقع من البداية) — محتاج index على att_days: site + date.
 // لو الـ index لسه مااتعملش، بيرجع للطريقة القديمة عشان الصفحة متقفش.

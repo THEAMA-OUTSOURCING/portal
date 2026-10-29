@@ -301,6 +301,7 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
       <div class="card">
         <details class="fold" data-fold="w-new"><summary><h2>عمال جداد اتضافوا من المواقع (بالبطاقة) <span class="fold-n" data-n="w-new"></span></h2></summary>
         <p class="muted" style="margin-bottom:8px;">حدد النوع للي اتضاف للكشف. لحد ما تحدده، بيظهر في الكشف "جديد". والبدلاء الجداد بيفضلوا في قايمة بدلاء موقعهم.</p>
+        <div class="row" style="margin-bottom:8px;"><button class="btn sec small" id="w-new-xl">تصدير إكسيل</button><span class="muted" id="w-new-xl-msg"></span></div>
         <div class="tbl"><table><thead><tr><th>الاسم</th><th>الرقم القومي</th><th>الموقع</th><th>الوظيفة</th><th>اتضاف كـ</th><th>أول يوم</th><th>الفيش</th><th>النوع</th><th></th></tr></thead><tbody id="w-new"></tbody></table></div></details>
       </div>
       <div class="card">
@@ -1221,6 +1222,28 @@ function ficheCell(x) {
   if (can) h += ` <button class="btn sec small" data-fex="${esc(x.id)}" data-on="${x.fiche_exception ? 0 : 1}">${x.fiche_exception ? "إلغاء الاستثناء" : "استثناء"}</button>`;
   return h;
 }
+// تصدير العمال الجداد اللي اتضافوا من المواقع (نفس اللي في الجدول: من غير المرفوضين)
+$("w-new-xl")?.addEventListener("click", () => {
+  const rows = (WS.newAll || []).filter(x => x.status !== "rejected").sort((a, b) => (b.at?.seconds || 0) - (a.at?.seconds || 0));
+  if (!rows.length) return ($("w-new-xl-msg").textContent = "مفيش عمال جداد.");
+  const d2 = t => t?.toDate ? ymdOf(t.toDate()) : "";
+  const fiche = x => {
+    if (x.fiche) return "اترفع";
+    const due = ficheDue(x.first_day);
+    return (due ? (new Date() > due ? "المهلة خلصت " : "لحد ") + ymdOf(due) : "") + (x.fiche_exception ? " (استثناء)" : "");
+  };
+  const aoa = [["الاسم", "الرقم القومى", "الموقع", "الوظيفة", "النوع", "اتضاف كـ", "البطاقة", "أول يوم", "اتضاف يوم", "الفيش"],
+    ...rows.map(x => [x.name || "", String(x.nid || ""), x.site || "", x.job || "", x.type ? typeLabel(x.type) : (x.role === "roster" ? "جديد (مستني)" : "بديل جديد"),
+      x.role === "roster" ? "عامل في الكشف" : "بديل", x.no_card ? "من غير بطاقة" : "بالبطاقة", x.first_day || "", d2(x.at), fiche(x)])];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [28, 16, 16, 18, 14, 14, 13, 12, 12, 22].map(w => ({ wch: w }));
+  ws["!views"] = [{ RTL: true }];
+  const wb = XLSX.utils.book_new(); wb.Workbook = { Views: [{ RTL: true }] };
+  XLSX.utils.book_append_sheet(wb, ws, "عمال جداد");
+  XLSX.writeFile(wb, `عمال جداد ${ymdOf(new Date())}.xlsx`);
+  $("w-new-xl-msg").textContent = `${rows.length} عامل.`;
+});
+const ymdOf = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 $("w-new")?.addEventListener("click", async e => {
   if (e.target.dataset.fex) {
     const on = e.target.dataset.on === "1";

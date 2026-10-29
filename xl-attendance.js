@@ -21,10 +21,19 @@ export const SITES = {
   sharqia: ["الشرقية للدخان"],
 };
 // مخطط شيبسي ثابت (HC CFI) — بيتغير نادراً، ولو اتغير يتعدل هنا
+// سطور المخطط في رفع الإكسيل: قطامية مساعد البيع تجزئة/جملة (من الوظيفة)، وأبو صير مدخل البيانات بيع/مخازن
+// (القسم من «ترتيب الكشف» على البوابة — sheet_order/ابوصير)
 export const CHIPSY_PLAN = {
   "قطامية": { "مساعد بيع / تجزئة": 28, "مساعد بيع / جملة": 10, "مدخل بيانات": 3 },
+  "ابوصير": { "مساعد بيع": 25, "عامل": 2, "مدخل بيانات / بيع": 1, "مدخل بيانات / مخازن": 2 },
+};
+// نفس المخطط بأسماء وظايف الكشف (للصفحة بتاعة المشرف وكشف الطباعة). الأقسام نفسها في sheet_order/{الموقع}
+export const CHIPSY_SITE_PLAN = {
+  "قطامية": { "مساعد بيع": 28, "مساعد بيع بالجملة": 10, "مدخل بيانات": 3 },
   "ابوصير": { "مساعد بيع": 25, "عامل": 2, "مدخل بيانات": 3 },
 };
+// وظايف المخطط بتاعها متقسم بالقسم في «ترتيب الكشف»
+const CHIPSY_SEC_JOBS = { "ابوصير": ["مدخل بيانات"] };
 // وظيفة الإمداد في الشيت → اسمها في مخطط بيبسي
 const EMDAD_JOB = j => /coordinator/i.test(j) ? "منسق ساحة امداد" : /driver/i.test(j) ? "سائق شحن امداد" : /helper/i.test(j) ? "مساعد امداد" : "";
 export const COMPANY_LABEL = { chipsy: "شيبسي", emdad: "الإمداد", sharqia: "الشرقية" };
@@ -163,5 +172,45 @@ export function counts(entries) {
     leave: v.filter(e => e.s === "L").length, total: v.length };
 }
 
-// اللي بيتحسب في المخطط: الحاضر، ومش يومية/بديل/مشرف
-export const countsForPlan = e => e.s === "P" && !/يومي|بديل|مشرف/.test(e.type || "") && !!e.pj;
+// اللي بيتحسب في المخطط: الحاضر، ومش مشرف. في شيبسي اليومية والبديل بيتحسبوا كمان (زي بيبسي)،
+// وفي الإمداد لأ (زي ما كان)
+export const countsForPlan = (e, company) => e.s === "P" && !/مشرف/.test(e.type || "")
+  && (company === "chipsy" || !/يومي|بديل/.test(e.type || "")) && !!e.pj;
+
+// شيبسي: قسم الوظايف المتقسمة (أبو صير مدخل البيانات) من «ترتيب الكشف». orders = { الموقع: مستند sheet_order }
+// العامل اللي مالوش قسم بيفضل «مدخل بيانات» من غير مخطط، وبيظهر في الملاحظات
+export function chipsySections(res, orders) {
+  const miss = new Set();
+  Object.values(res.days).forEach(d => {
+    const jobs = CHIPSY_SEC_JOBS[d.site]; if (!jobs) return;
+    const sm = orders?.[d.site]?.sections || {};
+    Object.values(d.entries).forEach(e => {
+      if (!jobs.some(j => arNorm(j) === arNorm(e.job))) return;
+      const sec = sm[e.code] || (e.nid ? sm["N" + e.nid] : "");
+      const base = jobs.find(j => arNorm(j) === arNorm(e.job));
+      if (sec) e.pj = base + " / " + sec;
+      else miss.add(`${e.name} (${d.site} — ${e.job})`);
+    });
+  });
+  miss.forEach(m => res.issues.push(`مالوش قسم في «ترتيب الكشف» — مش هيتقارن بالمخطط: ${m}`));
+}
+
+// شيبسي: الحاضرين في اليوم ميعدوش المطلوب (زي بيبسي). الزيادة البوابة بتشيلها من العدد لوحدها:
+// اليومية الأول، وبعدين البديل، وبعدين آخر حد اتعيّن (أكبر كود). الخانة بتبقى «ز» = زيادة مش محسوبة (مالهاش يوم)
+const trimRank = e => /يومي/.test(e.type || "") ? 0 : /بديل/.test(e.type || "") ? 1 : 2;
+const codeNum = e => Number(String(e.code || "").replace(/\D/g, "")) || 0;
+export function trimOverPlan(res, planOf) {
+  const out = [];
+  Object.values(res.days).forEach(d => {
+    const plan = planOf(d.site) || {}, by = {};
+    Object.values(d.entries).forEach(e => { if (countsForPlan(e, res.company) && plan[e.pj] != null) (by[e.pj] = by[e.pj] || []).push(e); });
+    Object.entries(by).forEach(([pj, list]) => {
+      const extra = list.length - plan[pj]; if (extra <= 0) return;
+      list.sort((a, b) => trimRank(a) - trimRank(b) || codeNum(b) - codeNum(a)).slice(0, extra).forEach(e => {
+        Object.assign(e, { s: "L", c: "ز", over: 1, was_c: e.c || "" });
+        out.push({ date: d.date, site: d.site, job: pj, name: e.name, type: e.type || "", plan: plan[pj], n: list.length });
+      });
+    });
+  });
+  return out.sort((a, b) => a.date.localeCompare(b.date) || a.site.localeCompare(b.site) || a.job.localeCompare(b.job));
+}

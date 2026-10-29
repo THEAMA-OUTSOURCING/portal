@@ -163,6 +163,8 @@ th{background:#1d2024;}
           <button class="btn sec" id="a-all" disabled>اعتماد كل المعروض</button>
         </div>
         <div class="msg" id="a-msg"></div>
+        <div class="row" style="margin-top:8px;"><label class="f" style="flex:1;min-width:220px;">بحث عن عامل في الأيام المعروضة<input id="a-q" placeholder="الاسم أو الرقم القومى أو الكود"></label></div>
+        <div id="a-qres" class="hidden" style="margin-top:8px;"></div>
         <div class="tbl" style="margin-top:10px;"><table class="list" style="width:100%"><thead><tr><th>الموقع</th><th>اليوم</th><th>حاضر</th><th>غايب</th><th>بدلاء</th><th>اتعدّل من المشرف</th><th>أكّده</th><th>الحالة</th><th></th></tr></thead><tbody id="a-list"></tbody></table></div>
       </div>
       <div class="card hidden" id="a-detail"><h2 id="a-dtitle"></h2>
@@ -291,6 +293,7 @@ function fpCell(e, offDay) {
     const n = Number(e.c); return e.c && !isNaN(n) && n > 0 ? n : 1;   // الإمداد: ساعات مكتوبة، وإلا وردية عادية
   }
   if (e.s === "A") return offDay ? "" : "خ";
+  if (e.c === "ز") return "";                                  // شيبسي: حضور زيادة عن المخطط — مش محسوب
   return e.c === "ض" ? "م" : (e.c || "");                     // ق / ج / م / ط زي ما هي
 }
 $("fp-go").onclick = async () => {
@@ -808,8 +811,39 @@ $("a-go").onclick = async () => {
     }).join("") : `<tr><td colspan="9" class="muted">مفيش.</td></tr>`;
     $("a-all").disabled = !A.some(canAp);
     hide($("a-msg"));
+    renderQ();
   } catch (e) { show($("a-msg"), "err", e.message); }
 };
+// ===== بحث عن عامل في الأيام المعروضة: حاضر ولا غايب، وساعاته، وحالة اليوم =====
+// بيدوّر في العامل نفسه، وفي البديل اللي اتسجل قدام غايب (rep)
+const qNorm = s => String(s ?? "").replace(/[\u064B-\u0652]/g, "").replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه").replace(/\s+/g, " ").trim();
+const AP_TXT = { approved: "معتمد", reviewed: "مستني اعتماد", confirmed: "مستني الإقليمي" };
+function stTxt(e) {
+  if (e.s === "P") return `<span class="pill p-ok">حاضر</span>${e.rep_for_name ? ` <span class="muted">بديل مكان ${esc(e.rep_for_name)}</span>` : ""}`;
+  if (e.s === "A") return `<span class="pill p-late">غايب</span>${e.rep ? ` <span class="muted">بديله: ${esc(e.rep.name || "")}</span>` : ""}`;
+  return `<span class="pill p-wait">${esc(e.c === "ز" ? "زيادة مش محسوبة" : e.c || "—")}</span>`;
+}
+const tmTxt = h => h && h.min != null ? `${h.in ? `${esc(h.in)}${h.out ? " ← " + esc(h.out) : ""}<br>` : ""}<b>${hrsTxt(h.min)}</b> <span class="muted" style="font-size:11px">ن ${hrsTxt(h.dmin || 0)} · ل ${hrsTxt(h.nmin || 0)}${h.ot ? ` · إضافي ${hrsTxt(h.ot)}` : ""}</span>` : "";
+function renderQ() {
+  const box = $("a-qres"), raw = $("a-q").value.trim(), q = qNorm(raw), dg = raw.replace(/\D/g, "");
+  if (q.length < 2) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+  const hit = (name, nid, code) => (dg.length >= 4 && (String(nid || "").includes(dg) || String(code || "").replace(/\D/g, "") === dg)) || (q.length >= 2 && qNorm(name).includes(q)) || qNorm(code) === q;
+  const rows = [];
+  A.forEach((d, i) => Object.values(d.entries || {}).forEach(e => {
+    if (hit(e.name, e.nid, e.code)) rows.push({ d, i, name: e.name, job: e.job, st: stTxt(e), tm: e.s === "P" ? tmTxt(e) : "" });
+    if (e.s === "A" && e.rep && hit(e.rep.name, e.rep.nid, e.rep.code))
+      rows.push({ d, i, name: e.rep.name, job: e.job, st: `<span class="pill p-ok">حاضر</span> <span class="muted">بديل مكان ${esc(e.name || "")}</span>`, tm: tmTxt(e.rep) });
+  }));
+  box.classList.remove("hidden");
+  box.innerHTML = rows.length
+    ? `<div class="muted" style="margin-bottom:4px;">${rows.length} يوم — في الفترة والموقع والحالة المختارين فوق${$("a-st").value ? " (لو عايز كل الأيام اختار الحالة «الكل»)" : ""}</div>
+      <div class="tbl"><table class="list" style="width:100%"><thead><tr><th>اليوم</th><th>الموقع</th><th>الاسم</th><th>الوظيفة</th><th>الحالة</th><th>الوقت والساعات</th><th>اليوم</th><th></th></tr></thead><tbody>${rows.map(r =>
+        `<tr><td>${DAYN[new Date(r.d.date + "T00:00").getDay()]} ${r.d.date}</td><td>${esc(r.d.site)}</td><td>${esc(r.name || "")}</td><td>${esc(r.job || "")}</td><td>${r.st}</td><td>${r.tm}</td><td>${AP_TXT[r.d.status] || esc(r.d.status || "")}</td><td><button class="btn sec small" data-view="${r.i}">تفاصيل</button></td></tr>`).join("")}</tbody></table></div>`
+    : `<p class="muted">مفيش عامل بالاسم ده في الأيام المعروضة${$("a-st").value ? " — جرّب الحالة «الكل»" : ""}.</p>`;
+}
+let qT = null;
+$("a-q").oninput = () => { clearTimeout(qT); qT = setTimeout(renderQ, 200); };
+$("a-qres").onclick = e => { const v = e.target.dataset.view; if (v !== undefined) $("a-list").onclick({ target: e.target }); };
 const canEd = d => S.canApprove && (d.status === "reviewed" || (S.role === "admin" && d.status === "confirmed"));
 // مواقع الحضور والانصراف: الوقت اللي البوابة مش متأكدة منه لازم المحاسب يراجعه قبل الاعتماد
 // وبديل الراحات قدام الغايب: ساعته مقترحة من البوابة (أو مفيش ساعة في الأيام القديمة) لحد ما المحاسب يأكدها

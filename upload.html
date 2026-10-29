@@ -124,7 +124,7 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
 import { getFirestore, doc, getDoc, getDocs, collection, query, where, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { db, auth, actorEmail, fetchPlanBase, planBySite } from './shared.js';
-import { detect, parseChipsy, parseEmdad, parseSharqia, emdadMonths, counts, COMPANY_LABEL, CHIPSY_PLAN, countsForPlan } from './xl-attendance.js';
+import { detect, parseChipsy, parseEmdad, parseSharqia, emdadMonths, counts, COMPANY_LABEL, CHIPSY_PLAN, countsForPlan, chipsySections, trimOverPlan } from './xl-attendance.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -167,11 +167,19 @@ $("file").onchange = async () => {
 };
 $("e-go").onclick = () => run();
 
-function run() {
+async function run() {
   try {
     S.res = S.type === "chipsy" ? parseChipsy(S.wb, XLSX)
       : S.type === "sharqia" ? parseSharqia(S.wb, XLSX)
       : parseEmdad(S.wb, XLSX, $("e-month").value, Number($("e-year").value));
+    S.trim = [];
+    if (S.type === "chipsy") {
+      // قسم مدخلين بيانات أبو صير من «ترتيب الكشف»، وبعدين الزيادة عن المخطط بتتشال من العدد
+      const sites = [...new Set(Object.values(S.res.days).map(d => d.site))], orders = {};
+      await Promise.all(sites.map(async s => { try { const o = await getDoc(doc(db, "sheet_order", s)); if (o.exists()) orders[s] = o.data(); } catch (e) {} }));
+      chipsySections(S.res, orders);
+      S.trim = trimOverPlan(S.res, s => CHIPSY_PLAN[s]);
+    }
     const dates = Object.values(S.res.days).map(d => d.date).sort();
     if (!dates.length) { $("preview").classList.add("hidden"); return show($("f-msg"), "warn", "مفيش أيام فيها حضور في الملف ده."); }
     $("p-from").value = dates[0]; $("p-to").value = dates[dates.length - 1];
@@ -220,7 +228,7 @@ async function overPlan(list) {
   for (const [, d] of list) {
     const plan = S.type === "chipsy" ? CHIPSY_PLAN[d.site] || {} : (await pepsiPlan(d.date))[d.site] || {};
     const n = {};
-    Object.values(d.entries).forEach(e => { if (countsForPlan(e)) n[e.pj] = (n[e.pj] || 0) + 1; });
+    Object.values(d.entries).forEach(e => { if (countsForPlan(e, S.type)) n[e.pj] = (n[e.pj] || 0) + 1; });
     Object.entries(n).forEach(([job, c]) => { if (plan[job] != null && c > plan[job]) rows.push({ date: d.date, site: d.site, job, c, plan: plan[job] }); });
   }
   return { rows: rows.sort((a, b) => a.date.localeCompare(b.date) || a.site.localeCompare(b.site)),
@@ -229,10 +237,13 @@ async function overPlan(list) {
 async function renderOver() {
   const el = $("p-over"); el.innerHTML = `<p class="muted" style="margin-top:8px;">بيقارن بالمخطط...</p>`;
   const { rows, note } = await overPlan(selected());
-  el.innerHTML = rows.length
+  const a = $("p-from").value, b = $("p-to").value, tr = (S.trim || []).filter(t => t.date >= a && t.date <= b);
+  const trimHtml = tr.length ? `<div class="msg show info" style="display:block;margin-top:8px;">في ${tr.length} حضور زيادة عن المخطط — البوابة شالتهم من العدد (اليومية الأول، وبعدين البديل، وبعدين آخر حد اتعيّن). هيتسجلوا «ز» = زيادة مش محسوبة.</div>
+       <table style="margin-top:6px"><thead><tr><th>اليوم</th><th>الموقع</th><th>سطر المخطط</th><th>الاسم</th><th>النوع</th><th>الحاضرين / المخطط</th></tr></thead><tbody>${tr.map(t => `<tr><td>${t.date}</td><td>${esc(t.site)}</td><td>${esc(t.job)}</td><td>${esc(t.name)}</td><td>${esc(t.type)}</td><td class="num">${t.n} / ${t.plan}</td></tr>`).join("")}</tbody></table>` : "";
+  el.innerHTML = trimHtml + (rows.length
     ? `<div class="msg show warn" style="display:block">في ${rows.length} يوم/وظيفة الحاضرين فيهم أكتر من المخطط (${note}) — تنبيه بس، الحفظ مسموح.</div>
        <table style="margin-top:6px"><thead><tr><th>اليوم</th><th>الموقع</th><th>الوظيفة</th><th>الحاضرين</th><th>المخطط</th><th>الزيادة</th></tr></thead><tbody>${rows.map(r => `<tr><td>${r.date}</td><td>${esc(r.site)}</td><td>${esc(r.job)}</td><td class="num">${r.c}</td><td class="num">${r.plan}</td><td class="num" style="color:#a32d2d">+${r.c - r.plan}</td></tr>`).join("")}</tbody></table>`
-    : `<p class="muted" style="margin-top:8px;">✓ مفيش يوم الحاضرين فيه زادوا عن المخطط. ${note}</p>`;
+    : `<p class="muted" style="margin-top:8px;">✓ مفيش يوم الحاضرين فيه زادوا عن المخطط. ${note}</p>`);
 }
 
 // أيام موقع في فترة بس (بدل كل أيام الموقع من البداية) — محتاج index على att_days: site + date.
