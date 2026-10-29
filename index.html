@@ -1650,10 +1650,10 @@ async function searchMedicalCard(){
   if(adminCardUrl){ URL.revokeObjectURL(adminCardUrl); adminCardUrl = null; }
   adminCardCode = '';
   try{
-    // نجرب الكود زي ما اتكتب، وبعدين بـ T لو أرقام بس — أول كارنيه موجود ومسموح بيه
+    // نجرب الكود زي ما اتكتب الأول. لو مسموح بيه بنقف عنده (موجود أو لأ) — الـ T بنجربها بس لو الأول اترفض
     let snap = null, denied = null;
     for(const c of codes){
-      try{ const s = await getDoc(doc(db,'medical_cards',c)); if(s.exists()){ snap = s; adminCardCode = c; break; } }
+      try{ const s = await getDoc(doc(db,'medical_cards',c)); denied = null; if(s.exists()){ snap = s; adminCardCode = c; } break; }
       catch(e){ if(e && e.code==='permission-denied'){ denied = e; continue; } throw e; }
     }
     if(!snap && denied) throw denied;
