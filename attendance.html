@@ -295,14 +295,14 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
       <div class="row" style="margin-top:4px;"><label class="btn sec small" for="lv-cam">صوّر</label><label class="btn sec small" for="lv-file">من المعرض</label></div>
       <img id="lv-img" class="hidden" data-zoom alt="صورة الطلب" title="دوس تكبّر" style="width:100%;max-height:240px;object-fit:contain;margin-top:8px;border:1px solid #eee;border-radius:10px;">
     </div>
-    <div id="lv-inj" class="hidden" style="margin-top:10px;"><span class="muted">صورة المحضر المختوم (لازم لإصابة العمل)</span>
-      <div class="row" style="margin-top:4px;"><label class="btn sec small" for="lv-cam2">صوّر</label><label class="btn sec small" for="lv-file2">من المعرض</label></div>
-      <img id="lv-img2" class="hidden" data-zoom alt="صورة المحضر" title="دوس تكبّر" style="width:100%;max-height:240px;object-fit:contain;margin-top:8px;border:1px solid #eee;border-radius:10px;">
+    <div id="lv-inj" class="hidden" style="margin-top:10px;"><span class="muted">صور المحضر المختوم (لازم صورة على الأقل لإصابة العمل — لحد 3 صور)</span>
+      <div class="row" id="lv-add2" style="margin-top:4px;"><label class="btn sec small" for="lv-cam2">صوّر</label><label class="btn sec small" for="lv-file2">من المعرض</label><span class="muted" id="lv-n2"></span></div>
+      <div id="lv-pages" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px;"></div>
     </div>
     <input type="file" id="lv-cam" accept="image/*" capture="environment" class="hidden">
     <input type="file" id="lv-file" accept="image/*" class="hidden">
     <input type="file" id="lv-cam2" accept="image/*" capture="environment" class="hidden">
-    <input type="file" id="lv-file2" accept="image/*" class="hidden">
+    <input type="file" id="lv-file2" accept="image/*" multiple class="hidden">
     <button class="btn block" id="lv-send" style="margin-top:12px;" disabled>ابعت الطلب</button>
     <div class="msg" id="lv-m"></div>
   </div>
@@ -1437,7 +1437,10 @@ $("fm-send").addEventListener("click", async () => {
 
 // ===== طلبات الإجازة والمرضي (المشرف بيرفع ← HR تيما ← العميل) =====
 // الطلب بيتسجل في hr_events (source = supervisor) بنفس شكل حالات الشرقية والإكسيل، فصفحة hr.html والتقارير بيقروه زيهم.
-const LV = { who: null, img: "", img2: "", list: [], unsub: null, site: "" };
+const LV = { who: null, img: "", imgFile: null, pages: [], list: [], unsub: null, site: "" };
+// المحضر المختوم: لحد 3 صور (image2، image3، image4). كل الصور في نفس الطلب، والطلب لازم يفضل تحت 1MB،
+// فلما المحضر يبقى أكتر من صورة بنضغط الصور أكتر وقت الإرسال (الصورة الواحدة بتفضل بنفس جودتها القديمة)
+const LV_MAX_PAGES = 3, LV_PAGE_ONE = 380000, LV_IMG_MULTI = 360000, LV_PAGES_BUDGET = 630000;
 const LV_TY = { sick: "مرضي", leave: "إجازة" };
 // إصابة العمل: النوع sick وsick_kind = injury، ومعاها صورة المحضر المختوم (image2) إجباري
 const lvTyTxt = e => e.type === "sick" && e.sick_kind === "injury" ? "إصابة عمل" : (LV_TY[e.type] || "");
@@ -1469,8 +1472,7 @@ function renderLvList() {
   }).join("") : `<div class="muted">مفيش طلبات في آخر 60 يوم.</div>`;
 }
 function lvReset() {
-  LV.who = null; LV.img = ""; LV.img2 = ""; $("lv-q").value = ""; $("lv-type").value = "sick"; lvTypeUi();
-  $("lv-img2").classList.add("hidden"); $("lv-img2").src = "";
+  LV.who = null; LV.img = ""; LV.imgFile = null; LV.pages = []; renderLvPages(); $("lv-q").value = ""; $("lv-type").value = "sick"; lvTypeUi();
   const t = ymd(new Date()); $("lv-from").value = t; $("lv-to").value = t;
   $("lv-img").classList.add("hidden"); $("lv-img").src = ""; hide($("lv-m")); lvPick(""); lvCheck();
 }
@@ -1505,7 +1507,7 @@ function lvCheck() {
   if (ov) show($("lv-m"), "warn", `فيه طلب تاني لنفس العامل في الأيام دي (${lvTyTxt(ov)} من ${ov.from} لحد ${ov.to} — ${(LV_ST[ov.status] || [ov.status])[0]}).`);
   else if ($("lv-m").classList.contains("warn")) hide($("lv-m"));
   const inj = $("lv-type").value === "injury";
-  $("lv-send").disabled = !!err || !LV.who || !LV.img || (inj && !LV.img2) || !!ov;
+  $("lv-send").disabled = !!err || !LV.who || !LV.img || (inj && !LV.pages.length) || !!ov;
 }
 function lvTypeUi() { $("lv-inj").classList.toggle("hidden", $("lv-type").value !== "injury"); }
 $("lv-type").addEventListener("change", () => { lvTypeUi(); lvCheck(); });
@@ -1514,35 +1516,59 @@ $("lv-to").addEventListener("change", lvCheck);
 async function onLvImg(e) {
   const f = e.target.files[0]; e.target.value = ""; if (!f) return;
   try {
-    LV.img = await compressCard(f);
+    LV.img = await compressCard(f); LV.imgFile = f;
     $("lv-img").src = "data:image/jpeg;base64," + LV.img; $("lv-img").classList.remove("hidden"); hide($("lv-m"));
   } catch (err) { LV.img = ""; show($("lv-m"), "err", err.message); }
   lvCheck();
 }
 $("lv-cam").addEventListener("change", onLvImg);
 $("lv-file").addEventListener("change", onLvImg);
+function renderLvPages() {
+  $("lv-pages").innerHTML = LV.pages.map((p, i) => `<div style="position:relative;">
+    <img data-zoom src="data:image/jpeg;base64,${p.b64}" alt="المحضر ${i + 1}" title="دوس تكبّر" style="width:100%;height:110px;object-fit:cover;border:1px solid #eee;border-radius:10px;">
+    <button type="button" class="btn sec small" data-lvdel="${i}" title="شيل الصورة" style="position:absolute;top:4px;left:4px;padding:2px 8px;">✕</button></div>`).join("");
+  $("lv-add2").classList.toggle("hidden", LV.pages.length >= LV_MAX_PAGES);
+  $("lv-n2").textContent = LV.pages.length ? `${LV.pages.length} من ${LV_MAX_PAGES}` : "";
+}
 async function onLvImg2(e) {
-  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  const files = [...e.target.files]; e.target.value = ""; if (!files.length) return;
+  const room = LV_MAX_PAGES - LV.pages.length;
   try {
-    LV.img2 = await compressCard(f, 380000);   // صورتين في نفس الـ doc: لازم المجموع يفضل تحت 1MB
-    $("lv-img2").src = "data:image/jpeg;base64," + LV.img2; $("lv-img2").classList.remove("hidden"); hide($("lv-m"));
-  } catch (err) { LV.img2 = ""; show($("lv-m"), "err", err.message); }
-  lvCheck();
+    for (const f of files.slice(0, room)) LV.pages.push({ file: f, b64: await compressCard(f, LV_PAGE_ONE) });
+    if (files.length > room) show($("lv-m"), "warn", `المحضر لحد ${LV_MAX_PAGES} صور بس — الزيادة ماتضافتش.`);
+    else hide($("lv-m"));
+  } catch (err) { show($("lv-m"), "err", err.message); }
+  renderLvPages(); lvCheck();
+}
+$("lv-pages").addEventListener("click", e => {
+  const b = e.target.closest("[data-lvdel]"); if (!b) return;
+  LV.pages.splice(+b.dataset.lvdel, 1); renderLvPages(); lvCheck();
+});
+// وقت الإرسال: لو المحضر أكتر من صورة، نصغّر الصور عشان المجموع يفضل تحت حد الطلب
+async function lvPackImages(inj) {
+  if (!inj || LV.pages.length <= 1) return { img: LV.img, pages: LV.pages.map(p => p.b64) };
+  const img = LV.img.length > LV_IMG_MULTI && LV.imgFile ? await compressCard(LV.imgFile, LV_IMG_MULTI) : LV.img;
+  const per = Math.floor(LV_PAGES_BUDGET / LV.pages.length);
+  const pages = [];
+  for (const p of LV.pages) pages.push(p.b64.length > per ? await compressCard(p.file, per) : p.b64);
+  return { img, pages };
 }
 $("lv-cam2").addEventListener("change", onLvImg2);
 $("lv-file2").addEventListener("change", onLvImg2);
 $("lv-send").addEventListener("click", async () => {
   const w = LV.who, f = $("lv-from").value, t = $("lv-to").value, pick = $("lv-type").value, site = $("site").value;
   const inj = pick === "injury", type = inj ? "sick" : pick;
-  if (!w || !LV.img || (inj && !LV.img2) || !f || t < f) return;
+  if (!w || !LV.img || (inj && !LV.pages.length) || !f || t < f) return;
   $("lv-send").disabled = true; show($("lv-m"), "info", "بيرفع...");
   try {
     const u = auth.currentUser;
+    const pk = await lvPackImages(inj);
+    const mahdar = inj ? Object.fromEntries(pk.pages.map((b, i) => ["image" + (i + 2), "data:image/jpeg;base64," + b])) : {};
     await addDoc(collection(db, "hr_events"), {
       source: "supervisor", site, nid: String(w.nid || ""), code: String(w.code || ""), name: w.name || "", job: w.job || "",
       type, type_ar: inj ? "إصابة عمل" : LV_TY[type], ...(type === "sick" ? { sick_kind: inj ? "injury" : "sick" } : {}),
       from: f, to: t, days: String(lvWorkDays(f, t)),
-      image: "data:image/jpeg;base64," + LV.img, ...(inj ? { image2: "data:image/jpeg;base64," + LV.img2 } : {}), status: "pending", entry_date: ymd(new Date()),
+      image: "data:image/jpeg;base64," + pk.img, ...mahdar, status: "pending", entry_date: ymd(new Date()),
       by_email: actorEmail(u), uploaded_by: u.uid, created_at: serverTimestamp() });
     $("lvm").classList.add("hidden");
     show($("lv-msg"), "ok", `الطلب اتبعت للـ HR — ${inj ? "إصابة عمل" : LV_TY[type]} ${w.name} من ${f} لحد ${t}.`);
