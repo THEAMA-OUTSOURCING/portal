@@ -503,11 +503,11 @@ async function openDay() {
       S.choice = { ...fromSaved, ...S.choice };
       const t = S.day.confirmed_at?.toDate ? S.day.confirmed_at.toDate().toLocaleString("ar-EG") : "";
       const rt = S.day.reviewed_at?.toDate ? S.day.reviewed_at.toDate().toLocaleString("ar-EG") : "";
-      if (S.day.status === "approved") show($("day-state"), "ok", "اليوم ده اتعتمد من المحاسب، ومينفعش يتعدل.");
-      else if (S.day.status === "reviewed") show($("day-state"), "ok", `الإقليمي راجع اليوم ده (${esc(S.day.reviewed_email || "")}${rt ? " — " + rt : ""})${S.day.review_late ? " (متأخر)" : ""}. ` + (S.regional || S.admin ? "تقدر تعدّل وتراجع تاني لحد ما المحاسب يعتمده." : "مستني اعتماد المحاسب، ولو فيه تعديل كلّم الإقليمي."));
+      if (S.day.status === "approved") show($("day-state"), "ok", S.admin ? "اليوم ده اتعتمد من المحاسب. تقدر تعدّل فيه كأدمن، والاعتماد هيفضل زي ما هو." : "اليوم ده اتعتمد من المحاسب، ومينفعش يتعدل.");
+      else if (S.day.status === "reviewed") show($("day-state"), "ok", `الإقليمي راجع اليوم ده (${esc(S.day.reviewed_email || "")}${rt ? " — " + rt : ""})${S.day.review_late ? " (متأخر)" : ""}. ` + (S.admin ? "تقدر تعدّل فيه كأدمن، ومراجعة الإقليمي هتفضل زي ما هي." : S.regional ? "تقدر تعدّل وتراجع تاني لحد ما المحاسب يعتمده." : "مستني اعتماد المحاسب، ولو فيه تعديل كلّم الإقليمي."));
       else show($("day-state"), "ok", `المشرف أكد اليوم ده${t ? " — " + t : ""}${S.day.late ? " (متأخر)" : ""}. ` + (S.regional ? "راجعه وأكد عشان يروح للمحاسب." : "مستني مراجعة الإقليمي، وتقدر تعدّل لحد ما يراجعه."));
     }
-    $("refresh-box").classList.toggle("hidden", !(S.admin && S.timed && S.day && S.day.status !== "approved"));
+    $("refresh-box").classList.toggle("hidden", !(S.admin && S.timed && S.day));
     render();
   }, () => {});
   S.unsubPages = onSnapshot(query(collection(db, "att_pages"), where("site", "==", S.site), where("date", "==", S.date)), snap => {
@@ -660,6 +660,7 @@ function aiSubs() {
 
 // اليوم مقفول عليّا؟ بعد اعتماد المحاسب على الكل، وبعد مراجعة الإقليمي على المشرف
 function lockedForMe() {
+  if (S.admin) return false;   // الأدمن يعدّل أي يوم، حتى المعتمد
   const st = S.day?.status;
   return st === "approved" || (st === "reviewed" && !S.regional && !S.admin);
 }
@@ -748,7 +749,7 @@ function render() {
       (res.count == null ? `<span class="pill p-warn">العدد المكتوب مااتقراش</span>`
         : res.count === calc ? `<span class="pill p-ok">العدد ${fmt(calc)} ✓</span>`
         : `<span class="pill p-warn">مكتوب ${fmt(res.count)} / محسوب ${fmt(calc)}</span>`);
-    const mine = p.uploaded_by === auth.currentUser?.uid && p.status !== "reading" && S.day?.status !== "approved";
+    const mine = p.uploaded_by === auth.currentUser?.uid && p.status !== "reading" && (S.admin || S.day?.status !== "approved");
     return `<div class="pg"><img src="data:image/jpeg;base64,${esc(p.image)}" data-view alt="صفحة">
       <div class="b">${st}${mine ? `<div style="margin-top:6px;"><button class="btn sec small" data-del="${p.id}">مسح</button></div>` : ""}</div></div>`;
   }).join("");
@@ -926,6 +927,21 @@ $("confirm").addEventListener("click", async () => {
     } catch (e) {}
     return show($("c-msg"), "err", "مينفعش تأكد: الحاضرين أكتر من العدد المطلوب. " + S.over.map(o => `${o.job}: ${o.n} والمطلوب ${o.plan}`).join("، "));
   }
+  if (S.admin && S.day) {
+    const stName = { confirmed: "مستني مراجعة الإقليمي", reviewed: "مستني الاعتماد", approved: "معتمد" }[S.day.status] || S.day.status;
+    if (!confirm(`تعديل أدمن على ${S.site} يوم ${S.date}:\nحاضر ${P} — غايب ${A}${Qn ? ` — توقف ${Qn}` : ""}\n\nحالة اليوم هتفضل «${stName}».`)) return;
+    $("confirm").disabled = true;
+    try {
+      await updateDoc(doc(db, "att_days", S.site + "__" + S.date), {
+        entries, counts: { present: P, absent: A, ...(Qn ? { stop: Qn } : {}), total: S.roster.length + subsP },
+        pages: livePages().map(p => p.id), admin_edited_by: u.uid, admin_edited_at: serverTimestamp() });
+      show($("c-msg"), "ok", `اتحفظ التعديل ✓ — اليوم لسه «${stName}».`);
+    } catch (err) {
+      show($("c-msg"), "err", "ماتحفظش: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (تعديل الأدمن على att_days)." : err.message));
+    }
+    $("confirm").disabled = false;
+    return;
+  }
   const late = new Date() > deadlineOf(S.date);
   const nth = S.lateCount + 1;
   if (late && !(S.regional ? S.day?.review_late : S.day?.late) && !confirm(`اتأخرت في رفع حضور يوم ${S.date}.\nدي المرة ${ordinal(nth)} الشهر ده.\nالتأخير بيتسجل وبيأثر على تقييمك وراتبك.\n\nتأكد الحضور؟`)) return;
@@ -958,7 +974,7 @@ $("confirm").addEventListener("click", async () => {
 // والبدلاء الحاضرين اللي القراءة الجديدة لقيتهم ومش متسجلين بيتضافوا. حالة كل عامل وقرارات المشرف/الإقليمي مابتتغيرش.
 const TIME_KEYS = ["tin", "tout", "in", "out", "min", "dmin", "nmin", "ot", "otd", "otn", "t_issue", "t_prev", "t_src", "mission"];
 $("refresh-times").addEventListener("click", async () => {
-  if (!S.admin || !S.day || S.day.status === "approved") return;
+  if (!S.admin || !S.day) return;
   if (S.pages.some(p => p.status === "pending" || p.status === "reading")) return show($("refresh-msg"), "warn", "فيه صور لسه بتتقري — استنى لحد ما تخلص.");
   const ai = aiState(), subs = aiSubs();
   const entries = JSON.parse(JSON.stringify(S.day.entries || {}));
