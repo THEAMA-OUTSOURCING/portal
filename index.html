@@ -339,7 +339,7 @@ document.addEventListener("click", function (e) {
       <p style="font-size:14px;font-weight:500;color:#222;margin-bottom:12px;"><i class="ti ti-heart-plus" style="font-size:16px;vertical-align:-2px;margin-left:6px;color:#185fa5;"></i>بحث عن كارنيه طبي</p>
       <div style="margin-bottom:12px;">
         <label style="font-size:13px;color:#888;display:block;margin-bottom:6px;">كود الموظف</label>
-        <input type="text" id="search-card-code" placeholder="ادخل كود الموظف" inputmode="numeric"/>
+        <input type="text" id="search-card-code" placeholder="ادخل كود الموظف (مثال: T1234 أو 1234)" autocapitalize="characters" autocomplete="off"/>
       </div>
       <button class="btn-primary" onclick="searchMedicalCard()" id="search-card-btn"><i class="ti ti-search" style="font-size:15px;vertical-align:-2px;margin-left:4px;"></i>عرض الكارنيه</button>
       <div class="error-box" id="search-card-error"><i class="ti ti-alert-circle" style="font-size:14px;vertical-align:-2px;margin-left:4px;"></i><span id="search-card-error-msg"></span></div>
@@ -356,7 +356,7 @@ document.addEventListener("click", function (e) {
       <p style="font-size:14px;font-weight:500;color:#222;margin-bottom:12px;"><i class="ti ti-lock-open" style="font-size:16px;vertical-align:-2px;margin-left:6px;color:#ba7517;"></i>إعادة تعيين باسورد موظف</p>
       <div style="margin-bottom:12px;">
         <label style="font-size:13px;color:#888;display:block;margin-bottom:6px;">كود الموظف</label>
-        <input type="text" id="reset-code" placeholder="ادخل كود الموظف" inputmode="numeric"/>
+        <input type="text" id="reset-code" placeholder="ادخل كود الموظف (مثال: T1234 أو 1234)" autocapitalize="characters" autocomplete="off"/>
         <p style="font-size:11px;color:#aaa;margin-top:5px;">الموظف هيدخل بالرقم القومي وهيتطلب منه يعمل باسورد جديد</p>
       </div>
       <div class="success-box" id="reset-success"><i class="ti ti-circle-check" style="font-size:14px;vertical-align:-2px;margin-left:4px;"></i><span id="reset-success-msg"></span></div>
@@ -1000,9 +1000,17 @@ function waitTask(ref, onWorking, timeoutMs){
   });
 }
 
+// كود الموظف زي ما المشرف بيكتبه: أرقام عربي ← إنجليزي، من غير مسافات، حروف كبيرة،
+// ولو كتب الأرقام بس (من غير T) بنضيف T قدامها — الكود في الشيت T + مسلسل
+function staffCode(v){
+  let c = String(v||'').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/\s+/g,'').toUpperCase();
+  if(/^\d{1,8}$/.test(c)) c = 'T' + c;
+  return c;
+}
+
 // ===== إعادة تعيين باسورد موظف =====
 async function resetEmployeePass(){
-  const code = document.getElementById('reset-code').value.trim();
+  const code = staffCode(document.getElementById('reset-code').value);
   const successEl = document.getElementById('reset-success');
   const errEl = document.getElementById('reset-error');
   const btn = document.getElementById('reset-btn');
@@ -1617,7 +1625,7 @@ window.exportRequests = exportRequests;
 let adminCardUrl = null;
 let adminCardType = null;
 async function searchMedicalCard(){
-  const code = document.getElementById('search-card-code').value.trim();
+  const code = staffCode(document.getElementById('search-card-code').value);
   const errEl = document.getElementById('search-card-error');
   const loading = document.getElementById('search-card-loading');
   const result = document.getElementById('search-card-result');
@@ -1666,7 +1674,7 @@ window.openAdminCardNewTab = openAdminCardNewTab;
 function downloadAdminCard(){
   if(!adminCardUrl) return;
   const ext = (adminCardType && adminCardType.indexOf('pdf') !== -1) ? 'pdf' : 'jpg';
-  const code = document.getElementById('search-card-code').value.trim() || 'card';
+  const code = staffCode(document.getElementById('search-card-code').value) || 'card';
   const a = document.createElement('a');
   a.href = adminCardUrl;
   a.download = 'card_' + code + '.' + ext;
