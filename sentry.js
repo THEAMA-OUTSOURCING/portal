@@ -18,9 +18,10 @@
       replaysOnErrorSampleRate: 0,
       // أخطاء متصفحات وإضافات مالهاش علاقة بالبوابة
       // «Script error.» = خطأ جاي من سكريبت من موقع تاني (reCAPTCHA / مكتبة الإكسيل / إضافة متصفح) والمتصفح بيخبّي تفاصيله
+      // (من غير ^ و $ لأن Sentry بيلفّه في رسالة أطول: «Event `ErrorEvent` captured as exception with message `Script error.`»)
       // auth/network-request-failed و reCAPTCHA Timeout = نت المستخدم ضعيف أو فاصل (Firebase Auth / App Check) — مش عطل في البوابة
-      ignoreErrors: [/^Script error\.?$/, "ResizeObserver loop", "Non-Error promise rejection captured", "Load failed", "NetworkError",
-        /auth\/network-request-failed/, /^reCAPTCHA Timeout/],
+      ignoreErrors: [/Script error\.?/, "ResizeObserver loop", "Non-Error promise rejection captured", "Load failed", "NetworkError",
+        /auth\/network-request-failed/, /reCAPTCHA Timeout/],
       denyUrls: [/extensions\//i, /^chrome:\/\//i, /^moz-extension:\/\//i],
       beforeBreadcrumb: function (b) {
         // مفيش تسجيل للضغطات أو الكلام اللي بيتكتب، وطلبات الشبكة من غير البارامترات
