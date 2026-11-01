@@ -481,11 +481,11 @@ async function openDay() {
   S.unsubRoster?.(); S.unsubPool?.(); S.unsubRem?.(); S.rep = {}; $("refresh-box").classList.add("hidden"); hide($("refresh-msg"));
   try {
     const r = await getDoc(doc(db, "rosters", S.site));
-    S.roster = r.exists() ? (r.data().workers || []) : [];
-  } catch (e) { S.roster = []; }
-  if (!S.roster.length) show($("day-state"), "err", "كشف الموقع مش موجود لسه. الأدمن لازم يعمل مزامنة من لوحة الإدارة.");
+    S.rosterNow = S.roster = r.exists() ? (r.data().workers || []) : [];
+  } catch (e) { S.rosterNow = S.roster = []; }
+  if (!S.rosterNow.length) show($("day-state"), "err", "كشف الموقع مش موجود لسه. الأدمن لازم يعمل مزامنة من لوحة الإدارة.");
   else hide($("day-state"));
-  S.unsubRoster = onSnapshot(doc(db, "rosters", S.site), snap => { if (snap.exists()) { S.roster = snap.data().workers || []; render(); renderManage(); renderForce(); } }, () => {});
+  S.unsubRoster = onSnapshot(doc(db, "rosters", S.site), snap => { if (snap.exists()) { S.rosterNow = snap.data().workers || []; render(); renderManage(); renderForce(); } }, () => {});
   S.unsubPool = onSnapshot(doc(db, "pools", S.site), snap => { S.pool = snap.exists() ? (snap.data().workers || []) : []; render(); }, () => {});
   S.unsubNew?.();
   S.unsubNew = onSnapshot(query(collection(db, "new_workers"), where("site", "==", S.site)), snap => {
@@ -503,6 +503,8 @@ async function openDay() {
     if (S.day) {
       const fromSaved = {};
       Object.entries(S.day.entries || {}).forEach(([c, e]) => { fromSaved[c] = e.s === "L" && e.c === "ق" ? "Q" : e.s; if (e.rep && !S.rep[c]) S.rep[c] = e.rep;
+        // بديل متسجل قبل كده بمفتاح تاني (كوده بدل R+الرقم القومي): الصفحة بتعرضه بـ R+الرقم القومي، فحالته المحفوظة تتنقل عليه
+        if (e.sub && e.nid && c !== "R" + e.nid && !(("R" + e.nid) in (S.day.entries || {}))) fromSaved["R" + e.nid] = fromSaved[c];
         if (e.rep_for && !S.rep[e.rep_for]) S.rep[e.rep_for] = { nid: e.nid || "", name: e.name, code: e.code || "" };
         if (e.moved && e.nid && !(e.nid in S.mpick) && !S.munpick.has(e.nid)) S.mpick[e.nid] = { name: e.name, code: e.code || "", job: e.job || "", type: e.type || "", site: e.now_site || "" }; });
       S.choice = { ...fromSaved, ...S.choice };
@@ -807,7 +809,29 @@ function livePages() {
   const ids = new Set(S.pages.map(p => p.id));
   return S.pages.filter(p => p.status === "done" && !(p.superseded_by && ids.has(p.superseded_by)));
 }
+// كشف اليوم: لو اليوم اتأكد قبل كده، بيتبني من اللي كانوا على الكشف يومها (المحفوظ) مش من الكشف الحالي —
+// اللي مشي أو اتحول بديل/يومية بعد اليوم ده بيفضل بكوده وحالته المحفوظة، واللي اتضاف للكشف بعده مابيتطلبش له قرار
+// (إلا لو له صف مقروء في صور اليوم). الكشف الحالي نفسه (S.rosterNow) للإدارة والطباعة والطلبات.
+function readOnDay(w) {
+  return livePages().some(p => (p.result?.rows || []).some(r => (r.code && r.code === w.code) || (w.nid && String(r.nid || "").replace(/\D/g, "") === w.nid)));
+}
+function dayRoster() {
+  const now = S.rosterNow || [], E = S.day?.entries;
+  if (!E) return now;
+  const saved = Object.entries(E).filter(([, e]) => !e.sub && !e.rep_for);
+  const byNid = {}; saved.forEach(([k, e]) => { if (e.nid && !byNid[e.nid]) byNid[e.nid] = k; });
+  const used = new Set(), out = [];
+  now.forEach(w => {
+    if (E[w.code] && !E[w.code].sub) { out.push(w); used.add(w.code); return; }
+    const k = w.nid && byNid[w.nid];
+    if (k && !used.has(k)) { out.push({ ...w, code: k }); used.add(k); return; }   // نفس العامل بكود قديم (مثلاً N… وبقى T…)
+    if (readOnDay(w)) out.push(w);
+  });
+  saved.forEach(([k, e]) => { if (!used.has(k)) out.push({ code: k, name: e.name || "", nid: e.nid || "", job: e.job || "", type: e.type || "", past: true }); });
+  return out;
+}
 function render() {
+  S.roster = dayRoster();
   const busy = S.pages.filter(p => p.status === "pending" || p.status === "reading").length;
   $("pages").innerHTML = S.pages.map((p, pi) => {
     const res = p.result || {};
@@ -863,7 +887,7 @@ function render() {
     const ro = lockedForMe() ? "disabled" : "";
     const roP = ro || (blocked ? "disabled" : "");
     return `<div class="w ${!r ? "missing" : flag ? "flag" : ""}">
-      <div class="nm"><b>${esc(w.name)}</b><small>${esc(aiTxt)}${note}${why ? ` · <span style="color:#8a5a10">${esc(why)}</span>` : ""}${blocked ? ` · <span style="color:#a32d2d">الحضور مقفول لحد ما الفيش يترفع</span>` : ""}</small></div>
+      <div class="nm"><b>${esc(w.name)}</b><small>${w.past ? `<span style="color:#6b6b6b">مش على الكشف دلوقتي (${esc(w.type || "")}) · </span>` : ""}${esc(aiTxt)}${note}${why ? ` · <span style="color:#8a5a10">${esc(why)}</span>` : ""}${blocked ? ` · <span style="color:#a32d2d">الحضور مقفول لحد ما الفيش يترفع</span>` : ""}</small></div>
       <div class="seg"><button class="p" data-c="${w.code}" data-v="P" aria-pressed="${def === "P"}" ${roP}>حاضر</button><button class="a" data-c="${w.code}" data-v="A" aria-pressed="${def === "A"}" ${ro}>غايب</button>${S.timed ? `<button class="q" data-c="${w.code}" data-v="Q" aria-pressed="${def === "Q"}" ${ro}>توقف</button>` : ""}</div></div>` +
       (def === "A" ? repBlock(w, r) : "");
   }).join("")).join("");
@@ -1165,17 +1189,17 @@ function restSubs() {
     && String(p.job || "").trim() && !overdue.has(p.nid));
 }
 $("print").addEventListener("click", async () => {
-  if (!S.roster.length) return show($("deadline"), "err", "كشف الموقع مش موجود لسه.");
+  if (!S.rosterNow.length) return show($("deadline"), "err", "كشف الموقع مش موجود لسه.");
   const [year, month] = (S.date || ymd(new Date())).split("-").map(Number);
   const order = await loadOrder(S.site);
-  await openPrintView({ site: S.site, roster: S.roster, subs: restSubs(), order, plan: S.plan, month, year });
+  await openPrintView({ site: S.site, roster: S.rosterNow, subs: restSubs(), order, plan: S.plan, month, year });
 });
 $("order").addEventListener("click", async () => {
-  if (!S.roster.length) return show($("deadline"), "err", "كشف الموقع مش موجود لسه.");
+  if (!S.rosterNow.length) return show($("deadline"), "err", "كشف الموقع مش موجود لسه.");
   const site = S.site;
   const order = await loadOrder(site);
   await openOrderEditor({
-    site, roster: S.roster, subs: restSubs(), order, plan: S.plan, canEdit: true, canAdmin: S.admin, lastChange: orderNote(order),
+    site, roster: S.rosterNow, subs: restSubs(), order, plan: S.plan, canEdit: true, canAdmin: S.admin, lastChange: orderNote(order),
     onSave: async o => {
       const u = auth.currentUser;
       // آخر حفظ هو اللي بيمشي، ومين غيّر وإمتى بيتسجلوا مع الترتيب
@@ -1280,7 +1304,7 @@ $("extras").addEventListener("click", e => {
 function renderForce() {
   if (S.photo !== false) return;
   const perJob = {};
-  S.roster.forEach(w => { perJob[w.job] = (perJob[w.job] || 0) + 1; });
+  S.rosterNow.forEach(w => { perJob[w.job] = (perJob[w.job] || 0) + 1; });
   const jobsAll = [...new Set([...Object.keys(perJob), ...Object.keys(S.plan || {})])];
   $("force-plan").innerHTML = jobsAll.length ? `<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr><th style="text-align:right">الوظيفة</th><th>على الكشف</th><th>المطلوب</th><th></th></tr></thead><tbody>` +
     jobsAll.map(j => { const n = perJob[j] || 0, p = S.plan?.[j];
@@ -1297,13 +1321,13 @@ const rmNorm = s => String(s ?? "").replace(/[أإآ]/g, "ا").replace(/ة/g, "�
 function renderRmHits() {
   const q = rmNorm($("m-q").value); if (!q || $("m-who").value) { $("m-hits").innerHTML = ""; return; }
   const words = q.split(" ");
-  const hits = S.roster.filter(w => { const n = rmNorm(w.name); return words.every(x => n.includes(x)) || String(w.nid || "").includes(q) || String(w.code || "") === q; })
+  const hits = S.rosterNow.filter(w => { const n = rmNorm(w.name); return words.every(x => n.includes(x)) || String(w.nid || "").includes(q) || String(w.code || "") === q; })
     .sort((a, b) => rmNorm(a.name).indexOf(words[0]) - rmNorm(b.name).indexOf(words[0])).slice(0, 30);
   $("m-hits").innerHTML = hits.length ? hits.map(w => `<button type="button" data-rmpick="${esc(w.code)}"><b>${esc(w.name)}</b><small>${esc(w.job || "")}</small></button>`).join("")
     : `<div class="muted" style="padding:8px;">مفيش اسم في الكشف بالشكل ده.</div>`;
 }
 function rmPick(code) {
-  const w = S.roster.find(x => x.code === code);
+  const w = S.rosterNow.find(x => x.code === code);
   $("m-who").value = w ? code : "";
   $("m-picked").innerHTML = w ? `<div><b>${esc(w.name)}</b> <small class="muted">${esc(w.job || "")}</small></div><button type="button" class="btn sec small" data-rmclear>غيّر</button>` : "";
   $("m-picked").classList.toggle("hidden", !w); $("m-q").classList.toggle("hidden", !!w); renderRmHits();
@@ -1328,7 +1352,7 @@ async function onResign(e) {
 }
 ["m-resign-cam", "m-resign-file"].forEach(id => $(id).addEventListener("change", onResign));
 $("m-remove-save").addEventListener("click", async () => {
-  const code = $("m-who").value, w = S.roster.find(x => x.code === code); if (!w) return show($("m-msg"), "err", "اختار العامل من القايمة الأول.");
+  const code = $("m-who").value, w = S.rosterNow.find(x => x.code === code); if (!w) return show($("m-msg"), "err", "اختار العامل من القايمة الأول.");
   const resign = resignOn();
   if (resign && !RS.img) return show($("m-msg"), "err", "صوّر الاستقالة الأول.");
   if (resign && !/^\d{14}$/.test(String(w.nid || ""))) return show($("m-msg"), "err", "الرقم القومي للعامل ده ناقص في الكشف — ابعت الاستقالة للإدارة.");
@@ -1363,7 +1387,7 @@ function nidAge(nid) {
   return a;
 }
 function openNc() {
-  const jobs = [...new Set([...S.roster.map(x => x.job), ...Object.keys(S.plan || {})].filter(Boolean))];
+  const jobs = [...new Set([...S.rosterNow.map(x => x.job), ...Object.keys(S.plan || {})].filter(Boolean))];
   $("nc-job").innerHTML = jobs.map(j => `<option>${esc(j)}</option>`).join("");
   ["nc-name", "nc-nid"].forEach(id => $(id).value = ""); $("nc-type").value = "";
   hide($("nc-msg")); $("ncm").classList.remove("hidden"); $("nc-name").focus();
@@ -1377,7 +1401,7 @@ $("nc-ok").addEventListener("click", async () => {
   if (age < 18) return show($("nc-msg"), "err", "تيما مبتشغلش حد تحت السن القانونى (18 سنة).");
   if (!job) return show($("nc-msg"), "err", "اختار الوظيفة.");
   if (!typ) return show($("nc-msg"), "err", "اختار نوع العامل.");
-  if (S.roster.some(x => x.nid === nid)) return show($("nc-msg"), "err", "العامل ده موجود في الكشف أصلاً.");
+  if (S.rosterNow.some(x => x.nid === nid)) return show($("nc-msg"), "err", "العامل ده موجود في الكشف أصلاً.");
   if (S.pool.some(x => x.nid === nid)) return show($("nc-msg"), "err", "العامل ده موجود في قايمة البدلاء أصلاً.");
   const toRoster = typ === "اساسي";
   const u = auth.currentUser;
@@ -1411,11 +1435,11 @@ async function compressCard(file, limit = 460000, maxSide = 1400) {
 }
 function openId(purpose, target) {
   ID.purpose = purpose; ID.target = target || null; ID.check = null; ID.result = null; ID.unsub?.();
-  const w = target ? S.roster.find(x => x.code === target) : null;
+  const w = target ? S.rosterNow.find(x => x.code === target) : null;
   $("idm-title").textContent = purpose === "roster" ? "إضافة عامل جديد للكشف" : "بديل جديد";
   $("idm-sub").textContent = purpose === "roster" ? "صوّر وش بطاقة العامل. الاسم والرقم القومي بيتسجلوا زي البطاقة بالظبط."
     : `بديل لـ ${w?.name || ""}. صوّر وش بطاقته، وبعدها هيفضل في قايمة البدلاء.`;
-  const jobs = [...new Set(S.roster.map(x => x.job).filter(Boolean))];
+  const jobs = [...new Set(S.rosterNow.map(x => x.job).filter(Boolean))];
   $("idm-job").innerHTML = jobs.map(j => `<option>${esc(j)}</option>`).join("");
   if (w) $("idm-job").value = w.job;
   $("idm-job-wrap").classList.toggle("hidden", purpose !== "roster");
@@ -1468,7 +1492,7 @@ $("idm-ok").addEventListener("click", async () => {
   const typ = ID.purpose === "roster" ? $("idm-type").value : "";
   if (ID.purpose === "roster" && !typ) return show($("idm-msg"), "err", "اختار نوع العامل الأول.");
   const toRoster = typ === "اساسي";
-  const inRoster = S.roster.find(x => x.nid === d.nid), inPool = S.pool.find(x => x.nid === d.nid);
+  const inRoster = S.rosterNow.find(x => x.nid === d.nid), inPool = S.pool.find(x => x.nid === d.nid);
   const u = auth.currentUser;
   $("idm-ok").disabled = true;
   try {
@@ -1490,7 +1514,7 @@ $("idm-ok").addEventListener("click", async () => {
         throw new Error("العامل ده ممنوع تشغيله في تيما. راجع الإدارة.");
       }
       await setDoc(doc(db, "new_workers", d.nid), { nid: d.nid, name: d.name, site: S.site,
-        job: ID.purpose === "roster" ? $("idm-job").value : (S.roster.find(x => x.code === ID.target)?.job || ""),
+        job: ID.purpose === "roster" ? $("idm-job").value : (S.rosterNow.find(x => x.code === ID.target)?.job || ""),
         ...(typ ? { type: typ } : {}),
         role: ID.purpose === "roster" && !toRoster ? "replacement" : ID.purpose, check_id: ID.check, first_day: S.date, added_by: u.uid, added_email: actorEmail(u), at: serverTimestamp() });
     }
@@ -1632,12 +1656,12 @@ $("lv-new").addEventListener("click", () => { lvReset(); $("lvm").classList.remo
 $("lvm-close").addEventListener("click", () => $("lvm").classList.add("hidden"));
 function renderLvHits() {
   const q = rmNorm($("lv-q").value); if (!q || LV.who) { $("lv-hits").innerHTML = ""; return; }
-  const hits = (S.roster || []).filter(w => rmNorm(w.name).includes(q) || String(w.code || "").includes(q) || String(w.nid || "").includes(q)).slice(0, 12);
+  const hits = (S.rosterNow || []).filter(w => rmNorm(w.name).includes(q) || String(w.code || "").includes(q) || String(w.nid || "").includes(q)).slice(0, 12);
   $("lv-hits").innerHTML = hits.length ? hits.map(w => `<button type="button" data-lvpick="${esc(w.code)}"><b>${esc(w.name)}</b><small>${esc(w.job || "")}</small></button>`).join("")
     : `<div class="muted" style="padding:8px;">مفيش عامل بالاسم ده في كشف الموقع</div>`;
 }
 function lvPick(code) {
-  LV.who = code ? (S.roster || []).find(w => String(w.code) === String(code)) || null : null;
+  LV.who = code ? (S.rosterNow || []).find(w => String(w.code) === String(code)) || null : null;
   const w = LV.who;
   $("lv-picked").innerHTML = w ? `<div><b>${esc(w.name)}</b> <small class="muted">${esc(w.job || "")}</small></div><button type="button" class="btn sec small" data-lvclear>غيّر</button>` : "";
   $("lv-picked").classList.toggle("hidden", !w); $("lv-q").classList.toggle("hidden", !!w); renderLvHits(); lvCheck();
