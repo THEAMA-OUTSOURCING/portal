@@ -389,7 +389,9 @@ function render() {
         return `<details class="job" data-job="${esc(job)}"${isOpen ? " open" : ""}>
           <summary><span class="t">${esc(job)}</span><span class="chip ${done === all.length ? "green" : "amber"}" title="استلموا كل حاجة ${done} من ${all.length}">${per} من ${all.length}</span></summary>
           <div class="hdr"><span>${ws.length} عامل</span>${IT.map(i => `<span>${i.ar}${i.pieces > 1 ? " ×" + i.pieces : ""}</span>`).join("")}</div>
-          ${ws.map(w => {
+          ${ws.map((w, i) => ({ w, i, n: IT.filter(it => hasItem(w.nid, it.id)).length }))
+              .sort((a, b) => (b.n > 0) - (a.n > 0) || a.i - b.i)   // اللي استلم ولو قطعة واحدة الأول في وظيفته، والباقي بنفس الترتيب
+              .map(({ w }) => {
             const sz = sizeTxt(w);
             const ok = validNid(w.nid);
             return `<div class="w"><div class="n"><b>${esc(w.name)}</b>
