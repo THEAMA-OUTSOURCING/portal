@@ -613,6 +613,28 @@ function rowMatch(r) {
   return close.length === 1 && !pool.some(p => nidNear(String(p.nid || ""), nid)) ? { code: close[0].code, how: "fuzzy" } : null;
 }
 const rowCode = r => rowMatch(r)?.code || "";
+// رقم قومي مش في كشف الموقع ولا بدلائه: بندوّر عليه في كشوف وبدلاء كل المواقع اللي الحساب يقدر يقراها
+// (مرة واحدة لكل فتحة للصفحة، وبس لو فيه صفوف مش متطابقة) — عشان نقول مين ده ومكانه دلوقتي فين
+let ELSE = null, ELSE_LOADING = false;
+function elsewhere(nid) {
+  const here = [...S.roster, ...(S.pool || [])].find(w => w.nid === nid);
+  if (here) return { ...here, site: S.site };
+  if (!ELSE) return undefined;   // لسه بيتحمل
+  return ELSE[nid] || null;
+}
+async function loadElsewhere() {
+  if (ELSE || ELSE_LOADING) return;
+  ELSE_LOADING = true;
+  const map = {};
+  await Promise.all(SUP_SITES.flatMap(site => ["rosters", "pools"].map(async col => {
+    try {
+      const d = await getDoc(doc(db, col, site));
+      (d.exists() ? d.data().workers || [] : []).forEach(w => { if (w.nid && !map[w.nid]) map[w.nid] = { ...w, site }; });
+    } catch (e) {}
+  })));
+  ELSE = map; ELSE_LOADING = false;
+  render();
+}
 function aiState() {
   // آخر قراءة لكل عامل من الصور اللي خلصت
   const map = {};
@@ -758,7 +780,7 @@ function livePages() {
 }
 function render() {
   const busy = S.pages.filter(p => p.status === "pending" || p.status === "reading").length;
-  $("pages").innerHTML = S.pages.map(p => {
+  $("pages").innerHTML = S.pages.map((p, pi) => {
     const res = p.result || {};
     const rows = res.rows || [];
     const pres = rows.filter(r => r.s === "P").length, abs = rows.filter(r => r.s === "A").length;
@@ -775,7 +797,7 @@ function render() {
         : `<span class="pill p-warn">مكتوب ${fmt(res.count)} / محسوب ${fmt(calc)}</span>`);
     const mine = p.uploaded_by === auth.currentUser?.uid && p.status !== "reading" && (S.admin || S.day?.status !== "approved");
     return `<div class="pg"><img src="data:image/jpeg;base64,${esc(p.image)}" data-view alt="صفحة">
-      <div class="b">${st}${mine ? `<div style="margin-top:6px;"><button class="btn sec small" data-del="${p.id}">مسح</button></div>` : ""}</div></div>`;
+      <div class="b"><b>صورة ${fmt(pi + 1)}</b> ${st}${mine ? `<div style="margin-top:6px;"><button class="btn sec small" data-del="${p.id}">مسح</button></div>` : ""}</div></div>`;
   }).join("");
 
   const hasDone = S.pages.some(p => p.status === "done") || S.day;
@@ -856,11 +878,17 @@ function render() {
   // صفوف من غير عامل معروف + المكتوبة بخط اليد
   // الغايب في صف مطبوع لعامل مش في الكشف دلوقتي (غالباً مشي، والورقة اتطبعت قبل التعديل): مش محتاج حاجة، فبيتعدّ بس
   const loose = [];
-  let goneAbs = 0;
+  let goneAbs = 0, needLookup = false;
+  const picNo = p => S.pages.findIndex(x => x.id === p.id) + 1;
   livePages().forEach(p => {
     (p.result?.rows || []).filter(r => !rowCode(r) && !subOf(r)).forEach(r => {
       if (r.s === "A" && /^\d{14}$/.test(String(r.nid || "").replace(/\D/g, ""))) { goneAbs++; return; }
-      loose.push(`صف ${esc(r.n)}: رقم قومي ${esc(r.nid || "مش مقروء")} — ${r.s === "P" ? "حاضر" : r.s === "A" ? "غايب" : "مش واضح"}`);
+      const nid = String(r.nid || "").replace(/\D/g, "");
+      const who = nid.length === 14 ? elsewhere(nid) : null;
+      if (nid.length === 14 && who === undefined) needLookup = true;
+      loose.push(`صورة ${fmt(picNo(p))}، صف ${esc(r.n)}: رقم قومي ${esc(r.nid || "مش مقروء")} — ${r.s === "P" ? "حاضر" : r.s === "A" ? "غايب" : "مش واضح"}`
+        + (who ? `<div style="margin-top:3px;color:#8a5a10;">ده <b>${esc(who.name)}</b>${who.code && !who.code.startsWith("N") ? ` (${esc(who.code)})` : ""} — ${esc(who.type || "")}${who.job ? "، " + esc(who.job) : ""} — ${who.site === S.site ? "في قايمة البدلاء هنا" : `مكانه دلوقتي <b>${esc(who.site)}</b> (اتنقل بعد اليوم ده)`}</div>`
+          : who === null ? `<div class="muted" style="margin-top:3px;">الرقم ده مش في كشف ولا بدلاء أي موقع تقدر تشوفه — يا إما اتقرا غلط، يا إما مشي.</div>` : ""));
     });
     (p.result?.extra || []).forEach((x, i) => {
       if (matchExtra(x) || poolOfExtra(x)) return;
@@ -876,6 +904,7 @@ function render() {
         + ` <button class="btn sec small" data-addnew="1">إضافة بالبطاقة</button>`);
     });
   });
+  if (needLookup) loadElsewhere();
   $("extra-card").classList.toggle("hidden", !loose.length && !goneAbs);
   $("extras").innerHTML = loose.map(t => `<div class="muted" style="padding:4px 0;border-bottom:1px solid #f0efe9;">${t}</div>`).join("")
     + (goneAbs ? `<div class="muted" style="padding:6px 0;">${fmt(goneAbs)} صف غايب لناس مش في الكشف دلوقتي (غالباً مشيوا). مش محتاجين أي حاجة، والورقة دي قديمة: اطبع الكشف من جديد.</div>` : "");
