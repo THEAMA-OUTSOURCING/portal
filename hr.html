@@ -235,6 +235,16 @@ function toISO(v) {
 const siteKey = t => anorm(t).replace(/ى/g, "ي").replace(/ة/g, "ه");
 const siteOfLoc = loc => SUP_SITES.find(s => siteKey(s) === siteKey(loc)) || "";
 // النوع من الإكسيل: بدون أجر = خ، أي إجازة تانية (سنوي / عارضة / إجازة) = ج
+// الإجازة والمرضي وإصابة العمل في بيبسي وشيبسي والإمداد (مواقع البوابة) للأساسي بس: العامل لازم يكون على كشف الموقع كأساسي (أو جديد على الكشف).
+// الشرقية والإكسيل اللي مالوش موقع من البوابة مش بيتأثروا. لو الكشف ماتقراش (صلاحية/نت) مش بنمنع.
+const ROSTERS = {};
+async function basicOk(site, nid, code) {
+  if (!site || !SUP_SITES.includes(site)) return true;
+  if (!(site in ROSTERS)) { try { const d = await getDoc(doc(db, "rosters", site)); ROSTERS[site] = d.exists() ? d.data().workers || [] : null; } catch (e) { ROSTERS[site] = null; } }
+  const ws = ROSTERS[site]; if (!ws) return true;
+  const w = ws.find(x => (nid && x.nid === String(nid)) || (code && x.code === String(code)));
+  return !!w && ["اساسي", "جديد"].includes(w.type);
+}
 const kindOf = t => /اصاب|إصاب/.test(t) ? ["sick", "", "injury"] : /مرض/.test(t) ? ["sick", "", "sick"] : /بدون/.test(t) ? ["leave", "unpaid"] : /سنو|عارض|اجاز|إجاز/.test(t) ? ["leave", "annual"] : [null, null];
 function workDays(f, t) { let n = 0; for (let d = new Date(f + "T00:00"); d <= new Date(t + "T00:00"); d.setDate(d.getDate() + 1)) if (d.getDay() !== 5) n++; return n; }
 $("xf").onchange = async () => {
@@ -260,8 +270,16 @@ $("xf").onchange = async () => {
         : toCl && !cause ? "سبب الحالة فاضي" : toCl && !hospital ? "المستشفى فاضي"
         : SCOPED && !SCOPED.includes(site) ? `الموقع «${row.loc}» مش من فروعك (اكتب اسم الفرع زي البوابة بالظبط)` : "";
       if (why) return bad.push(`سطر ${i + 2}: ${why}`);
+      row._line = i + 2;
       XROWS.push(row);
     });
+    // الإجازات والمرضي لغير الأساسي في مواقع البوابة مش بتترفع
+    const keep = [];
+    for (const row of XROWS) {
+      if ((row.type === "leave" || row.type === "sick") && !(await basicOk(row.site, row.nid, row.code))) bad.push(`سطر ${row._line}: ${row.name || row.nid} مش أساسي في ${row.site} — الإجازة والمرضي للأساسي بس`);
+      else keep.push(row);
+    }
+    XROWS = keep; XROWS.forEach(r => delete r._line);
     show($("xmsg"), bad.length ? "err" : "ok", `${XROWS.length} سطر سليم` + (bad.length ? ` — و${bad.length} فيهم مشكلة ومش هيترفعوا:\n` + bad.slice(0, 20).join("\n") : ""));
     $("xsave").disabled = !XROWS.length;
   } catch (e) { show($("xmsg"), "err", "الملف ماتقراش: " + e.message); }
@@ -621,6 +639,7 @@ function render() {
           <dt>المكان</dt><dd>${esc([placeOf(e), e.job].filter(Boolean).join(" — "))}</dd>
           ${e.type === "resign" ? `<dt>السبب</dt><dd>${esc(e.reason)}</dd><dt>من تاريخ</dt><dd>${esc(e.entry_date)} (يوم التسجيل)</dd>`
             : `<dt>من</dt><dd>${esc(e.from)} لحد ${esc(e.to)} — ${esc(e.days)} يوم${e.approved_days != null && +e.approved_days < +e.days ? ` — <b>العميل اعتمد ${esc(e.approved_days)}</b>` : ""}</dd>`}
+          ${isInj(e) ? injuryHtml(e) : ""}
           ${e.type === "sick" && (e.cause || e.hospital) ? `<dt>السبب</dt><dd>${esc(e.cause || "—")}</dd><dt>المستشفى</dt><dd>${esc(e.hospital || "—")}</dd>` : ""}
           <dt>اتسجل</dt><dd>${esc(e.entry_date)} — ${esc(e.by_email)}</dd>
           ${e.original && (e.edited || e.client) ? `<dt>الأصل</dt><dd>${esc(TY[e.original.type] || "")} ${esc(e.original.from || e.original.entry_date)}${e.original.to ? " → " + esc(e.original.to) : ""}</dd>` : ""}
@@ -635,7 +654,7 @@ function render() {
       ${EDIT === e.id ? `<div class="ft edit" style="flex-direction:column;align-items:stretch;background:#fffdf5">
         <label class="f">النوع<select data-et><option value="sick" ${e.type === "sick" ? "selected" : ""}>مرضي</option><option value="leave" ${e.type === "leave" ? "selected" : ""}>إجازة</option><option value="resign" ${e.type === "resign" ? "selected" : ""}>استقالة</option></select></label>
         <label class="f">نوع الإجازة (لو إجازة)<select data-ek><option value="annual" ${e.kind !== "unpaid" ? "selected" : ""}>ج — إجازة (ليه رصيد)</option><option value="unpaid" ${e.kind === "unpaid" ? "selected" : ""}>خ — بدون أجر (ملوش رصيد)</option></select></label>
-        <div class="row"><label class="f">من (أو تاريخ الاستقالة)<input type="date" data-ef value="${esc(e.type === "resign" ? e.entry_date : e.from)}"></label>
+        <div class="row"><label class="f">من (أو تاريخ الاستقالة)<input type="date" data-ef value="${esc(e.type === "resign" ? e.entry_date : (e.from || (isInj(e) && prevInjury(e) ? dayAfter(prevInjury(e).to || prevInjury(e).from) : "")))}"></label>
         <label class="f">لحد<input type="date" data-eto value="${esc(e.to || "")}"></label></div>
         ${e.type === "sick" ? `<span class="muted" style="font-size:12px;">لو مرضي:</span>${sickFields(e)}` : ""}
         <input placeholder="سبب التعديل" data-note="${e.id}">
@@ -668,6 +687,31 @@ async function save(id, upd, okMsg) {
   catch (er) { show($("msg"), "err", "ماتحفظش: " + errTxt(er)); }
 }
 // موافقة HR تيما: الشرقية (والاستقالات) بتتعتمد على طول، والباقي بيروح «مستني رد العميل»
+// ===== إصابة العمل الممتدة =====
+// الإصابة بتفضل مستمرة لحد ما العامل يرجع الشغل، والتجديد = امتداد لنفس الإصابة (من غير محضر جديد).
+// الامتداد: extends = رقم الإصابة اللي قبله (طلب المشرف)، أو — لو مش متحدد (الشرقية/الإكسيل) — آخر إصابة لنفس العامل قبلها.
+// بعد «لحد» من غير تجديد = غياب لحد ما ييجي طلب جديد (مفيش حاجة بتتحسب تلقائي هنا).
+const isInj = e => e.type === "sick" && e.sick_kind === "injury";
+const sameW = (a, b) => (a.nid && a.nid === b.nid) || (a.code && String(a.code) === String(b.code));
+const dayAfter = d => { if (!d) return ""; const x = new Date(d + "T00:00"); x.setDate(x.getDate() + 1); return x.toISOString().slice(0, 10); };
+function prevInjury(e) {
+  if (!isInj(e)) return null;
+  if (e.extends) return ALL.find(x => x.id === e.extends) || null;
+  const start = e.from || e.entry_date || "9999";
+  return ALL.filter(x => x.id !== e.id && isInj(x) && x.status !== "rejected" && sameW(x, e) && (x.to || x.from) && (x.to || x.from) < start)
+    .sort((a, b) => String(b.to || b.from).localeCompare(String(a.to || a.from)))[0] || null;
+}
+// السلسلة كلها من أول إصابة لحد دي: [الأولى ... e]
+function injuryChain(e) {
+  const out = [e], seen = new Set([e.id]); let p = prevInjury(e);
+  while (p && !seen.has(p.id)) { out.unshift(p); seen.add(p.id); p = prevInjury(p); }
+  return out;
+}
+function injuryHtml(e) {
+  const ch = injuryChain(e); if (ch.length < 2) return "";
+  const first = ch[0], prev = ch[ch.length - 2], tot = ch.reduce((a, x) => a + (+x.days || 0), 0);
+  return `<dt>امتداد إصابة</dt><dd>تجديد رقم ${ch.length - 1} — آخر إصابة قبلها ${esc(prev.from || "؟")} لحد ${esc(prev.to || "؟")}، والإصابة بدأت ${esc(first.from || first.entry_date || "؟")} — مجموع ${tot} يوم${e.from ? "" : ` <b style="color:#a32d2d">— التاريخ فاضي: «من» المقترح ${esc(dayAfter(prev.to || prev.from))}</b>`}</dd>`;
+}
 function hrOk(ev, extra) {
   const u = auth.currentUser, toClient = needsClient({ ...ev, ...extra });
   const upd = { ...extra, status: toClient ? "client_wait" : "approved", changed: false,
@@ -690,6 +734,8 @@ $("list").onclick = async e => {
     const type = box.querySelector("[data-et]").value, f = box.querySelector("[data-ef]").value, t = box.querySelector("[data-eto]").value;
     const note = box.querySelector("[data-note]").value.trim();
     if (!f || (type !== "resign" && (!t || t < f))) return show($("msg"), "err", "التواريخ مش مظبوطة.");
+    if ((type === "leave" || type === "sick") && !(await basicOk(ev.site, ev.nid, ev.code)))
+      return show($("msg"), "err", `الإجازة والمرضي للأساسي بس في بيبسي وشيبسي والإمداد — ${ev.name} مش أساسي في ${ev.site}.`);
     const extra = { type, type_ar: TY[type], edited: true, note: note || "اتعدل من الـ HR",
       original: ev.original || { type: ev.type, from: ev.from || "", to: ev.to || "", entry_date: ev.entry_date || "" } };
     if (type === "resign") Object.assign(extra, { entry_date: f, from: "", to: "", days: "", kind: "" });
@@ -725,9 +771,14 @@ $("list").onclick = async e => {
     if (ev.changed && ev.changed_data) Object.assign(upd, ev.changed_data);   // القرار على آخر نسخة في الشيت
     return save(id, upd, "اترفضت.");
   }
+  // من غير تاريخ (مثلاً تجديد إصابة من الشرقية مكتوبش فيه «من» و«لحد») مينفعش يتعتمد — يتعدّل الأول
+  if (["sick", "leave"].includes(ev.type) && !(ev.changed && ev.changed_data) && (!ev.from || !ev.to))
+    return show($("msg"), "err", `${ev.name}: «من» و«لحد» فاضيين — دوس «تعديل» واكتبهم الأول${isInj(ev) && prevInjury(ev) ? ` (المقترح للامتداد: من ${dayAfter(prevInjury(ev).to || prevInjury(ev).from)})` : ""}.`);
   // موافقة HR تيما — الإجازة لازم يتحدد نوعها: ج (ليه رصيد) أو خ (ملوش رصيد)
   const extra = { note };
   if (ev.changed && ev.changed_data) Object.assign(extra, ev.changed_data);
+  if (["leave", "sick"].includes(extra.type || ev.type) && !(await basicOk(ev.site, ev.nid, ev.code)))
+    return show($("msg"), "err", `الإجازة والمرضي للأساسي بس في بيبسي وشيبسي والإمداد — ${ev.name} مش أساسي في ${ev.site}. ارفضها واكتب السبب.`);
   if ((extra.type || ev.type) === "sick") {
     const sf = readSick(id, { ...ev, ...extra }); if (sf.err) return show($("msg"), "err", sf.err);
     Object.assign(extra, sf.v);

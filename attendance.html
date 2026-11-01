@@ -287,6 +287,7 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
     <div id="lv-hits" class="m-hits"></div>
     <div id="lv-picked" class="m-picked hidden"></div>
     <label style="display:block;margin:8px 0;"><span class="muted">النوع</span><select id="lv-type"><option value="sick">مرضي</option><option value="injury">إصابة عمل</option><option value="leave">إجازة</option></select></label>
+    <label id="lv-ext" class="hidden" style="display:block;margin:0 0 8px;padding:8px 10px;background:#eef6f0;border-radius:10px;font-size:13px;"><input type="checkbox" id="lv-extc" checked> امتداد للإصابة <span id="lv-extt"></span> — من غير محضر جديد</label>
     <div class="row">
       <label class="grow"><span class="muted">من</span><input type="date" id="lv-from"></label>
       <label class="grow"><span class="muted">لحد</span><input type="date" id="lv-to"></label>
@@ -1648,7 +1649,7 @@ function renderLvList() {
   }).join("") : `<div class="muted">مفيش طلبات في آخر 60 يوم.</div>`;
 }
 function lvReset() {
-  LV.who = null; LV.img = ""; LV.imgFile = null; LV.pages = []; renderLvPages(); $("lv-q").value = ""; $("lv-type").value = "sick"; lvTypeUi();
+  LV.who = null; LV.img = ""; LV.imgFile = null; LV.pages = []; renderLvPages(); $("lv-q").value = ""; $("lv-type").value = "sick"; $("lv-extc").checked = true; lvTypeUi();
   const t = ymd(new Date()); $("lv-from").value = t; $("lv-to").value = t;
   $("lv-img").classList.add("hidden"); $("lv-img").src = ""; hide($("lv-m")); lvPick(""); lvCheck();
 }
@@ -1664,7 +1665,7 @@ function lvPick(code) {
   LV.who = code ? (S.rosterNow || []).find(w => String(w.code) === String(code)) || null : null;
   const w = LV.who;
   $("lv-picked").innerHTML = w ? `<div><b>${esc(w.name)}</b> <small class="muted">${esc(w.job || "")}</small></div><button type="button" class="btn sec small" data-lvclear>غيّر</button>` : "";
-  $("lv-picked").classList.toggle("hidden", !w); $("lv-q").classList.toggle("hidden", !!w); renderLvHits(); lvCheck();
+  $("lv-picked").classList.toggle("hidden", !w); $("lv-q").classList.toggle("hidden", !!w); renderLvHits(); lvTypeUi(); lvCheck();
 }
 $("lv-q").addEventListener("input", renderLvHits);
 $("lv-hits").addEventListener("click", e => { const b = e.target.closest("[data-lvpick]"); if (b) lvPick(b.dataset.lvpick); });
@@ -1678,14 +1679,34 @@ function lvCheck() {
   let err = "";
   if (!f || !t) err = "حدد من ولحد";
   else if (t < f) err = "«لحد» قبل «من»";
+  // الإجازة والمرضي وإصابة العمل للأساسي بس (بيبسي وشيبسي والإمداد) — اليومية وبدايل الراحات لأ
+  else if (LV.who && !["اساسي", "جديد"].includes(LV.who.type)) err = "الإجازة والمرضي للأساسي بس — العامل ده مش أساسي";
   $("lv-days").textContent = err || `${lvWorkDays(f, t)} يوم (الجمعة مش بتتحسب)`;
   const ov = !err && LV.who ? lvOverlap(LV.who, f, t) : null;
   if (ov) show($("lv-m"), "warn", `فيه طلب تاني لنفس العامل في الأيام دي (${lvTyTxt(ov)} من ${ov.from} لحد ${ov.to} — ${(LV_ST[ov.status] || [ov.status])[0]}).`);
   else if ($("lv-m").classList.contains("warn")) hide($("lv-m"));
   const inj = $("lv-type").value === "injury";
-  $("lv-send").disabled = !!err || !LV.who || !LV.img || (inj && !LV.pages.length) || !!ov;
+  $("lv-send").disabled = !!err || !LV.who || !LV.img || (inj && !lvIsExt() && !LV.pages.length) || !!ov;
 }
-function lvTypeUi() { $("lv-inj").classList.toggle("hidden", $("lv-type").value !== "injury"); }
+// إصابة العمل الممتدة: لو العامل عنده إصابة قبل كده (مش مرفوضة)، الطلب الجديد امتداد ليها — من غير محضر جديد،
+// و«من» بتبدأ اليوم اللي بعد آخر يوم فيها. لو شال العلامة = إصابة جديدة بمحضر.
+function lvPrevInj(w) {
+  if (!w) return null;
+  return LV.list.filter(e => e.type === "sick" && e.sick_kind === "injury" && e.status !== "rejected" && ((w.nid && e.nid === w.nid) || String(e.code) === String(w.code)))
+    .sort((a, b) => String(b.to || b.from).localeCompare(String(a.to || a.from)))[0] || null;
+}
+const lvNext = d => { const x = new Date(d + "T00:00"); x.setDate(x.getDate() + 1); return ymd(x); };
+const lvIsExt = () => $("lv-type").value === "injury" && !!lvPrevInj(LV.who) && $("lv-extc").checked;
+function lvTypeUi() {
+  const inj = $("lv-type").value === "injury", prev = inj ? lvPrevInj(LV.who) : null;
+  $("lv-ext").classList.toggle("hidden", !prev);
+  if (prev) {
+    $("lv-extt").textContent = `اللي من ${prev.from} لحد ${prev.to}`;
+    if ($("lv-extc").checked) { const nx = lvNext(prev.to || prev.from); if (!$("lv-from").value || $("lv-from").value <= (prev.to || prev.from)) $("lv-from").value = nx; if ($("lv-to").value && $("lv-to").value < nx) $("lv-to").value = nx; }
+  }
+  $("lv-inj").classList.toggle("hidden", !inj || lvIsExt());
+}
+$("lv-extc").addEventListener("change", () => { lvTypeUi(); lvCheck(); });
 $("lv-type").addEventListener("change", () => { lvTypeUi(); lvCheck(); });
 $("lv-from").addEventListener("change", () => { if ($("lv-to").value < $("lv-from").value) $("lv-to").value = $("lv-from").value; lvCheck(); });
 $("lv-to").addEventListener("change", lvCheck);
@@ -1733,21 +1754,21 @@ $("lv-cam2").addEventListener("change", onLvImg2);
 $("lv-file2").addEventListener("change", onLvImg2);
 $("lv-send").addEventListener("click", async () => {
   const w = LV.who, f = $("lv-from").value, t = $("lv-to").value, pick = $("lv-type").value, site = $("site").value;
-  const inj = pick === "injury", type = inj ? "sick" : pick;
-  if (!w || !LV.img || (inj && !LV.pages.length) || !f || t < f) return;
+  const inj = pick === "injury", type = inj ? "sick" : pick, ext = inj && lvIsExt() ? lvPrevInj(w) : null;
+  if (!w || !LV.img || (inj && !ext && !LV.pages.length) || !f || t < f) return;
   $("lv-send").disabled = true; show($("lv-m"), "info", "بيرفع...");
   try {
     const u = auth.currentUser;
-    const pk = await lvPackImages(inj);
-    const mahdar = inj ? Object.fromEntries(pk.pages.map((b, i) => ["image" + (i + 2), "data:image/jpeg;base64," + b])) : {};
+    const pk = await lvPackImages(inj && !ext);
+    const mahdar = inj && !ext ? Object.fromEntries(pk.pages.map((b, i) => ["image" + (i + 2), "data:image/jpeg;base64," + b])) : {};
     await addDoc(collection(db, "hr_events"), {
       source: "supervisor", site, nid: String(w.nid || ""), code: String(w.code || ""), name: w.name || "", job: w.job || "",
       type, type_ar: inj ? "إصابة عمل" : LV_TY[type], ...(type === "sick" ? { sick_kind: inj ? "injury" : "sick" } : {}),
-      from: f, to: t, days: String(lvWorkDays(f, t)),
+      from: f, to: t, days: String(lvWorkDays(f, t)), ...(ext ? { extends: ext.id } : {}),
       image: "data:image/jpeg;base64," + pk.img, ...mahdar, status: "pending", entry_date: ymd(new Date()),
       by_email: actorEmail(u), uploaded_by: u.uid, created_at: serverTimestamp() });
     $("lvm").classList.add("hidden");
-    show($("lv-msg"), "ok", `الطلب اتبعت للـ HR — ${inj ? "إصابة عمل" : LV_TY[type]} ${w.name} من ${f} لحد ${t}.`);
+    show($("lv-msg"), "ok", `الطلب اتبعت للـ HR — ${inj ? (ext ? "امتداد إصابة عمل" : "إصابة عمل") : LV_TY[type]} ${w.name} من ${f} لحد ${t}.`);
   } catch (err) {
     $("lv-send").disabled = false;
     show($("lv-m"), "err", "ماترفعش: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : err.message));
