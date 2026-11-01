@@ -315,7 +315,7 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
     <label style="display:block;margin-bottom:8px;"><span class="muted">الرقم القومى</span><input type="text" id="nc-nid" inputmode="numeric" maxlength="14" dir="ltr" autocomplete="off" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:10px;"></label>
     <label style="display:block;margin-bottom:8px;"><span class="muted">الوظيفة</span><select id="nc-job"></select></label>
     <label style="display:block;margin-bottom:8px;"><span class="muted">النوع</span><select id="nc-type">
-      <option value="">— اختار النوع —</option><option value="اساسي">أساسي (على الكشف)</option><option value="موسمي">موسمي (على الكشف)</option>
+      <option value="">— اختار النوع —</option><option value="اساسي">أساسي (على الكشف)</option>
       <option value="بديل راحات">بديل راحات (قايمة البدلاء)</option><option value="يومية">يومية (قايمة البدلاء)</option></select></label>
     <button class="btn block" id="nc-ok" style="margin-top:6px;">إضافة</button>
     <div class="msg" id="nc-msg"></div>
@@ -327,7 +327,7 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
     <p class="muted" id="idm-sub" style="margin-bottom:10px;"></p>
     <label id="idm-job-wrap" style="display:block;margin-bottom:10px;"><span class="muted">الوظيفة</span><select id="idm-job"></select></label>
     <label id="idm-type-wrap" style="display:block;margin-bottom:10px;"><span class="muted">النوع</span><select id="idm-type">
-      <option value="">— اختار النوع —</option><option value="اساسي">أساسي (على الكشف)</option><option value="موسمي">موسمي (على الكشف)</option>
+      <option value="">— اختار النوع —</option><option value="اساسي">أساسي (على الكشف)</option>
       <option value="بديل راحات">بديل راحات (قايمة البدلاء)</option><option value="يومية">يومية (قايمة البدلاء)</option></select></label>
     <div class="row" style="align-items:stretch;">
       <div class="grow" style="border:1px solid #e5e5e5;border-radius:12px;padding:10px;text-align:center;">
@@ -596,11 +596,32 @@ function matchExtra(x) {
   }
   return null;
 }
+// كود العامل لصف مطبوع: السيرفر بيطابق بالرقم القومي مرة واحدة وقت القراءة ويحفظ الكود.
+// لو الكود ده مش في الكشف دلوقتي (اتغير بعد القراءة — مثلاً جديد بالبطاقة N… وبعدين خد كود T، أو اتعدّل/اتنقل)
+// أو الصف اتقرا من غير عامل، بنعيد المطابقة بالرقم القومي على الكشف الحالي بنفس قاعدة السيرفر (_match):
+// مطابق بالظبط، أو فرق رقمين بالكتير لو عامل واحد بس قريب ومفيش بديل قريب.
+const nidNear = (a, b) => /^\d{14}$/.test(String(a || "")) && [...a].filter((c, i) => c !== b[i]).length <= 2;
+function rowMatch(r) {
+  if (r.code && S.roster.some(w => w.code === r.code)) return { code: r.code, how: r.match };
+  const nid = String(r.nid || "").replace(/\D/g, "");
+  if (nid.length !== 14) return null;
+  const ex = S.roster.find(w => w.nid === nid);
+  if (ex) return { code: ex.code, how: "exact" };
+  const pool = S.pool || [];
+  if (pool.some(p => String(p.nid || "") === nid)) return null;
+  const close = S.roster.filter(w => nidNear(w.nid, nid));
+  return close.length === 1 && !pool.some(p => nidNear(String(p.nid || ""), nid)) ? { code: close[0].code, how: "fuzzy" } : null;
+}
+const rowCode = r => rowMatch(r)?.code || "";
 function aiState() {
   // آخر قراءة لكل عامل من الصور اللي خلصت
   const map = {};
   livePages().forEach(p => {
-    (p.result?.rows || []).forEach(r => { if (r.code) map[r.code] = { ...r, page: p.id }; });
+    (p.result?.rows || []).forEach(r => { const m = rowMatch(r); if (m && m.code === r.code) map[m.code] = { ...r, page: p.id }; });
+  });
+  // اللي اتطابقوا من جديد بالرقم القومي: بعد اللي متطابقين من السيرفر، ومن غير ما ياخدوا مكان حد اتقرا فعلاً
+  livePages().forEach(p => {
+    (p.result?.rows || []).forEach(r => { const m = rowMatch(r); if (m && m.code !== r.code && !map[m.code]) map[m.code] = { ...r, code: m.code, match: m.how, page: p.id }; });
   });
   livePages().forEach(p => {
     (p.result?.extra || []).forEach(x => {
@@ -645,7 +666,7 @@ function aiSubs() {
   // آخر قراءة لكل بديل من الصور اللي خلصت
   const map = {};
   livePages().forEach(pg => {
-    (pg.result?.rows || []).filter(r => !r.code).forEach(r => {
+    (pg.result?.rows || []).filter(r => !rowCode(r)).forEach(r => {
       const m = subOf(r); if (!m) return;
       map[subKey(m.p)] = { ...r, page: pg.id, w: m.p, match: m.fuzzy ? "fuzzy" : r.match };
     });
@@ -766,12 +787,12 @@ function render() {
   // المكتوب بخط اليد بعد المطبوع في نفس الصفحة، واللي مالوش صف في أي صورة في آخر مجموعته.
   const at = {};
   livePages().forEach((p, pi) => {
-    (p.result?.rows || []).forEach((r, i) => { if (r.code) at[r.code] = pi * 10000 + i; });
+    (p.result?.rows || []).forEach((r, i) => { const c = rowCode(r); if (c) at[c] = pi * 10000 + i; });
     (p.result?.extra || []).forEach((x, i) => { const w = matchExtra(x); if (w && at[w.code] == null) at[w.code] = pi * 10000 + 5000 + i; });
   });
   const ordered = S.roster.map((w, i) => ({ w, k: at[w.code] ?? 1e9 + i })).sort((a, b) => a.k - b.k).map(x => x.w);
   const groups = {};
-  ordered.forEach(w => { const g = (w.type === "موسمي" ? "موسمي — " : "") + w.job; (groups[g] = groups[g] || []).push(w); });
+  ordered.forEach(w => { const g = w.job; (groups[g] = groups[g] || []).push(w); });
   let P = 0, A = 0, Q = 0, open = 0, flagged = 0;
   const html = Object.entries(groups).map(([g, ws]) => `<div class="grp">${esc(g)} (${fmt(ws.length)})</div>` + ws.map(w => {
     const r = ai[w.code];
@@ -798,20 +819,20 @@ function render() {
   const subs = aiSubs();
   const subHtml = Object.keys(subs).length ? `<div class="grp">بدلاء حاضرين من الكشف (مطبوعين أو بخط اليد) (${fmt(Object.keys(subs).length)})</div>` + Object.entries(subs).map(([k, r]) => {
     const w = r.w;
-    const def = S.choice[k] ?? (r.s !== "U" && !needsReview(r) ? r.s : null);
-    if (def === "P") P++; else if (def === "A") A++; else open++;
+    const def = defOf(k, r);   // زي الأساسي: لو مكتوب «توقف» في مواقع الساعات بيتقري توقف
+    if (def === "P") P++; else if (def === "A") A++; else if (def === "Q") Q++; else open++;
     const flag = needsReview(r); if (flag) flagged++;
     const why = r.s === "U" ? "القراءة مش واضحة" : r.match === "handwritten" ? "اتكتب بخط اليد — اتأكد" : r.match === "fuzzy" ? "الرقم القومي اتقرا بفرق بسيط" : r.conf === "L" ? "القراءة مش أكيدة" : "";
     const aiTxt = r.s === "P" ? "قرا: حاضر" : r.s === "A" ? "قرا: غايب" : "قرا: مش واضح";
     const ro = lockedForMe() ? "disabled" : "";
     return `<div class="w ${flag ? "flag" : ""}">
       <div class="nm"><b>${esc(w.name)}</b><small>${esc(w.type || "بديل")} — ${esc(w.job || "")} · ${esc(aiTxt)}${why ? ` · <span style="color:#8a5a10">${esc(why)}</span>` : ""}</small></div>
-      <div class="seg"><button class="p" data-c="${esc(k)}" data-v="P" aria-pressed="${def === "P"}" ${ro}>حاضر</button><button class="a" data-c="${esc(k)}" data-v="A" aria-pressed="${def === "A"}" ${ro}>غايب</button></div></div>` +
+      <div class="seg"><button class="p" data-c="${esc(k)}" data-v="P" aria-pressed="${def === "P"}" ${ro}>حاضر</button><button class="a" data-c="${esc(k)}" data-v="A" aria-pressed="${def === "A"}" ${ro}>غايب</button>${S.timed ? `<button class="q" data-c="${esc(k)}" data-v="Q" aria-pressed="${def === "Q"}" ${ro}>توقف</button>` : ""}</div></div>` +
       (def === "A" ? repBlock(w, r, k) : "");
   }).join("") : "";
   $("workers").innerHTML = html + subHtml;
 
-  // العدد المطلوب لكل وظيفة (أساسي + موسمي مع بعض)
+  // العدد المطلوب لكل وظيفة (الأساسي — الموسمي اتلغى من 1 نوفمبر 2026)
   const perJob = {};
   S.roster.forEach(w => {
     const r = ai[w.code];
@@ -820,14 +841,14 @@ function render() {
     if (def === "A" && S.rep[w.code]) perJob[w.job]++;
   });
   Object.entries(subs).forEach(([k, r]) => {
-    const def = S.choice[k] ?? (r.s !== "U" && !needsReview(r) ? r.s : null);
-    if (def === "P" || (def === "A" && S.rep[k])) { perJob[r.w.job] = perJob[r.w.job] || 0; perJob[r.w.job]++; }
+    const def = defOf(k, r);
+    if (def === "P" || def === "Q" || (def === "A" && S.rep[k])) { perJob[r.w.job] = perJob[r.w.job] || 0; perJob[r.w.job]++; }   // ق بيتحسب في عدد اليوم
   });
   S.over = Object.entries(perJob).filter(([j, n]) => S.plan[j] != null && n > S.plan[j]).map(([job, n]) => ({ job, n, plan: S.plan[job] }));
   const planRows = Object.keys(perJob).map(j => `<tr><td>${esc(j)}</td><td class="n">${fmt(perJob[j])}</td><td class="n">${S.plan[j] != null ? fmt(S.plan[j]) : "—"}</td>
     <td class="n">${S.plan[j] == null ? "" : perJob[j] > S.plan[j] ? `<span class="pill p-err">زيادة ${fmt(perJob[j] - S.plan[j])}</span>` : perJob[j] < S.plan[j] ? `<span class="pill p-grey">ناقص ${fmt(S.plan[j] - perJob[j])}</span>` : `<span class="pill p-ok">مطابق</span>`}</td></tr>`).join("");
   $("plan-box").innerHTML = Object.keys(S.plan).length ? `<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr><th style="text-align:right">الوظيفة</th><th>الحاضرين</th><th>المطلوب</th><th></th></tr></thead><tbody>${planRows}</tbody></table>
-    <p class="muted" style="margin-top:6px;">المطلوب = أساسي + موسمي، من شيت الاحتياج بتاع الشهر.</p>` : `<p class="muted">مفيش عدد مطلوب متسجل للموقع ده.</p>`;
+    <p class="muted" style="margin-top:6px;">المطلوب = الأساسي، من شيت الاحتياج بتاع الشهر.</p>` : `<p class="muted">مفيش عدد مطلوب متسجل للموقع ده.</p>`;
 
   $("stats").innerHTML = [[P, "حاضر"], [A, "غايب"], ...(Q ? [[Q, "توقف"]] : []), [open, "محتاج قرار"], [flagged, "اتعلّم للمراجعة"]]
     .map(([v, l]) => `<div class="stat"><div class="v">${fmt(v)}</div><div class="l">${l}</div></div>`).join("");
@@ -837,7 +858,7 @@ function render() {
   const loose = [];
   let goneAbs = 0;
   livePages().forEach(p => {
-    (p.result?.rows || []).filter(r => !r.code && !subOf(r)).forEach(r => {
+    (p.result?.rows || []).filter(r => !rowCode(r) && !subOf(r)).forEach(r => {
       if (r.s === "A" && /^\d{14}$/.test(String(r.nid || "").replace(/\D/g, ""))) { goneAbs++; return; }
       loose.push(`صف ${esc(r.n)}: رقم قومي ${esc(r.nid || "مش مقروء")} — ${r.s === "P" ? "حاضر" : r.s === "A" ? "غايب" : "مش واضح"}`);
     });
@@ -874,7 +895,7 @@ function render() {
 $("workers").addEventListener("click", e => {
   const b = e.target.closest("button[data-c]"); if (!b) return;
   S.choice[b.dataset.c] = b.dataset.v;
-  if (b.dataset.v === "P") delete S.rep[b.dataset.c];
+  if (b.dataset.v !== "A") delete S.rep[b.dataset.c];   // البديل للغايب بس
   render();
 });
 
@@ -901,8 +922,16 @@ $("confirm").addEventListener("click", async () => {
   const usedRep = new Set(Object.values(S.rep).map(x => x.nid).filter(Boolean));
   let subsP = 0;
   for (const [k, r] of Object.entries(aiSubs())) {
-    const s = S.choice[k] ?? (r.s !== "U" && !needsReview(r) ? r.s : null);
-    if (s !== "P" && s !== "A") return show($("c-msg"), "err", "فيه بدلاء لسه محتاجين قرار.");
+    const s = defOf(k, r);
+    if (s !== "P" && s !== "A" && s !== "Q") return show($("c-msg"), "err", "فيه بدلاء لسه محتاجين قرار.");
+    if (s === "Q") {   // بديل الراحات في يوم توقف: زي الأساسي، بيترفع ق على البصمة
+      if (usedRep.has(r.w.nid)) return show($("c-msg"), "err", `${r.w.name} متسجل توقف في صفه، ومختار كمان بديل لعامل غايب. شيله من واحد منهم.`);
+      entries[k] = { name: r.w.name, nid: r.w.nid || "", code: r.w.code || "", job: r.w.job || "", type: r.w.type || "بديل", sub: true, s: "L", c: "ق", ai: r.s,
+        by: S.choice[k] && S.choice[k] !== r.s ? "sup" : "ai", note: r.note || "", page: r.page || "" };
+      if (ordMap.has(k)) entries[k].ord = ordMap.get(k);
+      Qn++; subsP++;
+      continue;
+    }
     if (s !== "P") {
       const rp = s === "A" && S.rep[k];
       if (rp) {   // بديل مكان بديل راحات غايب: بيتسجل حاضر في صفه هو، وrep_for بيقول مكان مين
@@ -1143,7 +1172,7 @@ $("extras").addEventListener("click", e => {
 });
 
 // ===== إدارة الكشف =====
-// قوة الفرع: الأسماء بالوظيفة والنوع، وعدد كل وظيفة قصاد المطلوب (أساسي + موسمي)
+// قوة الفرع: الأسماء بالوظيفة والنوع، وعدد كل وظيفة قصاد المطلوب
 function renderForce() {
   if (S.photo !== false) return;
   const perJob = {};
@@ -1246,14 +1275,14 @@ $("nc-ok").addEventListener("click", async () => {
   if (!typ) return show($("nc-msg"), "err", "اختار نوع العامل.");
   if (S.roster.some(x => x.nid === nid)) return show($("nc-msg"), "err", "العامل ده موجود في الكشف أصلاً.");
   if (S.pool.some(x => x.nid === nid)) return show($("nc-msg"), "err", "العامل ده موجود في قايمة البدلاء أصلاً.");
-  const toRoster = typ === "اساسي" || typ === "موسمي";
+  const toRoster = typ === "اساسي";
   const u = auth.currentUser;
   $("nc-ok").disabled = true;
   try {
     await setDoc(doc(db, "new_workers", nid), { nid, name, site: S.site, job, type: typ, role: toRoster ? "roster" : "replacement",
       no_card: true, first_day: ymd(new Date()), added_by: u.uid, added_email: actorEmail(u), at: serverTimestamp() });
     $("ncm").classList.add("hidden");
-    show($("m-msg"), "ok", toRoster ? `${name} اتضاف للكشف (${typ === "اساسي" ? "أساسي" : "موسمي"}). هيظهر خلال ثواني.` : `${name} اتضاف لقايمة البدلاء (${typ}).`);
+    show($("m-msg"), "ok", toRoster ? `${name} اتضاف للكشف (أساسي). هيظهر خلال ثواني.` : `${name} اتضاف لقايمة البدلاء (${typ}).`);
   } catch (err) {
     show($("nc-msg"), "err", err.code === "permission-denied" ? "مااتضافش: يا إما العامل ده متسجل قبل كده، يا إما ممنوع تشغيله في تيما (البلاك ليست)." : err.message);
   }
@@ -1331,10 +1360,10 @@ $("idm-send").addEventListener("click", async () => {
 });
 $("idm-ok").addEventListener("click", async () => {
   const d = ID.result; if (!d || d.status !== "ok") return;
-  // النوع: أساسي/موسمي بيدخلوا الكشف، بديل راحات/يومية بيروحوا قايمة البدلاء (السيرفر بيقسّمهم بالنوع)
+  // النوع: أساسي بيدخل الكشف، بديل راحات/يومية بيروحوا قايمة البدلاء (السيرفر بيقسّمهم بالنوع)
   const typ = ID.purpose === "roster" ? $("idm-type").value : "";
   if (ID.purpose === "roster" && !typ) return show($("idm-msg"), "err", "اختار نوع العامل الأول.");
-  const toRoster = typ === "اساسي" || typ === "موسمي";
+  const toRoster = typ === "اساسي";
   const inRoster = S.roster.find(x => x.nid === d.nid), inPool = S.pool.find(x => x.nid === d.nid);
   const u = auth.currentUser;
   $("idm-ok").disabled = true;
@@ -1364,7 +1393,7 @@ $("idm-ok").addEventListener("click", async () => {
     if (ID.purpose === "replacement" && ID.target) S.rep[ID.target] = { nid: d.nid, name: d.name, code: inPool?.code || "" };
     $("idm").classList.add("hidden");
     show($("m-msg"), "ok", ID.purpose !== "roster" ? `${d.name} اتسجل بديل.`
-      : toRoster ? `${d.name} اتضاف للكشف (${typ === "اساسي" ? "أساسي" : "موسمي"}). هيظهر خلال ثواني.`
+      : toRoster ? `${d.name} اتضاف للكشف (أساسي). هيظهر خلال ثواني.`
       : `${d.name} اتضاف لقايمة البدلاء (${typ}).`);
     render();
   } catch (err) {

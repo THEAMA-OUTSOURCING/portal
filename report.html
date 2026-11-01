@@ -897,9 +897,16 @@ $("a-list").onclick = async e => {
     const rowsSorted = Object.entries(d.entries || {}).sort(([ka, a], [kb, b]) => ordOf(ka, a) - ordOf(kb, b) || String(a.name || "").localeCompare(String(b.name || ""), "ar")).map(([, x]) => x);
     dayPhotos(d);
     const timedDay = TIME_SITES.includes(d.site);
+    // إضافة بديل لغايب (المحاسب والأدمن): قايمة بدلاء الموقع + المطلوب لكل وظيفة في اليوم ده
+    A.pool = []; A.plan = {};
+    if (canEdit) {
+      try { const pl = await getDoc(doc(db, "pools", d.site)); A.pool = pl.exists() ? pl.data().workers || [] : []; } catch (er) {}
+      try { A.plan = planBySite(await fetchPlanBase(d.date.slice(0, 7)), d.date)[d.site] || {}; } catch (er) {}
+      if (A.cur !== d) return;
+    }
     $("a-dhead").innerHTML = `<th>الاسم</th><th>الوظيفة</th><th>الحالة</th>${timedDay ? "<th>الساعات</th>" : ""}<th>قراءة الصورة</th><th>البديل</th><th>ملاحظة</th>`;
     $("a-dlist").innerHTML = rowsSorted.map(x =>
-      `<tr data-q="${esc(qNorm([x.name, x.nid, x.code, x.rep?.name, x.rep?.nid, x.rep?.code].filter(Boolean).join(" ")))}"><td>${esc(x.name || "")}</td><td>${esc(x.job || "")}</td><td>${x.s === "P" || x.s === "A" ? `<select data-ecode="${esc(Object.keys(d.entries).find(k => d.entries[k] === x))}"${dis}><option value="P" ${x.s === "P" ? "selected" : ""}>حاضر</option><option value="A" ${x.s === "A" ? "selected" : ""}>غايب</option></select>${TIME_SITES.includes(d.site) ? tmCell(x, dis, Object.keys(d.entries).find(k => d.entries[k] === x)) : ""}` : esc(x.c || "")}</td>${timedDay ? `<td class="a-hrs">${hrsCell(x)}</td>` : ""}<td>${ai[x.ai ?? ""] || ""}${x.by === "sup" ? " <span class='pill p-wait'>المشرف غيّرها</span>" : ""}</td><td>${esc(x.rep?.name || "")}${x.rep && TIME_SITES.includes(d.site) ? repTm(x, dis) : ""}</td><td>${esc(x.note || "")}</td></tr>`).join("");
+      `<tr data-q="${esc(qNorm([x.name, x.nid, x.code, x.rep?.name, x.rep?.nid, x.rep?.code].filter(Boolean).join(" ")))}"><td>${esc(x.name || "")}</td><td>${esc(x.job || "")}</td><td>${x.s === "P" || x.s === "A" ? `<select data-ecode="${esc(Object.keys(d.entries).find(k => d.entries[k] === x))}"${dis}><option value="P" ${x.s === "P" ? "selected" : ""}>حاضر</option><option value="A" ${x.s === "A" ? "selected" : ""}>غايب</option></select>${TIME_SITES.includes(d.site) ? tmCell(x, dis, Object.keys(d.entries).find(k => d.entries[k] === x)) : ""}` : esc(x.c || "")}</td>${timedDay ? `<td class="a-hrs">${hrsCell(x)}</td>` : ""}<td>${ai[x.ai ?? ""] || ""}${x.by === "sup" ? " <span class='pill p-wait'>المشرف غيّرها</span>" : ""}</td><td>${esc(x.rep?.name || "")}${x.rep && TIME_SITES.includes(d.site) ? repTm(x, dis) : ""}${!x.rep && !x.sub && canEdit && (x.s === "P" || x.s === "A") ? addRepCell(d, x, Object.keys(d.entries).find(k => d.entries[k] === x)) : ""}</td><td>${esc(x.note || "")}</td></tr>`).join("");
     $("a-dq").value = ""; filterDay();
     $("a-detail").classList.remove("hidden"); $("a-detail").scrollIntoView({ behavior: "smooth" });
     return;
@@ -981,6 +988,34 @@ function repTm(x, dis) {
     <button type="button" class="btn sec small" data-eflip${dis} title="يقلب الوقتين 12 ساعة">نهار ⇄ ليل</button>
     <span class="muted" style="flex-basis:100%;">${r.t_src ? `مقترحة من: ${esc(r.t_src)}` : "مفيش ساعة متسجلة"}${h ? " · " + h : ""}${bad ? ` · <b style="color:#a32d2d">${esc(r.t_issue || "اكتب ساعة البديل")}</b>` : ""}</span></div>`;
 }
+// ===== إضافة بديل لغايب من الاعتماد =====
+// لو العامل غايب والقراءة ماشافتش بديله (مثلاً مكتوب بخط مش واضح)، المحاسب يختار البديل من قايمة بدلاء الموقع.
+// الحفظ بيرفض لو الحاضرين + البدلاء في الوظيفة هيعدّوا المطلوب في خطة الاحتياج.
+function poolTaken(d) {
+  const t = new Set();
+  Object.entries(d.entries || {}).forEach(([k, e]) => {
+    if (e.sub && (e.s === "P" || e.s === "L")) t.add(String(e.nid || e.code || k.slice(1)));
+    if (e.rep && e.s === "A") t.add(String(e.rep.nid || e.rep.code || ""));
+  });
+  return t;
+}
+function addRepCell(d, x, key) {
+  const taken = poolTaken(d);
+  const opts = (A.pool || []).filter(p => String(p.name || "").trim() && !taken.has(String(p.nid || p.code || "")))
+    .sort((a, b) => (b.job === x.job) - (a.job === x.job) || String(a.name).localeCompare(String(b.name), "ar"));
+  if (!opts.length) return `<div class="a-nrep muted" style="display:${x.s === "A" ? "block" : "none"};font-size:12px;">مفيش بدلاء متاحين في الموقع</div>`;
+  const helper = isHelperJob(x.job), timed = TIME_SITES.includes(d.site);
+  return `<div class="a-nrep" style="display:${x.s === "A" ? "block" : "none"};font-size:12px;">
+    <select data-addrep="${esc(key)}" style="max-width:220px;"><option value="">+ إضافة بديل</option>${opts.map(p => `<option value="${esc(p.nid || p.code)}">${esc(p.name)}${p.job && p.job !== x.job ? " — " + esc(p.job) : ""}</option>`).join("")}</select>
+    ${timed ? `<div class="a-tm a-rtm a-nrtm" style="margin-top:4px;display:none;gap:4px;flex-wrap:wrap;align-items:center;padding:4px;border-radius:8px;background:#fff6e5;">
+      <input type="time" data-rin style="width:auto;padding:3px 4px;">${helper ? "" : `<input type="time" data-rout style="width:auto;padding:3px 4px;">`}
+      <button type="button" class="btn sec small" data-eflip title="يقلب الوقتين 12 ساعة">نهار ⇄ ليل</button>
+      <span class="muted" style="flex-basis:100%;">اكتب ساعة البديل</span></div>` : ""}</div>`;
+}
+$("a-dlist").addEventListener("change", e => {
+  const s = e.target.closest("[data-addrep]"); if (!s) return;
+  const t = s.closest(".a-nrep").querySelector(".a-nrtm"); if (t) t.style.display = s.value ? "flex" : "none";
+});
 $("a-dlist").addEventListener("click", e => {
   const b = e.target.closest("[data-eflip]"); if (!b) return;
   b.closest(".a-tm").querySelectorAll("input[type=time]").forEach(i => { const m = toMin(i.value); if (m != null) i.value = hhmm(m + 720); });
@@ -989,13 +1024,26 @@ $("a-dlist").addEventListener("click", e => {
 $("a-dlist").addEventListener("change", e => {
   if (!e.target.matches("[data-ecode]")) return;
   const tm = e.target.closest("td").querySelector(".a-tm"); if (tm) tm.style.display = e.target.value === "P" ? "flex" : "none";
-  const rt = e.target.closest("tr").querySelector(".a-rtm"); if (rt) rt.style.display = e.target.value === "A" ? "flex" : "none";
+  const rt = e.target.closest("tr").querySelector(".a-rtm:not(.a-nrtm)"); if (rt) rt.style.display = e.target.value === "A" ? "flex" : "none";
+  const nr = e.target.closest("tr").querySelector(".a-nrep"); if (nr) nr.style.display = e.target.value === "A" ? "block" : "none";
   refreshHrs(e.target.closest("tr"));
 });
 $("a-esave").onclick = async () => {
   const d = A.cur; if (!d) return;
   const entries = JSON.parse(JSON.stringify(d.entries || {})); let n = 0;
   const timed = TIME_SITES.includes(d.site), bad = []; let fixed = 0;
+  // البدلاء الجداد اللي المحاسب اختارهم (لغايب بس)
+  const added = [], usedNew = new Set();
+  for (const s of document.querySelectorAll("#a-dlist [data-addrep]")) {
+    if (!s.value) continue;
+    const e = entries[s.dataset.addrep], st = s.closest("tr").querySelector("[data-ecode]")?.value;
+    if (!e || st !== "A" || e.rep) continue;
+    if (usedNew.has(s.value)) return show($("a-msg"), "err", "نفس البديل مختار لأكتر من عامل غايب.");
+    usedNew.add(s.value);
+    const p = (A.pool || []).find(q => String(q.nid || q.code) === s.value); if (!p) continue;
+    e.rep = { nid: p.nid || "", name: p.name, code: p.code || "", by: "acc" };
+    e.by = "acc"; n++; added.push(e);
+  }
   document.querySelectorAll("#a-dlist [data-ecode]").forEach(sel => {
     const e = entries[sel.dataset.ecode]; if (!e) return;
     if (e.s !== sel.value) { e.s = sel.value; e.by = "acc"; n++; }
@@ -1021,6 +1069,17 @@ $("a-esave").onclick = async () => {
     Object.assign(e, { in: tin, out: isHelperJob(e.job) ? "" : tout, min: h.min, dmin: h.dmin, nmin: h.nmin, ot: h.ot, otd: h.otd, otn: h.otn });
   });
   if (bad.length) return show($("a-msg"), "err", "اكتب وقت الحضور والانصراف لـ: " + bad.join("، "));
+  // العدد في الوظايف اللي اتضافلها بديل: الحاضرين (ومعاهم بدلاء الراحات والتوقف/الأجازة الرسمية) + الغايبين اللي ليهم بديل ≤ المطلوب
+  if (added.length) {
+    const per = {};
+    Object.values(entries).forEach(e => {
+      if (e.s === "P" || (e.s === "L" && (e.c === "ق" || e.c === "ط")) || (e.s === "A" && e.rep)) per[e.job] = (per[e.job] || 0) + 1;
+    });
+    const over = [...new Set(added.map(e => e.job))].filter(j => A.plan[j] != null && per[j] > A.plan[j]);
+    if (over.length) return show($("a-msg"), "err", "مينفعش تضيف البديل: العدد هيعدّي المطلوب — " + over.map(j => `${j}: ${per[j]} والمطلوب ${A.plan[j]}`).join("، "));
+    const noPlan = [...new Set(added.map(e => e.job))].filter(j => A.plan[j] == null);
+    if (noPlan.length && !confirm(`مفيش عدد مطلوب متسجل لـ: ${noPlan.join("، ")}. تضيف البديل برضه؟`)) return;
+  }
   if (fixed && !confirm(`فيه ${fixed} وقت كان متعلّم للمراجعة (الأصفر). اتأكدت منهم؟`)) return;
   if (!n && d.status === "approved") return show($("a-msg"), "info", "مفيش تغيير.");
   if (!confirm(`${n ? `تعديل ${n} عامل و` : ""}اعتماد ${d.site} يوم ${d.date}؟`)) return;

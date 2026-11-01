@@ -194,7 +194,7 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
             <button class="chip" data-f="k" aria-pressed="false">مطابق</button>
             <select id="site-sel"><option value="">كل المواقع</option></select>
           </div>
-          <div class="tbl"><table><thead><tr><th>الموقع</th><th>الوظيفة</th><th class="n">المطلوب</th><th class="n">الموجود</th><th class="n">الفرق</th><th class="n">يوميات وبدايل</th></tr></thead><tbody id="detail"></tbody></table></div>
+          <div class="tbl"><table><thead><tr><th>الموقع</th><th>الوظيفة</th><th class="n">المطلوب</th><th class="n">الموجود</th><th class="n">الفرق</th><th class="n">جداد وبدايل ويوميات</th></tr></thead><tbody id="detail"></tbody></table></div>
         </div>
         <div class="card">
           <h2>التغيير عن الشهر اللي فات <span class="muted" id="prev-label"></span></h2>
@@ -281,7 +281,7 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
       </div>
       <div class="card no-view">
         <h2>رفع تعديلات كتير من إكسيل</h2>
-        <p class="muted" style="margin-bottom:8px;">شيت فيه عمود <b>الكود</b>، ومعاه عمود أو أكتر من: <b>النوع</b> (أساسي / موسمي / يومية / مشي)، <b>الوظيفة</b>، <b>الموقع</b>، <b>ساري من</b>، <b>ملاحظة</b>. ولعامل جديد مالوش كود: سيب الكود فاضي واكتب <b>الاسم</b> و<b>الرقم القومي</b> و<b>الموقع</b> و<b>النوع</b> و<b>الوظيفة</b> (هيتضاف من غير بطاقة، والمشرف يرفعها بعدين). هتشوف المقارنة قبل الحفظ.</p>
+        <p class="muted" style="margin-bottom:8px;">شيت فيه عمود <b>الكود</b>، ومعاه عمود أو أكتر من: <b>النوع</b> (أساسي / يومية / مشي)، <b>الوظيفة</b>، <b>الموقع</b>، <b>ساري من</b>، <b>ملاحظة</b>. ولعامل جديد مالوش كود: سيب الكود فاضي واكتب <b>الاسم</b> و<b>الرقم القومي</b> و<b>الموقع</b> و<b>النوع</b> و<b>الوظيفة</b> (هيتضاف من غير بطاقة، والمشرف يرفعها بعدين). هتشوف المقارنة قبل الحفظ.</p>
         <input type="file" id="w-file" accept=".xlsx,.xls">
         <div class="msg" id="w-up-msg"></div>
         <div class="hidden" id="w-preview">
@@ -318,7 +318,7 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
       <div class="card hidden" id="w-form">
         <h2 id="w-title"></h2>
         <div class="grid-form">
-          <label>النوع<select id="w-type"><option value="اساسي">أساسي</option><option value="موسمي">موسمي</option><option value="بديل راحات">بديل راحات</option><option value="يومية">يومية</option><option value="مشي">مشي</option></select></label>
+          <label>النوع<select id="w-type"><option value="اساسي">أساسي</option><option value="بديل راحات">بديل راحات</option><option value="يومية">يومية</option><option value="مشي">مشي</option></select></label>
           <label>الوظيفة<input type="text" id="w-job" list="w-jobs"></label>
           <label>الموقع<select id="w-site2"></select></label>
           <label>ساري من<input type="date" id="w-from"></label>
@@ -431,8 +431,10 @@ const DEFAULT_SETTINGS = {
     { loc: "October Plant Bev-EGY", pos: "ld&t deployment helper", parts: [{ site: "اكتوبر امداد", count: 58 }, { site: "مدينة نصر امداد", count: 35 }] }
   ]
 };
-// الأنواع اللي بتتحسب في "الموجود"؛ الباقي (يومية، بديل راحات...) بيتعرض كتغطية
-const COUNTED_TYPES = ["اساسي", "أساسي", "موسمي"];
+// "الموجود" = الأساسي بس من كشف البورتال الحالي (rosters/{موقع}) — الكشف ده أصلاً من غير اللي اتشالوا
+// (استقالة / انقطاع / فصل / نقل) ومن غير اللي اتعلّم عليهم «مشي».
+// الباقي (جداد بالبطاقة لسه مستنيين HR، يوميات وبدايل راحات) بيتعرض في عمود لوحده ومش بيتحسب.
+const COUNTED_TYPES = ["اساسي", "أساسي"];
 const EXCLUDED_JOB = /مشرف|اقليمي|إقليمي/;
 
 // ===== مساعدات =====
@@ -518,7 +520,7 @@ async function loadAmends(m) {
 
 async function loadMonth() {
   const m = S.month, pm = prevMonthKey(m);
-  const [am, pam, sumSnap] = await Promise.all([loadAmends(m), loadAmends(pm), getDoc(doc(db, "headcount_summary", m))]);
+  const [am, pam, sumSnap] = await Promise.all([loadAmends(m), loadAmends(pm), getDoc(doc(db, "headcount_summary", m)), loadRosters()]);
   S.amends = am; S.prevAmends = pam;
   S.summary = null; S.summaryMonth = null;
   if (sumSnap.exists()) { S.summary = sumSnap.data(); S.summaryMonth = m; }
@@ -583,14 +585,32 @@ function toInternal(cmap) {
   return { targets, warnings, unmapped };
 }
 
-function actualMap() {
-  const act = new Map();
-  (S.summary?.counts || []).forEach(c => {
-    if (EXCLUDED_JOB.test(c.job)) return;
-    const k = c.site + "|" + c.job;
-    const e = act.get(k) || { site: c.site, job: c.job, actual: 0, cover: 0 };
-    if (COUNTED_TYPES.includes(c.type)) e.actual += c.n; else e.cover += c.n;
+// كشوف المواقع الحالية + البدلاء — بتتقري مرة مع فتح الشهر (قراءتين لكل موقع)
+async function loadRosters() {
+  if (S.rosters) return;
+  const sites = [...new Set(SUP_SITES)];
+  const read = async (col, s) => { try { const d = await getDoc(doc(db, col, s)); return d.exists() ? (d.data().workers || []) : null; } catch (e) { return null; } };
+  const res = await Promise.all(sites.map(async s => [s, await read("rosters", s), await read("pools", s)]));
+  S.rosters = {}; S.rosterMissing = [];
+  res.forEach(([s, w, p]) => { if (w === null) S.rosterMissing.push(s); S.rosters[norm(s)] = { workers: w || [], pool: p || [] }; });
+}
+
+// أسماء الكشف ممكن تختلف في الإملاء عن الإعدادات (العجمى/العجمي، أ/ا، ة/ه) — بنوحّد للمطابقة
+const akey = s => norm(s).replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه");
+function actualMap(targets) {
+  const act = new Map(), siteName = {}, jobName = {};
+  (targets ? [...targets.values()] : []).forEach(t => { siteName[akey(t.site)] = t.site; jobName[akey(t.job)] = t.job; });
+  const put = (rsite, w, counted) => {
+    const site = siteName[akey(rsite)] || rsite;
+    const job = jobName[akey(w.job)] || norm(w.job); if (!job || EXCLUDED_JOB.test(job)) return;
+    const k = site + "|" + job;
+    const e = act.get(k) || { site, job, actual: 0, cover: 0 };
+    if (counted) e.actual++; else e.cover++;
     act.set(k, e);
+  };
+  Object.entries(S.rosters || {}).forEach(([site, r]) => {
+    r.workers.forEach(w => put(site, w, COUNTED_TYPES.includes(norm(w.type))));
+    r.pool.forEach(w => put(site, w, false));
   });
   return act;
 }
@@ -608,7 +628,7 @@ function renderDash() {
   const day = $("asof").value;
   const cmap = clientPlan(m, S.amends, day);
   const { targets, warnings, unmapped } = toInternal(cmap);
-  const act = actualMap();
+  const act = actualMap(targets);
   const sites = new Set([...targets.values()].map(t => t.site));
   const keys = new Set([...targets.keys(), ...[...act.keys()].filter(k => sites.has(k.split("|")[0]))]);
   DASH = [...keys].map(k => {
@@ -617,12 +637,12 @@ function renderDash() {
   });
   const msgs = [];
   if (!S.settings) msgs.push("الإعدادات (المطابقة) لسه متحفظتش. افتح تبويب الإعدادات ودوس \"تحميل الإعدادات المبدئية\" ثم \"حفظ\".");
-  if (!S.summary) msgs.push("مفيش أعداد من الرواتب لسه. افتح تبويب \"الأعداد من الرواتب\" ودوس تحديث.");
+  if (S.rosterMissing?.length) msgs.push("مقدرتش أقرا كشف: " + S.rosterMissing.join("، ") + " — الموجود فيها هيبان صفر.");
   if (unmapped.length) msgs.push("سطور في شيت العميل مش متطابقة مع الرواتب: " + unmapped.join("، ") + ". ضيفها في الإعدادات.");
   msgs.push(...warnings);
   if (msgs.length) show(warn, "warn", msgs.join("\n"));
   warn.style.whiteSpace = "pre-line";
-  $("src-note").textContent = S.summary ? `الموجود من رواتب: ${S.summary.period || S.summaryMonth}${S.summaryMonth !== m ? " (آخر ملخص متاح)" : ""}` : "";
+  $("src-note").textContent = "الموجود: الأساسي اللي على كشف البورتال دلوقتي، من غير اللي استقالوا أو انقطعوا أو اتفصلوا أو اتنقلوا.";
 
   const planned = DASH.filter(r => r.plan > 0);
   const plan = planned.reduce((a, r) => a + r.plan, 0), acts = planned.reduce((a, r) => a + r.actual, 0);
@@ -1120,7 +1140,7 @@ async function initWorkers() {
       .sort((a, b) => (b.at?.seconds || 0) - (a.at?.seconds || 0));
     $("w-new").innerHTML = rows.length ? rows.map(x => `<tr><td>${esc(x.name)}</td><td style="direction:ltr;text-align:right">${esc(x.nid)}</td><td>${esc(x.site)}</td><td>${esc(x.job)}</td>
       <td>${x.role === "roster" ? "عامل في الكشف" : "بديل"}${x.no_card ? `<div class="c-s" style="font-size:12px;">من غير بطاقة</div>` : ""}</td><td style="direction:ltr;text-align:right">${esc(x.first_day || "")}</td><td>${ficheCell(x)}</td>
-      <td><span class="vo-txt">${x.type ? typeLabel(x.type) : (x.role === "roster" ? "جديد (مستني)" : "بديل جديد")}</span><select data-ntype="${esc(x.id)}"><option value="">${x.role === "roster" ? "جديد (مستني)" : "بديل جديد"}</option>${["اساسي", "موسمي", "بديل راحات", "يومية"].map(t => `<option value="${t}" ${x.type === t ? "selected" : ""}>${typeLabel(t)}</option>`).join("")}</select></td>
+      <td><span class="vo-txt">${x.type ? typeLabel(x.type) : (x.role === "roster" ? "جديد (مستني)" : "بديل جديد")}</span><select data-ntype="${esc(x.id)}"><option value="">${x.role === "roster" ? "جديد (مستني)" : "بديل جديد"}</option>${["اساسي", "بديل راحات", "يومية"].map(t => `<option value="${t}" ${x.type === t ? "selected" : ""}>${typeLabel(t)}</option>`).join("")}</select></td>
       <td class="row" style="gap:4px;"><button class="btn sec small" data-nsave="${esc(x.id)}">حفظ</button><button class="btn sec small" data-nrej="${esc(x.id)}">رفض</button></td></tr>`).join("")
       : `<tr><td colspan="9" class="muted">مفيش.</td></tr>`;
     renderRem();
@@ -1341,7 +1361,7 @@ $("w-list")?.addEventListener("click", e => {
   const w = current(WS.base.find(x => x.code === code));
   WS.edit = WS.base.find(x => x.code === code);
   $("w-title").textContent = `${w.name} — ${w.code}`;
-  $("w-type").value = ["اساسي", "موسمي", "بديل راحات", "يومية", "مشي"].includes(w.type) ? w.type : "يومية";
+  $("w-type").value = ["اساسي", "بديل راحات", "يومية", "مشي"].includes(w.type) ? w.type : "يومية";
   $("w-job").value = w.job || ""; $("w-site2").value = w.site; $("w-note").value = WS.ovr[code]?.note || "";
   $("w-from").value = WS.ovr[code]?.from || today();
   hide($("w-msg")); $("w-form").classList.remove("hidden"); $("w-form").scrollIntoView({ behavior: "smooth", block: "center" });
@@ -1384,7 +1404,7 @@ function nidCheck(nid) {
   if (age < 18) return `تحت السن القانوني (${age} سنة)`;
   return "";
 }
-const TYPE_IN = { "اساسي": "اساسي", "أساسي": "اساسي", "سنوي": "اساسي", "موسمي": "موسمي", "يوميه": "يومية", "يومية": "يومية", "بديل راحات": "بديل راحات", "بديل راحه": "بديل راحات", "مشي": "مشي", "حذف": "مشي" };
+const TYPE_IN = { "اساسي": "اساسي", "أساسي": "اساسي", "سنوي": "اساسي", "موسمي": "يومية", "يوميه": "يومية", "يومية": "يومية", "بديل راحات": "بديل راحات", "بديل راحه": "بديل راحات", "مشي": "مشي", "حذف": "مشي" };
 $("w-file")?.addEventListener("change", async e => {
   hide($("w-up-msg")); $("w-preview").classList.add("hidden"); WS.pending = []; WS.pendingNew = [];
   const f = e.target.files[0]; if (!f) return;
@@ -1406,7 +1426,7 @@ $("w-file")?.addEventListener("change", async e => {
         const bad = nidCheck(nid); if (bad) { problems.push(`سطر ${i + 2}: ${name || nid} — ${bad}`); return; }
         if (!name) { problems.push(`سطر ${i + 2}: الاسم ناقص`); return; }
         const tIn = col(r, "النوع", "نوع الوظيفة"), nt = TYPE_IN[arNorm(tIn)] || TYPE_IN[tIn], site = col(r, "الموقع"), job = col(r, "الوظيفة");
-        if (!["اساسي", "موسمي", "يومية"].includes(nt)) { problems.push(`سطر ${i + 2}: النوع لازم أساسي أو موسمي أو يومية`); return; }
+        if (!["اساسي", "يومية"].includes(nt)) { problems.push(`سطر ${i + 2}: النوع لازم أساسي أو يومية`); return; }
         if (!W_SITES.includes(site)) { problems.push(`سطر ${i + 2}: الموقع "${site}" مش من مواقع الحضور`); return; }
         if (!job) { problems.push(`سطر ${i + 2}: الوظيفة ناقصة`); return; }
         WS.pendingNew.push({ nid, name, site, job, type: nt });
