@@ -260,6 +260,7 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
       </div>
       <div class="sticky">
         <button class="btn block" id="confirm">تأكيد الحضور</button>
+        <button class="btn sec block hidden" id="back-acc" style="margin-top:6px;">رجّع اليوم للمحاسب يراجعه ويعتمده</button>
         <div class="msg" id="c-msg"></div>
       </div>
     </div>
@@ -463,7 +464,7 @@ async function openDay() {
   if (!S.site || !S.date) return;
   S.unsubPages?.(); S.unsubDay?.();
   S.unsubPages = S.unsubDay = null;
-  S.pages = []; S.day = null; S.choice = {}; S.xpick = {};
+  S.pages = []; S.day = null; S.choice = {}; S.xpick = {}; S.mpick = {}; S.munpick = new Set(); S.mwarn = {};
   hide($("up-msg")); hide($("c-msg"));
   // مواقع شيبسي والإمداد: حضورها إكسيل من الأدمن، فالمشرف ليه الكشف والبطايق والطلبات بس (من غير تصوير ولا تأكيد)
   S.photo = ATT_SITES.includes(S.site) && !S.office;
@@ -502,7 +503,8 @@ async function openDay() {
     if (S.day) {
       const fromSaved = {};
       Object.entries(S.day.entries || {}).forEach(([c, e]) => { fromSaved[c] = e.s === "L" && e.c === "ق" ? "Q" : e.s; if (e.rep && !S.rep[c]) S.rep[c] = e.rep;
-        if (e.rep_for && !S.rep[e.rep_for]) S.rep[e.rep_for] = { nid: e.nid || "", name: e.name, code: e.code || "" }; });
+        if (e.rep_for && !S.rep[e.rep_for]) S.rep[e.rep_for] = { nid: e.nid || "", name: e.name, code: e.code || "" };
+        if (e.moved && e.nid && !(e.nid in S.mpick) && !S.munpick.has(e.nid)) S.mpick[e.nid] = { name: e.name, code: e.code || "", job: e.job || "", type: e.type || "", site: e.now_site || "" }; });
       S.choice = { ...fromSaved, ...S.choice };
       const t = S.day.confirmed_at?.toDate ? S.day.confirmed_at.toDate().toLocaleString("ar-EG") : "";
       const rt = S.day.reviewed_at?.toDate ? S.day.reviewed_at.toDate().toLocaleString("ar-EG") : "";
@@ -613,6 +615,33 @@ function rowMatch(r) {
   return close.length === 1 && !pool.some(p => nidNear(String(p.nid || ""), nid)) ? { code: close[0].code, how: "fuzzy" } : null;
 }
 const rowCode = r => rowMatch(r)?.code || "";
+// عامل اشتغل في الموقع ده اليوم ده واتنقل بعدها لموقع تاني: الأدمن/المشرف يسجّله حاضر هنا من كارت الصفوف المش متطابقة.
+// بيتسجل كبديل حاضر (R+الرقم القومي، moved: true) بساعاته من الورقة، ومكانه الحالي مابيتغيرش.
+// قبل ما يتسجل هنا: هل متسجل في نفس اليوم في موقع تاني (حاضر، توقف، أو بديل مكان حد)؟
+// بيدوّر في كل المواقع اللي الحساب يقدر يقرا أيامها (الأدمن والمكتب كلها، المشرف مواقعه بس)
+async function otherSitesSameDay(nid) {
+  const found = [];
+  await Promise.all(SUP_SITES.filter(s => s !== S.site).map(async site => {
+    try {
+      const d = await getDoc(doc(db, "att_days", site + "__" + S.date)); if (!d.exists()) return;
+      Object.values(d.data().entries || {}).forEach(e => {
+        if (e.nid === nid && (e.s === "P" || e.s === "L")) found.push(`${site} — ${e.s === "P" ? "حاضر" : (e.c || "")}${e.rep_for_name ? ` (بديل مكان ${e.rep_for_name})` : ""}`);
+        if (e.rep?.nid === nid && e.s === "A") found.push(`${site} — بديل مكان ${e.name}`);
+      });
+    } catch (e) {}
+  }));
+  return found;
+}
+function movedRows() {
+  const out = {};
+  livePages().forEach(p => (p.result?.rows || []).forEach(r => {
+    const nid = String(r.nid || "").replace(/\D/g, "");
+    if (S.mpick[nid] && !out[nid] && !rowCode(r) && !subOf(r)) out[nid] = { r: { ...r, page: p.id }, w: { ...S.mpick[nid], nid } };
+  }));
+  // محفوظ قبل كده ومالوش صف دلوقتي (مثلاً الصورة اتمسحت): بيفضل زي ما اتحفظ
+  Object.keys(S.mpick).forEach(nid => { if (!out[nid] && S.day?.entries?.["R" + nid]) out[nid] = { saved: S.day.entries["R" + nid], w: { ...S.mpick[nid], nid } }; });
+  return out;
+}
 // رقم قومي مش في كشف الموقع ولا بدلائه: بندوّر عليه في كشوف وبدلاء كل المواقع اللي الحساب يقدر يقراها
 // (مرة واحدة لكل فتحة للصفحة، وبس لو فيه صفوف مش متطابقة) — عشان نقول مين ده ومكانه دلوقتي فين
 let ELSE = null, ELSE_LOADING = false;
@@ -866,6 +895,7 @@ function render() {
     const def = defOf(k, r);
     if (def === "P" || def === "Q" || (def === "A" && S.rep[k])) { perJob[r.w.job] = perJob[r.w.job] || 0; perJob[r.w.job]++; }   // ق بيتحسب في عدد اليوم
   });
+  Object.values(movedRows()).forEach(({ w }) => { perJob[w.job] = (perJob[w.job] || 0) + 1; P++; });
   S.over = Object.entries(perJob).filter(([j, n]) => S.plan[j] != null && n > S.plan[j]).map(([job, n]) => ({ job, n, plan: S.plan[job] }));
   const planRows = Object.keys(perJob).map(j => `<tr><td>${esc(j)}</td><td class="n">${fmt(perJob[j])}</td><td class="n">${S.plan[j] != null ? fmt(S.plan[j]) : "—"}</td>
     <td class="n">${S.plan[j] == null ? "" : perJob[j] > S.plan[j] ? `<span class="pill p-err">زيادة ${fmt(perJob[j] - S.plan[j])}</span>` : perJob[j] < S.plan[j] ? `<span class="pill p-grey">ناقص ${fmt(S.plan[j] - perJob[j])}</span>` : `<span class="pill p-ok">مطابق</span>`}</td></tr>`).join("");
@@ -888,6 +918,10 @@ function render() {
       if (nid.length === 14 && who === undefined) needLookup = true;
       loose.push(`صورة ${fmt(picNo(p))}، صف ${esc(r.n)}: رقم قومي ${esc(r.nid || "مش مقروء")} — ${r.s === "P" ? "حاضر" : r.s === "A" ? "غايب" : "مش واضح"}`
         + (who ? `<div style="margin-top:3px;color:#8a5a10;">ده <b>${esc(who.name)}</b>${who.code && !who.code.startsWith("N") ? ` (${esc(who.code)})` : ""} — ${esc(who.type || "")}${who.job ? "، " + esc(who.job) : ""} — ${who.site === S.site ? "في قايمة البدلاء هنا" : `مكانه دلوقتي <b>${esc(who.site)}</b> (اتنقل بعد اليوم ده)`}</div>`
+            + (who.site !== S.site && r.s === "P" ? (S.mpick[nid]
+                ? `<div style="margin-top:4px;"><span class="pill p-ok">✓ متسجل حاضر هنا (${esc(who.job || "")})</span>${lockedForMe() ? "" : ` <button class="btn sec small" data-munpick="${esc(nid)}">إلغاء</button>`}</div>`
+                : S.mwarn[nid] ? `<div style="margin-top:4px;color:#a32d2d;"><b>مينفعش يتسجل هنا:</b> متسجل يوم ${esc(S.date)} في ${S.mwarn[nid].map(esc).join("، ")}. شيله من هناك الأول، وبعدين اعمل تحديث للصفحة.</div>`
+                : lockedForMe() ? "" : `<div style="margin-top:4px;"><button class="btn small" data-mpick="${esc(nid)}">سجّله حاضر هنا</button></div>`) : "")
           : who === null ? `<div class="muted" style="margin-top:3px;">الرقم ده مش في كشف ولا بدلاء أي موقع تقدر تشوفه — يا إما اتقرا غلط، يا إما مشي.</div>` : ""));
     });
     (p.result?.extra || []).forEach((x, i) => {
@@ -918,6 +952,7 @@ function render() {
   const btn = $("confirm");
   btn.textContent = S.regional ? "مراجعة الإقليمي وتأكيد" : "تأكيد الحضور";
   btn.disabled = open > 0 || busy > 0 || lockedForMe();
+  $("back-acc").classList.toggle("hidden", !(S.admin && S.day?.status === "approved"));
   btn.textContent = open > 0 ? `فاضل ${fmt(open)} عامل محتاجين قرار` : busy ? "استنى لحد ما الصور تتقري" : S.over.length ? "العدد أكتر من المطلوب" : (S.day ? "تأكيد التعديل" : "تأكيد الحضور");
 }
 
@@ -926,6 +961,22 @@ $("workers").addEventListener("click", e => {
   S.choice[b.dataset.c] = b.dataset.v;
   if (b.dataset.v !== "A") delete S.rep[b.dataset.c];   // البديل للغايب بس
   render();
+});
+
+// ===== الأدمن: يرجّع يوم معتمد للمحاسب =====
+// اليوم بيرجع «مستني اعتماد» (reviewed) بنفس حالاته وبدلائه، والمحاسب يراجعه من «اعتماد الحضور» ويعتمده تاني.
+// الـ Rules بتسمح بده للأدمن (الحالة بس بتتغير، من غير ما يتمسح مين أكد أو راجع)
+$("back-acc").addEventListener("click", async () => {
+  if (!S.admin || S.day?.status !== "approved") return;
+  if (!confirm(`ترجّع ${S.site} يوم ${S.date} للمحاسب؟\nاليوم هيبقى «مستني اعتماد» لحد ما المحاسب يراجعه ويعتمده تاني.`)) return;
+  $("back-acc").disabled = true;
+  try {
+    await updateDoc(doc(db, "att_days", S.site + "__" + S.date), { status: "reviewed" });
+    show($("c-msg"), "ok", "اليوم رجع للمحاسب ✓ — هيظهر عنده في «اعتماد الحضور» كـ«مستني اعتماد».");
+  } catch (err) {
+    show($("c-msg"), "err", "مارجعش: " + (err.code === "permission-denied" ? "مفيش صلاحية." : err.message));
+  }
+  $("back-acc").disabled = false;
 });
 
 // ===== التأكيد =====
@@ -978,6 +1029,16 @@ $("confirm").addEventListener("click", async () => {
       by: S.choice[k] && S.choice[k] !== r.s ? "sup" : "ai", note: r.note || "", page: r.page || "" };
     if (ordMap.has(k)) entries[k].ord = ordMap.get(k);
     if (S.timed) Object.assign(entries[k], timeEntry(r, r.w.job, S.prevIn[k]));
+    P++; subsP++;
+  }
+  // اللي اشتغلوا هنا اليوم ده واتنقلوا بعدها (اتسجلوا من كارت الصفوف المش متطابقة)
+  for (const [nid, m] of Object.entries(movedRows())) {
+    const k = "R" + nid;
+    if (entries[k]) continue;
+    if (usedRep.has(nid)) return show($("c-msg"), "err", `${m.w.name} متسجل حاضر في صفه، ومختار كمان بديل لعامل غايب. شيله من واحد منهم.`);
+    entries[k] = m.saved ? { ...m.saved } : { name: m.w.name, nid, code: m.w.code && !m.w.code.startsWith("N") ? m.w.code : "", job: m.w.job || "", type: m.w.type || "بديل",
+      sub: true, moved: true, now_site: m.w.site || "", s: "P", ai: m.r.s, by: "sup", note: m.r.note || "", page: m.r.page || "",
+      ...(S.timed ? timeEntry(m.r, m.w.job, S.prevIn[k]) : {}) };
     P++; subsP++;
   }
   if (S.timed) repTimes(entries);
@@ -1197,6 +1258,20 @@ $("extras").addEventListener("click", e => {
   if (pk) { S.xpick[pk.dataset.xpick] = pk.dataset.who; render(); return; }
   const un = e.target.closest("[data-xunpick]");
   if (un) { delete S.xpick[un.dataset.xunpick]; render(); return; }
+  const mp = e.target.closest("[data-mpick]");
+  if (mp) {
+    const nid = mp.dataset.mpick, w = elsewhere(nid); if (!w) return;
+    mp.disabled = true; mp.textContent = "بيدوّر عليه في باقي المواقع...";
+    otherSitesSameDay(nid).then(found => {
+      if (found.length) { S.mwarn[nid] = found; render(); return; }
+      delete S.mwarn[nid]; S.munpick.delete(nid);
+      S.mpick[nid] = { name: w.name, code: w.code || "", job: w.job || "", type: w.type || "بديل", site: w.site };
+      render();
+    });
+    return;
+  }
+  const mu = e.target.closest("[data-munpick]");
+  if (mu) { delete S.mpick[mu.dataset.munpick]; S.munpick.add(mu.dataset.munpick); render(); return; }
   if (e.target.closest("[data-addnew]")) openId("roster");
 });
 
