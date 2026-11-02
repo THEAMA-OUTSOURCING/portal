@@ -316,7 +316,15 @@ $("fp-go").onclick = async () => {
     days.forEach(d => Object.entries(d.entries || {}).forEach(([k, e]) => {
       const nid = String(e.nid || "").replace(/\D/g, "");
       const rk = d.site + "|" + (nid || k), r = rows[rk] = rows[rk] || { site: d.site, key: k, name: e.name || "", nid, job: e.job || "", cells: {} };
-      r.cells[d.date] = fpCell(e, off(d.date));
+      const v = fpCell(e, off(d.date));
+      if (!(r.cells[d.date] && (v === "خ" || v === ""))) r.cells[d.date] = v;   // مايمسحش حضوره كبديل في نفس اليوم
+      // البديل اللي اتسجل قدام غايب: سطر لوحده بحضوره (وبوقته في مواقع الساعات) — زي التقرير الشهري
+      if (e.s === "A" && e.rep) {
+        const rn = String(e.rep.nid || "").replace(/\D/g, "");
+        const rk2 = d.site + "|" + (rn || "R" + (e.rep.code || e.rep.name));
+        const rr = rows[rk2] = rows[rk2] || { site: d.site, key: k, name: e.rep.name || "", nid: rn, job: e.job || "", cells: {} };
+        rr.cells[d.date] = e.rep.in ? (e.rep.out ? `${e.rep.in}-${e.rep.out}` : e.rep.in) : 1;
+      }
     }));
     const list = Object.values(rows).sort((a, b) => sites.indexOf(a.site) - sites.indexOf(b.site) || a.job.localeCompare(b.job) || a.name.localeCompare(b.name));
     const noCode = new Set(), noNid = [];
