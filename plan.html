@@ -1118,7 +1118,10 @@ document.querySelectorAll("[data-n]").forEach(n => {
 });
 ["w-q", "w-site"].forEach(id => document.getElementById(id)?.addEventListener("input", () => { document.querySelector('[data-fold="w-list"]').open = true; }));
 // ===== بيانات العمال (الأدمن وHR والمحاسب) =====
-let W_SITES = SUP_SITES;
+// الشرقية للدخان: للمكتب اللي على كل الفروع بس، وتسجيل «مشي» بس (التعديلات التانية من شيت الرواتب)
+const SHARQIA_SITE = "الشرقية للدخان";
+const leaveOnly = site => site === SHARQIA_SITE;
+let W_SITES = [...SUP_SITES, SHARQIA_SITE];
 // قوايم العمال (تعديلات / جداد / اتشالوا من الكشف): اللي ليه فروع بيقرا فروعه بس (الـ Rules بتطلب كده)
 const bySites = name => S.scoped ? query(collection(db, name), where("site", "in", W_SITES)) : collection(db, name);
 const WS = { base: [], ovr: {}, edit: null, pending: [] };
@@ -1379,6 +1382,7 @@ $("w-save")?.addEventListener("click", async () => {
   const w = WS.edit; if (!w) return;
   const type = $("w-type").value, job = $("w-job").value.trim(), site = $("w-site2").value;
   if (!job && type !== "مشي") return show($("w-msg"), "err", "اكتب الوظيفة.");
+  if (type !== "مشي" && (leaveOnly(w.site) || leaveOnly(site))) return show($("w-msg"), "err", "الشرقية للدخان: تقدر تسجّل «مشي» بس — النوع والوظيفة بيتعدلوا من شيت الرواتب.");
   $("w-save").disabled = true;
   try {
     if (type === w.type && job === w.job && site === w.site) {
@@ -1430,7 +1434,7 @@ $("w-file")?.addEventListener("change", async e => {
         if (!name) { problems.push(`سطر ${i + 2}: الاسم ناقص`); return; }
         const tIn = col(r, "النوع", "نوع الوظيفة"), nt = TYPE_IN[arNorm(tIn)] || TYPE_IN[tIn], site = col(r, "الموقع"), job = col(r, "الوظيفة");
         if (!["اساسي", "يومية"].includes(nt)) { problems.push(`سطر ${i + 2}: النوع لازم أساسي أو يومية`); return; }
-        if (!W_SITES.includes(site)) { problems.push(`سطر ${i + 2}: الموقع "${site}" مش من مواقع الحضور`); return; }
+        if (!W_SITES.includes(site) || leaveOnly(site)) { problems.push(`سطر ${i + 2}: الموقع "${site}" مش من مواقع الحضور`); return; }
         if (!job) { problems.push(`سطر ${i + 2}: الوظيفة ناقصة`); return; }
         WS.pendingNew.push({ nid, name, site, job, type: nt });
         return;
@@ -1441,6 +1445,7 @@ $("w-file")?.addEventListener("change", async e => {
       if (tRaw && !type) { problems.push(`سطر ${i + 2}: النوع "${tRaw}" مش معروف`); return; }
       const job = col(r, "الوظيفة") || cur.job, site = col(r, "الموقع") || cur.site;
       if (type !== "مشي" && !W_SITES.includes(site)) { problems.push(`سطر ${i + 2}: الموقع "${site}" مش من مواقع الحضور`); return; }
+      if (type !== "مشي" && (leaveOnly(site) || leaveOnly(cur.site))) { problems.push(`سطر ${i + 2}: الشرقية للدخان — مسموح «مشي» بس`); return; }
       if (type === cur.type && job === cur.job && site === cur.site) { same++; return; }
       WS.pending.push({ w, cur, type, job, site, from: col(r, "ساري من") || today(), note: col(r, "ملاحظة") });
     });
