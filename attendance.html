@@ -255,7 +255,7 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
       </div>
       <div class="card hidden" id="extra-card">
         <h2>صفوف مكتوبة بخط اليد أو مش متطابقة</h2>
-        <p class="muted" style="margin-bottom:6px;">لو ده عامل جديد اشتغل النهارده، ضيفه بصورة بطاقته. ولو بديل، اختاره قصاد اللي غاب.</p>
+        <p class="muted" style="margin-bottom:6px;">اختار صاحب كل سطر من الاقتراحات أو دوّر عليه بالاسم أو الكود. السطر مايتحسبش حاضر غير لما تختاره. «ضيفه بالبطاقة» للعامل الجديد خالص بس.</p>
         <div id="extras"></div>
       </div>
       <div class="sticky">
@@ -465,7 +465,7 @@ async function openDay() {
   if (!S.site || !S.date) return;
   S.unsubPages?.(); S.unsubDay?.();
   S.unsubPages = S.unsubDay = null;
-  S.pages = []; S.day = null; S.choice = {}; S.xpick = {}; S.mpick = {}; S.munpick = new Set(); S.mwarn = {};
+  S.pages = []; S.day = null; S.choice = {}; S.xpick = {}; S.xq = {}; S.xunpick = new Set(); S.mpick = {}; S.munpick = new Set(); S.mwarn = {};
   hide($("up-msg")); hide($("c-msg"));
   // مواقع شيبسي والإمداد: حضورها إكسيل من الأدمن، فالمشرف ليه الكشف والبطايق والطلبات بس (من غير تصوير ولا تأكيد)
   S.photo = ATT_SITES.includes(S.site) && !S.office;
@@ -507,7 +507,9 @@ async function openDay() {
         // بديل متسجل قبل كده بمفتاح تاني (كوده بدل R+الرقم القومي): الصفحة بتعرضه بـ R+الرقم القومي، فحالته المحفوظة تتنقل عليه
         if (e.sub && e.nid && c !== "R" + e.nid && !(("R" + e.nid) in (S.day.entries || {}))) fromSaved["R" + e.nid] = fromSaved[c];
         if (e.rep_for && !S.rep[e.rep_for]) S.rep[e.rep_for] = { nid: e.nid || "", name: e.name, code: e.code || "" };
-        if (e.moved && e.nid && !(e.nid in S.mpick) && !S.munpick.has(e.nid)) S.mpick[e.nid] = { name: e.name, code: e.code || "", job: e.job || "", type: e.type || "", site: e.now_site || "" }; });
+        if (e.moved && e.nid && !(e.nid in S.mpick) && !S.munpick.has(e.nid)) S.mpick[e.nid] = { name: e.name, code: e.code || "", job: e.job || "", type: e.type || "", site: e.now_site || "" };
+        // صف بخط اليد المشرف اختار صاحبه بنفسه: الاختيار بيرجع زي ما اتحفظ
+        if (e.xk && !(e.xk in S.xpick) && !S.xunpick.has(e.xk)) S.xpick[e.xk] = e.moved ? "M:" + e.nid : e.sub ? (e.nid || e.code) : c; });
       S.choice = { ...fromSaved, ...S.choice };
       const t = S.day.confirmed_at?.toDate ? S.day.confirmed_at.toDate().toLocaleString("ar-EG") : "";
       const rt = S.day.reviewed_at?.toDate ? S.day.reviewed_at.toDate().toLocaleString("ar-EG") : "";
@@ -587,7 +589,11 @@ document.addEventListener("click", e => {
 
 // ===== العرض =====
 // صف مكتوب بخط اليد: هل هو عامل موجود في الكشف؟ (بالرقم القومي أو بالاسم)
+// كود مكتوب جنب الاسم بخط اليد (T1234): أسهل في القراية من الاسم والرقم القومي
+const codeIn = x => { const m = [x.code, x.name, x.note].map(v => String(v || "")).join(" ").match(/[Tt]\s?(\d{2,6})(?!\d)/); return m ? "T" + m[1] : ""; };
 function matchExtra(x) {
+  const xc = codeIn(x);
+  if (xc) { const w = S.roster.find(q => String(q.code || "").toUpperCase() === xc); if (w) return w; }
   const nid = String(x.nid || "").replace(/\D/g, "");
   if (nid.length >= 10) {
     const hits = S.roster.filter(w => w.nid && w.nid.length === 14 && nid.length === 14
@@ -641,13 +647,19 @@ function movedRows() {
     const nid = String(r.nid || "").replace(/\D/g, "");
     if (S.mpick[nid] && !out[nid] && !rowCode(r) && !subOf(r)) out[nid] = { r: { ...r, page: p.id }, w: { ...S.mpick[nid], nid } };
   }));
+  // مكتوب بخط اليد ومن موقع تاني: اتختار من خانة البحث (S.xpick = "M:"+الرقم القومي)
+  livePages().forEach(p => (p.result?.extra || []).forEach((x, i) => {
+    const pk = S.xpick[p.id + "|" + i] || "";
+    const nid = pk.startsWith("M:") ? pk.slice(2) : "";
+    if (nid && S.mpick[nid] && !out[nid]) out[nid] = { r: { ...x, s: "P", match: "handwritten", page: p.id, xk: p.id + "|" + i }, w: { ...S.mpick[nid], nid } };
+  }));
   // محفوظ قبل كده ومالوش صف دلوقتي (مثلاً الصورة اتمسحت): بيفضل زي ما اتحفظ
   Object.keys(S.mpick).forEach(nid => { if (!out[nid] && S.day?.entries?.["R" + nid]) out[nid] = { saved: S.day.entries["R" + nid], w: { ...S.mpick[nid], nid } }; });
   return out;
 }
 // رقم قومي مش في كشف الموقع ولا بدلائه: بندوّر عليه في كشوف وبدلاء كل المواقع اللي الحساب يقدر يقراها
 // (مرة واحدة لكل فتحة للصفحة، وبس لو فيه صفوف مش متطابقة) — عشان نقول مين ده ومكانه دلوقتي فين
-let ELSE = null, ELSE_LOADING = false;
+let ELSE = null, ELSE_LIST = [], ELSE_LOADING = false;
 function elsewhere(nid) {
   const here = [...S.roster, ...(S.pool || [])].find(w => w.nid === nid);
   if (here) return { ...here, site: S.site };
@@ -657,11 +669,14 @@ function elsewhere(nid) {
 async function loadElsewhere() {
   if (ELSE || ELSE_LOADING) return;
   ELSE_LOADING = true;
-  const map = {};
+  const map = {}; ELSE_LIST = [];
   await Promise.all(SUP_SITES.flatMap(site => ["rosters", "pools"].map(async col => {
     try {
       const d = await getDoc(doc(db, col, site));
-      (d.exists() ? d.data().workers || [] : []).forEach(w => { if (w.nid && !map[w.nid]) map[w.nid] = { ...w, site }; });
+      (d.exists() ? d.data().workers || [] : []).forEach(w => {
+        if (w.nid && !map[w.nid]) map[w.nid] = { ...w, site };
+        ELSE_LIST.push({ ...w, site, col });
+      });
     } catch (e) {}
   })));
   ELSE = map; ELSE_LOADING = false;
@@ -681,6 +696,9 @@ function aiState() {
     (p.result?.extra || []).forEach(x => {
       const w = matchExtra(x);
       if (w && !map[w.code]) map[w.code] = { s: "P", conf: "M", match: "handwritten", note: x.note || "", code: w.code, page: p.id };
+      // مااتطابقش لوحده والمشرف اختاره بنفسه من عمال الكشف
+      const pk = !w && !poolOfExtra(x) ? S.xpick[p.id + "|" + i] : "";
+      if (pk && S.roster.some(q => q.code === pk) && !map[pk]) map[pk] = { s: "P", conf: "M", match: "handwritten", note: x.note || "", code: pk, page: p.id, xk: p.id + "|" + i };
     });
   });
   return map;
@@ -703,6 +721,8 @@ function subOf(r) {
 // صف مكتوب بخط اليد مش في الكشف: هل هو بديل (راحات أو يومية) في قايمة البدلاء؟ بالرقم القومي أو بالاسم
 function poolOfExtra(x) {
   const pool = S.pool || [];
+  const xc = codeIn(x);
+  if (xc) { const c = pool.find(p => String(p.code || "").toUpperCase() === xc); if (c) return c; }
   const nid = String(x.nid || "").replace(/\D/g, "");
   if (nid.length === 14) {
     const ex = pool.find(p => p.nid === nid); if (ex) return ex;
@@ -730,7 +750,7 @@ function aiSubs() {
       const pk = S.xpick[pg.id + "|" + i];
       const p = poolOfExtra(x) || (pk ? (S.pool || []).find(q => (q.nid || q.code) === pk) : null);
       if (!p || map[subKey(p)]) return;
-      map[subKey(p)] = { s: "P", conf: "M", match: "handwritten", note: x.note || "", nid: x.nid || "", page: pg.id, w: p };
+      map[subKey(p)] = { s: "P", conf: "M", match: "handwritten", note: x.note || "", nid: x.nid || "", page: pg.id, w: p, ...(pk ? { xk: pg.id + "|" + i } : {}) };
     });
   });
   return map;
@@ -951,22 +971,33 @@ function render() {
     });
     (p.result?.extra || []).forEach((x, i) => {
       if (matchExtra(x) || poolOfExtra(x)) return;
-      const key = p.id + "|" + i;
+      const key = p.id + "|" + i, ro = lockedForMe();
+      const read = x.name ? `«${esc(x.name)}»` : "اسم مش مقروء";
       if (S.xpick[key]) {
-        const w = (S.pool || []).find(q => (q.nid || q.code) === S.xpick[key]);
-        loose.push(`بخط اليد: ${esc(x.name || "اسم مش مقروء")} — اتسجل على <b>${esc(w?.name || "")}</b> (في البدلاء فوق)${lockedForMe() ? "" : ` <button class="btn sec small" data-xunpick="${esc(key)}">تغيير</button>`}`);
+        const w = xpickWho(S.xpick[key]);
+        loose.push(`بخط اليد في صورة ${fmt(picNo(p))}: ${read} — اتسجل حاضر: <b>${esc(w?.name || "")}</b>${w?.where ? ` (من ${esc(w.where)})` : ""}${ro ? "" : ` <button class="btn sec small" data-xunpick="${esc(key)}">تغيير</button>`}`);
         return;
       }
-      const sug = x.name && !lockedForMe() ? candidates(x.name, null, 2) : [];
-      loose.push(`بخط اليد: ${esc(x.name || "اسم مش مقروء")}${x.nid ? " — " + esc(x.nid) : ""}${x.note ? " — " + esc(x.note) : ""}`
-        + (sug.length ? `<div style="margin-top:4px;">تقصد حد من البدلاء؟ ${sug.map(q => `<span class="chip" data-xpick="${esc(key)}" data-who="${esc(q.nid || q.code)}">${esc(q.name)} ✓</span>`).join(" ")}</div>` : "")
-        + ` <button class="btn sec small" data-addnew="1">إضافة بالبطاقة</button>`);
+      if (ro) { loose.push(`بخط اليد في صورة ${fmt(picNo(p))}: ${read} — مااتسجلش على حد.`); return; }
+      if (!ELSE) needLookup = true;   // البحث بيدوّر في باقي المواقع كمان
+      const sug = extraCands(x, key);
+      const head = sug.length
+        ? `بخط اليد في صورة ${fmt(picNo(p))}: ${read}${x.nid ? " — " + esc(x.nid) : ""} — <b>ممكن يكون:</b>`
+        : `<b>فيه حد حاضر مكتوب بخط اليد في صورة ${fmt(picNo(p))}</b>${x.name ? ` (اتقرا ${read})` : ""} ومش قادرين نحدده — دوّر عليه واختاره:`;
+      const q = S.xq?.[key] || "";
+      loose.push(head
+        + (sug.length ? `<div style="margin-top:4px;">${sug.map(c => `<span class="chip" data-xpick="${esc(key)}" data-who="${esc(c.id)}">${candLabel(c)} ✓</span>`).join(" ")}</div>` : "")
+        + `<div style="margin-top:6px;"><input type="text" placeholder="${sug.length ? "مش حد من دول؟ " : ""}اكتب الاسم أو الكود أو الرقم القومي..." data-xq="${esc(key)}" value="${esc(q)}"></div>`
+        + `<div class="hits" data-xhits="${esc(key)}">${q ? xHitsHtml(q, key) : ""}</div>`
+        + `<div style="margin-top:4px;">عامل جديد خالص مش موجود في أي مكان؟ <button class="btn sec small" data-addnew="1">ضيفه بالبطاقة</button></div>`);
     });
   });
   if (needLookup) loadElsewhere();
   $("extra-card").classList.toggle("hidden", !loose.length && !goneAbs);
+  const fk = document.activeElement?.dataset?.xq;
   $("extras").innerHTML = loose.map(t => `<div class="muted" style="padding:4px 0;border-bottom:1px solid #f0efe9;">${t}</div>`).join("")
     + (goneAbs ? `<div class="muted" style="padding:6px 0;">${fmt(goneAbs)} صف غايب لناس مش في الكشف دلوقتي (غالباً مشيوا). مش محتاجين أي حاجة، والورقة دي قديمة: اطبع الكشف من جديد.</div>` : "");
+  if (fk) { const el = [...$("extras").querySelectorAll("[data-xq]")].find(i => i.dataset.xq === fk); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }
 
   const msgs = [];
   if (busy) msgs.push(`فيه ${fmt(busy)} صورة لسه بتتقري.`);
@@ -1018,6 +1049,7 @@ $("confirm").addEventListener("click", async () => {
     if (s !== "P" && s !== "A" && s !== "Q") return show($("c-msg"), "err", "فيه عمال لسه محتاجين قرار.");
     if (s === "P") P++; else if (s === "A") A++; else Qn++;
     entries[w.code] = { name: w.name, nid: w.nid || "", job: w.job, type: w.type, s, ai: r ? r.s : "", by: S.choice[w.code] && (!r || S.choice[w.code] !== r.s) ? "sup" : "ai", note: r?.note || "", page: r?.page || "" };
+    if (r?.xk) entries[w.code].xk = r.xk;
     if (ordMap.has(w.code)) entries[w.code].ord = ordMap.get(w.code);
     if (s === "A" && S.rep[w.code]) entries[w.code].rep = S.rep[w.code];
     if (s === "Q") Object.assign(entries[w.code], { s: "L", c: "ق" });   // توقف: بيترفع ق على البصمة
@@ -1051,7 +1083,7 @@ $("confirm").addEventListener("click", async () => {
     }
     if (usedRep.has(r.w.nid)) return show($("c-msg"), "err", `${r.w.name} متسجل حاضر في صفه، ومختار كمان بديل لعامل غايب. شيله من واحد منهم.`);
     entries[k] = { name: r.w.name, nid: r.w.nid || "", code: r.w.code || "", job: r.w.job || "", type: r.w.type || "بديل", sub: true, s: "P", ai: r.s,
-      by: S.choice[k] && S.choice[k] !== r.s ? "sup" : "ai", note: r.note || "", page: r.page || "" };
+      by: S.choice[k] && S.choice[k] !== r.s ? "sup" : "ai", note: r.note || "", page: r.page || "", ...(r.xk ? { xk: r.xk } : {}) };
     if (ordMap.has(k)) entries[k].ord = ordMap.get(k);
     if (S.timed) Object.assign(entries[k], timeEntry(r, r.w.job, S.prevIn[k]));
     P++; subsP++;
@@ -1062,7 +1094,7 @@ $("confirm").addEventListener("click", async () => {
     if (entries[k]) continue;
     if (usedRep.has(nid)) return show($("c-msg"), "err", `${m.w.name} متسجل حاضر في صفه، ومختار كمان بديل لعامل غايب. شيله من واحد منهم.`);
     entries[k] = m.saved ? { ...m.saved } : { name: m.w.name, nid, code: m.w.code && !m.w.code.startsWith("N") ? m.w.code : "", job: m.w.job || "", type: m.w.type || "بديل",
-      sub: true, moved: true, now_site: m.w.site || "", s: "P", ai: m.r.s, by: "sup", note: m.r.note || "", page: m.r.page || "",
+      sub: true, moved: true, now_site: m.w.site || "", s: "P", ai: m.r.s, by: "sup", note: m.r.note || "", page: m.r.page || "", ...(m.r.xk ? { xk: m.r.xk } : {}),
       ...(S.timed ? timeEntry(m.r, m.w.job, S.prevIn[k]) : {}) };
     P++; subsP++;
   }
@@ -1233,6 +1265,18 @@ function nameScore(q, name) {
   };
   return Math.max(sc(anorm), sc(anormSep));
 }
+// مطابقة مرنة للاقتراحات: كلمة ناقصة أو زيادة أو في غير مكانها مابتبوّظش المقارنة
+// (كل كلمة من المقروء بتتقارن بأقرب كلمة في الاسم). للاقتراح بس — المطابقة الأوتوماتيك فاضلة بالترتيب.
+function nameFlex(q, name) {
+  const tw = f => {
+    const a = f(q).split(" ").filter(Boolean), b = f(name).split(" ").filter(Boolean);
+    if (a.length < 2 || !b.length) return 0;
+    let tot = 0;
+    a.forEach(t => { tot += Math.max(...b.map(u => 1 - lev(t, u) / Math.max(t.length, u.length, 1))); });
+    return tot / a.length * 0.95;
+  };
+  return Math.max(nameScore(q, name), tw(anorm), tw(anormSep));
+}
 function usedReps(except) {
   return new Set(Object.entries(S.rep).filter(([c]) => c !== except).map(([, r]) => r.nid || r.code));
 }
@@ -1240,9 +1284,55 @@ function candidates(q, except, limit = 6) {
   const used = usedReps(except);
   const overdue = new Set(S.newWorkers.filter(x => ficheState(x).st === "overdue").map(x => x.id));
   return S.pool.filter(p => !used.has(p.nid || p.code) && !overdue.has(p.nid))
-    .map(p => ({ p, sc: nameScore(q, p.name) })).filter(x => x.sc >= 0.6)
+    .map(p => ({ p, sc: nameFlex(q, p.name) })).filter(x => x.sc >= 0.6)
     .sort((a, b) => b.sc - a.sc).slice(0, limit).map(x => x.p);
 }
+// ===== الصفوف المكتوبة بخط اليد ومش متطابقة: اقتراح أو بحث =====
+// مين اتاخد خلاص (اتقرا في صورة، أو اتختار لصف تاني، أو بديل لحد غايب) عشان مايتقترحش تاني
+function takenIds(exceptKey) {
+  const t = new Set(Object.keys(aiStateBase()));
+  Object.values(aiSubs()).forEach(r => t.add(r.w.nid || r.w.code));
+  Object.entries(S.xpick).forEach(([k, v]) => { if (k !== exceptKey) t.add(v.startsWith("M:") ? v.slice(2) : v); });
+  usedReps().forEach(v => t.add(v));
+  return t;
+}
+// حضور العمال المقروء (من غير اختيارات خط اليد) — للاقتراحات بس
+function aiStateBase() {
+  const map = {};
+  livePages().forEach(p => (p.result?.rows || []).forEach(r => { const c = rowCode(r); if (c) map[c] = 1; }));
+  livePages().forEach(p => (p.result?.extra || []).forEach(x => { const w = matchExtra(x); if (w) map[w.code] = 1; }));
+  return map;
+}
+const idOf = w => w.nid || w.code;
+const overdueSet = () => new Set(S.newWorkers.filter(x => ficheState(x).st === "overdue").map(x => x.id));
+// اقتراحات لحد ٣ من بدلاء الموقع وعمال كشفه، بالاسم المقروء أو الملاحظة
+function extraCands(x, key, limit = 3) {
+  const taken = takenIds(key), od = overdueSet();
+  const here = [...S.roster.map(w => ({ w, id: w.code })), ...(S.pool || []).filter(p => !od.has(p.nid)).map(w => ({ w, id: idOf(w) }))]
+    .filter(c => c.id && !taken.has(c.id) && !taken.has(c.w.nid));
+  return here.map(c => ({ ...c, sc: Math.max(...[x.name, x.note].filter(Boolean).map(t => nameFlex(t, c.w.name)), 0) }))
+    .filter(c => c.sc >= 0.6).sort((a, b) => b.sc - a.sc).slice(0, limit);
+}
+// بحث بالاسم أو الكود أو الرقم القومي: الموقع ده الأول (كشفه وبدلاؤه)، وبعدين باقي المواقع
+function xSearch(qRaw, key) {
+  const q = rmNorm(qRaw), dig = q.replace(/\D/g, ""), code = /^[Tt]?\s?\d{2,6}$/.test(q) ? "T" + dig : "";
+  const words = q.split(" ").filter(Boolean);
+  const hit = w => (code && String(w.code || "").toUpperCase() === code) || (dig.length >= 4 && String(w.nid || "").includes(dig))
+    || (!dig && words.length && words.every(t => rmNorm(w.name).includes(t)));
+  const taken = takenIds(key), od = overdueSet();
+  const here = [...S.roster.map(w => ({ w, id: w.code, site: S.site })), ...(S.pool || []).filter(p => !od.has(p.nid)).map(w => ({ w, id: idOf(w), site: S.site }))]
+    .filter(c => c.id && hit(c.w));
+  const seen = new Set(here.map(c => c.w.nid || c.id));
+  const far = ELSE_LIST.filter(w => w.site !== S.site && hit(w) && !seen.has(w.nid || w.code) && (seen.add(w.nid || w.code), true))
+    .map(w => ({ w, id: "M:" + (w.nid || ""), site: w.site }));
+  return [...here, ...far].slice(0, 8).map(c => ({ ...c, taken: taken.has(c.id) || (c.w.nid && taken.has(c.w.nid)) }));
+}
+// الاختيار المحفوظ لصف بخط اليد: مين ده
+function xpickWho(v) {
+  if (v.startsWith("M:")) { const m = S.mpick[v.slice(2)]; return m ? { ...m, where: m.site } : null; }
+  return S.roster.find(w => w.code === v) || (S.pool || []).find(q => idOf(q) === v) || null;
+}
+const candLabel = c => `${esc(c.w.name)}<small style="opacity:.75"> · ${esc([c.w.code && !String(c.w.code).startsWith("N") ? c.w.code : "", c.w.type || "", c.site && c.site !== S.site ? c.site : ""].filter(Boolean).join(" · "))}</small>`;
 // key = كود العامل الأساسي، أو R+الرقم القومي لبديل راحات مطبوع غايب (بديل مكان البديل)
 function repBlock(w, r, key = w.code) {
   const ro = lockedForMe();
@@ -1278,11 +1368,43 @@ $("workers").addEventListener("click", e => {
   const clr = e.target.closest("[data-repclear]"); if (clr) { delete S.rep[clr.dataset.repclear]; return render(); }
   const nr = e.target.closest("[data-newrep]"); if (nr) return openId("replacement", nr.dataset.newrep);
 });
+function xHitsHtml(q, key) {
+  if (rmNorm(q).length < 2) return "";
+  const hits = xSearch(q, key);
+  if (!hits.length) return `<span class="muted">${ELSE ? "مفيش حد بالشكل ده في الكشوف ولا البدلاء. لو جديد خالص، ضيفه بالبطاقة." : "بيدوّر في باقي المواقع..."}</span>`;
+  return hits.map(c => c.taken ? `<span class="chip" style="opacity:.5" title="متسجل خلاص النهارده">${candLabel(c)} (متسجل)</span>`
+    : c.id === "M:" ? `<span class="chip" style="opacity:.5" title="مالوش رقم قومي في البوابة">${candLabel(c)} (من غير رقم قومي)</span>`
+    : `<span class="chip" data-xpick="${esc(key)}" data-who="${esc(c.id)}" data-site="${esc(c.site)}">${candLabel(c)}</span>`).join(" ");
+}
+$("extras").addEventListener("input", e => {
+  const key = e.target.dataset.xq; if (!key) return;
+  S.xq = S.xq || {}; S.xq[key] = e.target.value;
+  const box = [...$("extras").querySelectorAll("[data-xhits]")].find(b => b.dataset.xhits === key);
+  if (box) box.innerHTML = xHitsHtml(e.target.value, key);
+});
 $("extras").addEventListener("click", e => {
   const pk = e.target.closest("[data-xpick]");
-  if (pk) { S.xpick[pk.dataset.xpick] = pk.dataset.who; render(); return; }
+  if (pk) {
+    const key = pk.dataset.xpick, who = pk.dataset.who;
+    if (!who.startsWith("M:")) { S.xpick[key] = who; if (S.xq) delete S.xq[key]; render(); return; }
+    // من موقع تاني: زي العمال اللي اتنقلوا — نتأكد إنه مش متسجل اليوم ده في موقع تاني
+    const nid = who.slice(2), w = ELSE_LIST.find(q => q.nid === nid && q.site === pk.dataset.site) || elsewhere(nid); if (!w) return;
+    pk.style.opacity = ".5"; pk.textContent = "بيدوّر عليه في باقي المواقع...";
+    otherSitesSameDay(nid).then(found => {
+      if (found.length) { alert(`${w.name} مينفعش يتسجل هنا: متسجل يوم ${S.date} في ${found.join("، ")}.\nشيله من هناك الأول.`); render(); return; }
+      delete S.mwarn[nid]; S.munpick.delete(nid);
+      S.mpick[nid] = { name: w.name, code: w.code || "", job: w.job || "", type: w.type || "بديل", site: w.site };
+      S.xpick[key] = who; if (S.xq) delete S.xq[key];
+      render();
+    });
+    return;
+  }
   const un = e.target.closest("[data-xunpick]");
-  if (un) { delete S.xpick[un.dataset.xunpick]; render(); return; }
+  if (un) {
+    const k = un.dataset.xunpick, v = S.xpick[k] || "";
+    if (v.startsWith("M:")) { delete S.mpick[v.slice(2)]; S.munpick.add(v.slice(2)); }
+    delete S.xpick[k]; S.xunpick = S.xunpick || new Set(); S.xunpick.add(k); render(); return;
+  }
   const mp = e.target.closest("[data-mpick]");
   if (mp) {
     const nid = mp.dataset.mpick, w = elsewhere(nid); if (!w) return;
