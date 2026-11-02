@@ -317,7 +317,8 @@ $("fp-go").onclick = async () => {
       const nid = String(e.nid || "").replace(/\D/g, "");
       const rk = d.site + "|" + (nid || k), r = rows[rk] = rows[rk] || { site: d.site, key: k, name: e.name || "", nid, job: e.job || "", cells: {} };
       const v = fpCell(e, off(d.date));
-      if (!(r.cells[d.date] && (v === "خ" || v === ""))) r.cells[d.date] = v;   // مايمسحش حضوره كبديل في نفس اليوم
+      const isP = x => typeof x === "number" || /^\d{1,2}:\d{2}/.test(String(x ?? ""));
+      if (!(isP(r.cells[d.date]) && !isP(v))) r.cells[d.date] = v;   // مايمسحش حضوره كبديل في نفس اليوم (ولا بـ م؟ / غ)
       // البديل اللي اتسجل قدام غايب: سطر لوحده بحضوره (وبوقته في مواقع الساعات) — زي التقرير الشهري
       if (e.s === "A" && e.rep) {
         const rn = String(e.rep.nid || "").replace(/\D/g, "");
@@ -582,11 +583,16 @@ $("r-go").onclick = async () => {
     for (const d of days) {
       Object.entries(d.entries || {}).forEach(([code, e]) => {
         const w = roster[d.site + "|" + code] || {};
-        const r = getRow(d.site + "|" + code, { site: d.site, code, name: e.name || w.name || code, nid: e.nid || w.nid || "", job: e.job || w.job || "", loc: e.loc || "", rep: !!e.sub });
-        r.cells[d.date] = cellOf(e, d.status === "approved");
+        // نفس الشخص (نفس الرقم القومى في نفس الموقع) = سطر واحد، سواء اتسجل باسمه أو كبديل قدام غايب
+        const nid = String(e.nid || w.nid || "").replace(/\D/g, "");
+        const r = getRow(d.site + "|" + (nid.length === 14 ? "N" + nid : code), { site: d.site, code, name: e.name || w.name || code, nid: e.nid || w.nid || "", job: e.job || w.job || "", loc: e.loc || "", rep: !!e.sub });
+        if (!e.sub && r.rep) Object.assign(r, { rep: false, code, name: e.name || w.name || r.name, job: e.job || w.job || r.job, loc: e.loc || r.loc || "" });   // السطر اتعمل من البديل الأول: ياخد بيانات العامل نفسه
+        const c0 = cellOf(e, d.status === "approved");
+        if (!(r.cells[d.date]?.p > 0 && !(c0.p > 0))) r.cells[d.date] = c0;   // مايمسحش حضوره كبديل في نفس اليوم
         if (e.s === "P") otInto(r.cells[d.date], e, d.site);
         if (e.s === "A" && e.rep) {
-          const k = d.site + "|R" + (e.rep.nid || e.rep.code || e.rep.name);
+          const rn = String(e.rep.nid || "").replace(/\D/g, "");
+          const k = d.site + "|" + (rn.length === 14 ? "N" + rn : "R" + (e.rep.code || e.rep.name));
           const rr = getRow(k, { site: d.site, code: e.rep.code || "", name: e.rep.name, nid: e.rep.nid || "", job: e.job || w.job || "", rep: true });
           rr.cells[d.date] = { v: "1", p: 1, app: d.status === "approved" };
           otInto(rr.cells[d.date], e.rep, d.site);
