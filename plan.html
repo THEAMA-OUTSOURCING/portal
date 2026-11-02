@@ -342,6 +342,7 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
         <h2>حساب جديد أو تعديل حساب</h2>
         <div class="grid-form">
           <label>الإيميل<input type="email" id="ac-email" placeholder="name@theama-egy.com" dir="ltr"></label>
+          <label>الاسم (بيظهر في الإشعارات بدل الإيميل)<input type="text" id="ac-name" maxlength="40" placeholder="مثلاً: هشام"></label>
           <label>الدور<select id="ac-role"><option value="supervisor">مشرف / إقليمي</option><option value="hr">HR</option><option value="accountant">محاسب</option><option value="viewer">مشاهد (عرض بس)</option></select></label>
           <label class="wide">المواقع (المشرف: من غير مواقع = مشرف الشرقية للدخان — HR والمحاسب: من غير مواقع = كل الفروع ومعاها الشرقية)<span id="ac-sites" class="row" style="gap:12px;color:#222;"></span></label>
           <label class="row hidden" id="ac-payroll-box" style="flex-direction:row;gap:6px;color:#222;"><input type="checkbox" id="ac-payroll"> رفع المرتبات الشهرية (للمحاسب)</label>
@@ -356,7 +357,7 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
       </div>
       <div class="card">
         <h2>كل الحسابات الموجودة</h2>
-        <div class="tbl"><table><thead><tr><th>الإيميل</th><th>الدور</th><th>المواقع</th><th>الحالة</th><th></th></tr></thead><tbody id="ac-list"></tbody></table></div>
+        <div class="tbl"><table><thead><tr><th>الإيميل</th><th>الاسم</th><th>الدور</th><th>المواقع</th><th>الحالة</th><th></th></tr></thead><tbody id="ac-list"></tbody></table></div>
         <p class="muted" id="ac-updated" style="margin-top:8px;"></p>
       </div>
     </section>
@@ -1060,12 +1061,12 @@ function renderAccounts() {
     const btn = !a ? `<button class="btn small" data-plan="${esc(p.email)}">إنشاء</button>` : !same ? `<button class="btn sec small" data-plan="${esc(p.email)}">تظبيط الصلاحيات</button>` : "";
     return `<tr><td dir="ltr" style="text-align:right">${esc(p.email)}</td><td>${esc(p.label)}</td><td>${ROLE_AR[p.role]}</td><td>${esc(sitesText(p))}</td><td>${st}</td><td>${btn}</td></tr>`;
   }).join("");
-  $("ac-list").innerHTML = STAFF.length ? STAFF.map(a => `<tr><td dir="ltr" style="text-align:right">${esc(a.email)}</td><td>${ROLE_AR[a.role] || esc(a.role || "—")}</td><td>${esc(sitesText(a))}</td><td>${a.disabled ? "متوقف" : "شغال"}</td>
+  $("ac-list").innerHTML = STAFF.length ? STAFF.map(a => `<tr><td dir="ltr" style="text-align:right">${esc(a.email)}</td><td>${esc(a.name || "—")}</td><td>${ROLE_AR[a.role] || esc(a.role || "—")}</td><td>${esc(sitesText(a))}</td><td>${a.disabled ? "متوقف" : "شغال"}</td>
     <td class="row" style="gap:4px;">${a.role === "admin" ? "" : `<button class="btn sec small" data-edit="${esc(a.email)}">تعديل</button><button class="btn sec small" data-pass="${esc(a.email)}">باسورد جديد</button>`}</td></tr>`).join("")
-    : `<tr><td colspan="5" class="muted">مفيش حسابات ظاهرة لسه.</td></tr>`;
+    : `<tr><td colspan="6" class="muted">مفيش حسابات ظاهرة لسه.</td></tr>`;
 }
 function fillForm(a) {
-  $("ac-email").value = a.email; $("ac-role").value = a.role in ROLE_AR && a.role !== "admin" ? a.role : "supervisor";
+  $("ac-email").value = a.email; $("ac-name").value = a.name || ""; $("ac-role").value = a.role in ROLE_AR && a.role !== "admin" ? a.role : "supervisor";
   $("ac-sites").querySelectorAll("input").forEach(i => i.checked = (a.sites || []).includes(i.value));
   $("ac-disabled").checked = !!a.disabled;
   $("ac-payroll").checked = !!a.payroll;
@@ -1090,7 +1091,9 @@ function saveAccount() {
   if (!email || !email.includes("@")) return show($("ac-msg"), "err", "اكتب الإيميل.");
   if (role === "supervisor" && !sites.length && email !== SHARED_EMAIL
       && !confirm("مشرف من غير مواقع = نفس صلاحيات مشرف الشرقية للدخان. متأكد؟")) return;
-  return runAccountTask("account_save", { email, role, sites, payroll, disabled: $("ac-disabled").checked });
+  const name = $("ac-name").value.trim().slice(0, 40);
+  // الاسم بيتبعت بس لو مكتوب — لحد ما الـ Rules والسيرفر يتحدّثوا، الحفظ من غير اسم يفضل شغال
+  return runAccountTask("account_save", { email, ...(name ? { name } : {}), role, sites, payroll, disabled: $("ac-disabled").checked });
 }
 async function runAccountTask(type, extra) {
   const msg = $("ac-msg"); $("ac-secret").classList.add("hidden");

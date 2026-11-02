@@ -352,12 +352,14 @@ async function staff() {
 // الاسم اللي بيظهر في «مين قرا» — من غير إيميلات
 function labelOf(a) {
   const s = (a.sites || []).join("، ");
+  const n = a.name ? ` — ${a.name}` : "";
   if (a.role === "admin") return "ادمن";
-  if (a.role === "viewer") return "مشاهد";
-  if (a.role === "hr") return "HR" + (s ? ` (${s})` : "");
-  if (a.role === "accountant") return "محاسب" + (s ? ` (${s})` : "");
-  if (a.regional) return "الاقليمى" + (s ? ` (${s})` : "");
-  return "مشرف " + (s || "الشرقية");
+  if (a.role === "viewer") return "مشاهد" + n;
+  // HR والمحاسب من غير فروع = كل الفروع (زي لوحة الحسابات)
+  if (a.role === "hr") return "HR" + n + ` (${s || "كل الفروع"})`;
+  if (a.role === "accountant") return "محاسب" + n + ` (${s || "كل الفروع"})`;
+  if (a.regional) return "الاقليمى" + n + (s ? ` (${s})` : "");
+  return "مشرف " + (s || "الشرقية") + n;
 }
 function recipients(st, target, tsites, senderUid) {
   const sup = a => a.role === "supervisor";
