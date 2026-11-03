@@ -131,6 +131,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
       <p class="muted" style="margin-bottom:8px;">المرضي اللي HR تيما وافق عليه لعمال بيبسي والإمداد وشيبسي بيستنى هنا رد العميل. وتقدر كمان تسجّل قرار العميل يدوي على كل حالة تحت. الإجازات والاستقالات بتتعتمد من HR تيما على طول.</p>
       <p class="muted" style="margin-bottom:6px;">1) صدّر شيت المرضي وابعته للعميل. 2) لما العميل يرد، نزّل «شيت الرد» وعدّل فيه «الأيام المعتمدة» للحالات اللي العميل غيّرها بس (والـ Limit لو باعته)، واكتب الإجمالي اللي في إيميله وارفعه.
         لو العامل ليه أكتر من فترة، اكتب الإجمالي في أول سطر وفضّي الباقي — بيتوزّع من الأقدم. الأيام المعتمدة = م، والباقي = خ.</p>
+      <div class="row" style="margin-bottom:6px;align-items:flex-end;">
+        <label class="f">الفترة من<input type="date" id="sk-from"></label>
+        <label class="f">لحد<input type="date" id="sk-to"></label>
+        <button class="btn sec small" id="sk-clear" type="button">كل الفترات</button>
+        <span class="muted" id="sk-period" style="font-size:13px;">من غير فترة = كل المرضي المستني رد العميل</span></div>
       <div class="row"><button class="btn sec" id="sk-exp-pepsi">تصدير مرضي بيبسي والإمداد</button><button class="btn sec" id="sk-exp-chipsy">تصدير مرضي شيبسي</button>
         <button class="btn sec" id="sk-rep-pepsi">شيت الرد — بيبسي والإمداد</button><button class="btn sec" id="sk-rep-chipsy">شيت الرد — شيبسي</button></div>
       <div class="row" style="margin-top:8px;"><input type="file" id="sk-file" accept=".xlsx,.xls" style="max-width:300px">
@@ -356,7 +361,13 @@ const branchOf = e => e.site || e.loc || e.company || "";
 const dmy = iso => iso ? iso.slice(8, 10) + "/" + iso.slice(5, 7) + "/" + iso.slice(0, 4) : "";
 const skTxt = e => e.sick_kind === "injury" ? "اصابة عمل" : "مرضى";
 const wKey = e => e.nid || "c:" + (e.code || e.id);
-const sickWaiting = g => [...LIVE_W.values()].filter(e => e.type === "sick" && groupOf(e) === g)
+// الفترة اللي اتختارت فوق أزرار التصدير: الحالة بتدخل لو أي يوم من مدتها (من → لحد) جوه الفترة
+const skPeriod = () => { let f = $("sk-from").value, t = $("sk-to").value; if (f && t && t < f) [f, t] = [t, f]; return { f, t }; };
+const inSkPeriod = e => { const { f, t } = skPeriod(), a = e.from || e.entry_date || "", b = e.to || a;
+  return (!t || !a || a <= t) && (!f || !b || b >= f); };
+const skPeriodTxt = () => { const { f, t } = skPeriod(); return f || t ? ` (الفترة ${f ? dmy(f) : "الأول"} → ${t ? dmy(t) : "دلوقتي"})` : ""; };
+const skPeriodFile = () => { const { f, t } = skPeriod(); return f || t ? ` ${f || "الأول"} الى ${t || ymd(new Date())}` : ""; };
+const sickWaiting = g => [...LIVE_W.values()].filter(e => e.type === "sick" && groupOf(e) === g && inSkPeriod(e))
   .sort((a, b) => branchOf(a).localeCompare(branchOf(b)) || String(a.name).localeCompare(String(b.name)) || String(a.from).localeCompare(String(b.from)));
 function sheetOut(aoa, cols, name, fname) {
   const ws = XLSX.utils.aoa_to_sheet(aoa); ws["!cols"] = cols.map(w => ({ wch: w }));
@@ -366,13 +377,13 @@ function sheetOut(aoa, cols, name, fname) {
 const SK_HEAD = ["رقم الطلب", "المورد", "اسم المريض", "الفرع", "الوظيفة", "سبب الحالة المرضية", "تاريخ التعيين", "من", "الى", "عدد الايام", "المستشفى", "الرقم القومى", "نوع الحالة", "ملاحظات"];
 async function exportSick(g) {
   const list = sickWaiting(g);
-  if (!list.length) return show($("sk-msg"), "info", `مفيش مرضي مستني رد ${GROUP_AR[g]}.`);
+  if (!list.length) return show($("sk-msg"), "info", `مفيش مرضي مستني رد ${GROUP_AR[g]}${skPeriodTxt()}.`);
   const miss = list.filter(e => !e.cause || !e.hospital);
   const total = list.reduce((t, e) => t + (+e.days || 0), 0);
   const rows = list.map(e => [e.id, "تيما", e.name || "", branchOf(e), e.job || "", e.cause || "", dmy(e.hire_date || ""), dmy(e.from), dmy(e.to || e.from),
     +e.days || 0, e.hospital || "", String(e.nid || ""), skTxt(e), e.sick_kind === "injury" ? "اصابة عمل بمحضر مختوم" : (e.reason || "")]);
   const today = ymd(new Date());
-  sheetOut([SK_HEAD, ...rows, ["", "", "", "", "", "", "", "", "الاجمالى", total]], [12, 7, 30, 14, 14, 34, 12, 11, 11, 9, 16, 17, 11, 22], "المرضى", `مرضى ${GROUP_AR[g]} ${today}.xlsx`);
+  sheetOut([SK_HEAD, ...rows, ["", "", "", "", "", "", "", "", "الاجمالى", total]], [12, 7, 30, 14, 14, 34, 12, 11, 11, 9, 16, 17, 11, 22], "المرضى", `مرضى ${GROUP_AR[g]}${skPeriodFile() || " " + today}.xlsx`);
   const notSent = list.filter(e => !e.sent_at);
   try {
     for (let i = 0; i < notSent.length; i += 400) {
@@ -380,19 +391,28 @@ async function exportSick(g) {
       notSent.slice(i, i + 400).forEach(e => b.update(doc(db, "hr_events", e.id), { sent_at: serverTimestamp(), sent_email: actorEmail(auth.currentUser) }));
       await b.commit();
     }
-    show($("sk-msg"), miss.length ? "err" : "ok", `اتصدّر ${list.length} حالة مرضي لـ ${GROUP_AR[g]} — ${total} يوم.`
+    show($("sk-msg"), miss.length ? "err" : "ok", `اتصدّر ${list.length} حالة مرضي لـ ${GROUP_AR[g]}${skPeriodTxt()} — ${total} يوم.`
       + (miss.length ? `\nخلي بالك: ${miss.length} حالة ناقصها السبب أو المستشفى: ` + miss.slice(0, 10).map(e => e.name).join("، ") : ""));
   } catch (e) { show($("sk-msg"), "err", "الملف اتصدّر، بس ماتعلّمتش إنها اتبعتت: " + e.message); }
 }
 const SKR_HEAD = ["رقم الطلب", "اسم المريض", "الرقم القومى", "الفرع", "من", "الى", "نوع الحالة", "عدد الايام", "Limit", "الايام المعتمدة"];
 function replySheet(g) {
   const list = sickWaiting(g);
-  if (!list.length) return show($("sk-msg"), "info", `مفيش مرضي مستني رد ${GROUP_AR[g]}.`);
+  if (!list.length) return show($("sk-msg"), "info", `مفيش مرضي مستني رد ${GROUP_AR[g]}${skPeriodTxt()}.`);
   const total = list.reduce((t, e) => t + (+e.days || 0), 0);
   const rows = list.map(e => [e.id, e.name || "", String(e.nid || ""), branchOf(e), dmy(e.from), dmy(e.to || e.from), skTxt(e), +e.days || 0, "", +e.days || 0]);
-  sheetOut([SKR_HEAD, ...rows, ["", "", "", "", "", "", "الاجمالى", total, "", total]], [12, 30, 17, 14, 11, 11, 11, 9, 8, 12], "رد العميل", `رد مرضى ${GROUP_AR[g]} ${ymd(new Date())}.xlsx`);
-  show($("sk-msg"), "info", `نزل شيت الرد (${list.length} حالة). عدّل «الأيام المعتمدة» للحالات اللي في رد العميل بس، وارفعه.`);
+  sheetOut([SKR_HEAD, ...rows, ["", "", "", "", "", "", "الاجمالى", total, "", total]], [12, 30, 17, 14, 11, 11, 11, 9, 8, 12], "رد العميل", `رد مرضى ${GROUP_AR[g]}${skPeriodFile() || " " + ymd(new Date())}.xlsx`);
+  show($("sk-msg"), "info", `نزل شيت الرد (${list.length} حالة${skPeriodTxt()}). عدّل «الأيام المعتمدة» للحالات اللي في رد العميل بس، وارفعه.`);
 }
+// كام حالة في الفترة دي لكل عميل (بيتحدث مع تغيير التاريخ)
+function skPeriodCount() {
+  const n = g => sickWaiting(g).length, { f, t } = skPeriod();
+  $("sk-period").textContent = f || t
+    ? `في الفترة دي: بيبسي والإمداد ${n("pepsi")} حالة — شيبسي ${n("chipsy")} حالة`
+    : "من غير فترة = كل المرضي المستني رد العميل";
+}
+$("sk-from").onchange = skPeriodCount; $("sk-to").onchange = skPeriodCount;
+$("sk-clear").onclick = () => { $("sk-from").value = ""; $("sk-to").value = ""; skPeriodCount(); };
 $("sk-exp-pepsi").onclick = () => exportSick("pepsi");
 $("sk-exp-chipsy").onclick = () => exportSick("chipsy");
 $("sk-rep-pepsi").onclick = () => replySheet("pepsi");
