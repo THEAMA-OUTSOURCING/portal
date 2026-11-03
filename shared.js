@@ -131,6 +131,32 @@ export const enDigits = s => String(s ?? "").replace(/[٠-٩]/g, d => d.charCode
 // العامل أساسي؟ القوة فيها «اساسي» و«أساسي» (بهمزة ومن غير)، و«جديد» = أساسي مضاف بالبطاقة لسه مستني
 export const isBasic = t => ["اساسي", "جديد"].includes(String(t ?? "").replace(/[أإآ]/g, "ا").trim());
 
+// ===== رقم قومي قريب من رقم موجود =====
+// قراءة البطاقة أو شيت العميل ممكن تغلط في رقم أو اتنين (زي 7 ← 2، أو رقمين معكوسين).
+// nidDiff: عدد الخانات المختلفة بين رقمين قوميين (99 لو مش 14 رقم)
+export const nidDiff = (a, b) => {
+  a = enDigits(a).replace(/\D/g, ""); b = enDigits(b).replace(/\D/g, "");
+  return a.length === 14 && b.length === 14 ? [...a].filter((c, i) => c !== b[i]).length : 99;
+};
+// نفس الاسم؟ أول 3 أسامي (أو أول اسمين لو واحد فيهم أقصر) — من غير فرق همزة/ة/ى، و«عبد ال...» = «عبدال...»
+const nameWords = s => enDigits(s).replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي")
+  .replace(/(^|\s)(عبد|ابو)\s+/g, "$1$2").replace(/[^ء-ي\s]/g, " ").split(/\s+/).filter(Boolean);
+export const sameName = (a, b) => {
+  const x = nameWords(a), y = nameWords(b), k = Math.min(3, x.length, y.length);
+  return k >= 2 && x.slice(0, k).join(" ") === y.slice(0, k).join(" ");
+};
+// العمال اللي رقمهم مختلف عن nid في رقم أو اتنين بس وبنفس الاسم (غالباً نفس الشخص ورقمه اتقرا غلط)
+export function nearWorkers(nid, name, workers) {
+  const seen = new Set(), out = [];
+  for (const w of workers || []) {
+    const wn = String(w?.nid || "");
+    if (!wn || seen.has(wn) || wn === nid) continue;
+    const d = nidDiff(nid, wn);
+    if (d >= 1 && d <= 2 && sameName(name, w.name)) { seen.add(wn); out.push({ ...w, diff: d }); }
+  }
+  return out;
+}
+
 // ===== المخطط (شيت احتياج بيبسي) =====
 const pnorm = s => String(s ?? "").replace(/\s+/g, " ").trim();
 const pkey = s => pnorm(s).toLowerCase();
@@ -310,4 +336,4 @@ window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-import('./notify.js?v=20261103').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+import('./notify.js?v=20261103b').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));

@@ -362,9 +362,9 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
 <script type="module">
 import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, isBasic } from './shared.js?v=20261103';
-import { openPrintView, openOrderEditor, printOrder } from './sheet.js?v=20261103';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261103';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, isBasic, nearWorkers } from './shared.js?v=20261103b';
+import { openPrintView, openOrderEditor, printOrder } from './sheet.js?v=20261103b';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261103b';
 
 
 const $ = id => document.getElementById(id);
@@ -1552,6 +1552,11 @@ function nidAge(nid) {
   if (t.getMonth() < m - 1 || (t.getMonth() === m - 1 && t.getDate() < d)) a--;
   return a;
 }
+// كل العمال اللي الصفحة تعرفهم: كشف الموقع وقايمة البدلاء والجداد، ومواقع الحساب التانية لو اتحمّلت
+function knownWorkers() {
+  return [...(S.rosterNow || []), ...(S.roster || []), ...(S.pool || []),
+    ...(S.newWorkers || []).map(x => ({ ...x, nid: x.nid || x.id })), ...(ELSE_LIST || [])];
+}
 function openNc() {
   const jobs = [...new Set([...S.rosterNow.map(x => x.job), ...Object.keys(S.plan || {})].filter(Boolean))];
   $("nc-job").innerHTML = jobs.map(j => `<option>${esc(j)}</option>`).join("");
@@ -1569,6 +1574,8 @@ $("nc-ok").addEventListener("click", async () => {
   if (!typ) return show($("nc-msg"), "err", "اختار نوع العامل.");
   if (S.rosterNow.some(x => x.nid === nid)) return show($("nc-msg"), "err", "العامل ده موجود في الكشف أصلاً.");
   if (S.pool.some(x => x.nid === nid)) return show($("nc-msg"), "err", "العامل ده موجود في قايمة البدلاء أصلاً.");
+  const near = nearWorkers(nid, name, knownWorkers());
+  if (near.length) return show($("nc-msg"), "err", `فيه عامل بنفس الاسم «${near[0].name}» برقم ${near[0].nid} — فرق ${near[0].diff === 1 ? "رقم واحد" : "رقمين"} بس عن اللي اتكتب. راجع الرقم من البطاقة.`);
   const toRoster = typ === "اساسي";
   const u = auth.currentUser;
   $("nc-ok").disabled = true;
@@ -1678,6 +1685,19 @@ $("idm-ok").addEventListener("click", async () => {
       $("idm-ok").disabled = false;
       return;
     } else {
+      // رقم قريب من عامل موجود بنفس الاسم (فرق رقم أو اتنين) = غالباً قراية البطاقة غلطت، مش عامل جديد
+      try { await loadElsewhere(); } catch (e) {}   // مواقع الحساب التانية (مرة واحدة)
+      const near = nearWorkers(d.nid, d.name, knownWorkers());
+      if (near.length) {
+        const w = near[0];
+        if (ID.purpose === "replacement" && ID.target && near.length === 1 && !S.rosterNow.some(x => x.nid === w.nid)
+          && confirm(`البطاقة اتقرت برقم ${d.nid}\nوفيه «${w.name}» برقم ${w.nid} — فرق ${w.diff === 1 ? "رقم واحد" : "رقمين"} بس.\n\nغالباً القراية غلطت. نسجّل الموجود (${w.nid}) بديل؟`)) {
+          S.rep[ID.target] = { nid: w.nid, name: w.name, code: w.code || "" };
+          $("idm").classList.add("hidden"); show($("m-msg"), "ok", `${w.name} اتسجل بديل (برقمه المتسجل ${w.nid}).`);
+          $("idm-ok").disabled = false; render(); return;
+        }
+        throw new Error(`البطاقة اتقرت برقم ${d.nid}، وفيه عامل بنفس الاسم «${w.name}» برقم ${w.nid}${w.site && w.site !== S.site ? ` في ${w.site}` : ""} — فرق ${w.diff === 1 ? "رقم واحد" : "رقمين"} بس.\nغالباً القراية غلطت: اختاره من البحث بدل ما تضيفه جديد. لو متأكد إنه شخص تاني بلّغ الإدارة.`);
+      }
       // البلاك ليست: ممنوع يتضاف (زي اللي تحت السن)
       let banned = false; try { banned = (await getDoc(doc(db, "blacklist", d.nid))).exists(); } catch (e) {}
       if (banned) {

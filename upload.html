@@ -123,14 +123,14 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
 <script type="module">
 import { getFirestore, doc, getDoc, getDocs, collection, query, where, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, fetchPlanBase, planBySite } from './shared.js?v=20261103';
-import { detect, parseChipsy, parseEmdad, parseSharqia, emdadMonths, counts, COMPANY_LABEL, CHIPSY_PLAN, countsForPlan, chipsySections, trimOverPlan } from './xl-attendance.js?v=20261103';
+import { db, auth, actorEmail, fetchPlanBase, planBySite, nearWorkers } from './shared.js?v=20261103b';
+import { detect, parseChipsy, parseEmdad, parseSharqia, emdadMonths, counts, COMPANY_LABEL, CHIPSY_PLAN, countsForPlan, chipsySections, trimOverPlan } from './xl-attendance.js?v=20261103b';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
 function hide(el) { el.className = "msg"; }
-const S = { wb: null, type: null, res: null, fileName: "" };
+const S = { wb: null, type: null, res: null, fileName: "", fixes: [] };
 
 $("l-btn").onclick = async () => { try { await signInWithEmailAndPassword(auth, $("l-email").value.trim(), $("l-pass").value); } catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); } };
 $("logout").onclick = () => signOut(auth); $("d-out").onclick = () => signOut(auth);
@@ -172,6 +172,8 @@ async function run() {
     S.res = S.type === "chipsy" ? parseChipsy(S.wb, XLSX)
       : S.type === "sharqia" ? parseSharqia(S.wb, XLSX)
       : parseEmdad(S.wb, XLSX, $("e-month").value, Number($("e-year").value));
+    show($("f-msg"), "info", "بيقارن الأرقام القومية بقوة البوابة...");
+    await fixNids();
     S.trim = [];
     if (S.type === "chipsy") {
       // قسم مدخلين بيانات أبو صير من «ترتيب الكشف»، وبعدين الزيادة عن المخطط بتتشال من العدد
@@ -186,6 +188,37 @@ async function run() {
     show($("f-msg"), "ok", `${COMPANY_LABEL[S.type]} — ${S.res.workers} عامل` + (S.res.ignored ? ` (اتساب ${S.res.ignored} سطر مش تبعنا: شركات تانية أو فرع MN)` : ""));
     renderPreview();
   } catch (e) { show($("f-msg"), "err", e.message); }
+}
+// شيت العميل ممكن يبقى فيه رقم قومي غلط في رقم أو اتنين (حصل في الإمداد أكتوبر 2026).
+// أي رقم مش في قوة الموقع على البوابة، وفيه عامل واحد بس بنفس الاسم ورقمه قريب = بياخد رقم البوابة ويتعرض في المراجعة.
+async function fixNids() {
+  S.fixes = [];
+  if (S.type === "sharqia") return;   // الشرقية بالكود مش بالرقم القومي
+  const sites = [...new Set(Object.values(S.res.days).map(d => d.site))], ws = {};
+  await Promise.all(sites.map(async s => {
+    ws[s] = [];
+    for (const c of ["rosters_base", "rosters", "pools"]) {
+      try { const d = await getDoc(doc(db, c, s)); if (d.exists()) ws[s].push(...(d.data().workers || [])); } catch (e) {}
+    }
+  }));
+  const pick = {};
+  for (const d of Object.values(S.res.days)) {
+    const list = ws[d.site] || []; if (!list.length) continue;
+    const known = new Set(list.map(w => String(w.nid || "")));
+    for (const [k, e] of Object.entries(d.entries)) {
+      const n = String(e.nid || ""); if (!n || known.has(n)) continue;
+      const key = d.site + "|" + n;
+      if (!(key in pick)) {
+        const near = nearWorkers(n, e.name, list);
+        pick[key] = near.length === 1 ? near[0] : null;
+        if (pick[key]) S.fixes.push({ site: d.site, name: e.name, from: n, to: pick[key].nid, code: pick[key].code || "", pname: pick[key].name });
+      }
+      const w = pick[key];
+      if (!w || d.entries[w.nid]) continue;   // نفس العامل متسجل بالرقم الصح في نفس اليوم: نسيب الاتنين زي ما هما
+      delete d.entries[k];
+      d.entries[w.nid] = { ...e, nid: w.nid, nid_from: n };
+    }
+  }
 }
 function selected() {
   const a = $("p-from").value, b = $("p-to").value;
@@ -203,8 +236,11 @@ function renderPreview() {
   $("p-sites").innerHTML = rows.length ? rows.map(([s, x]) => `<tr><td>${esc(s)}</td><td class="num">${x.workers.size}</td><td class="num">${x.days}</td><td>${x.from}</td><td>${x.to}</td>
     <td class="num">${Math.round(x.p / x.days)}</td><td class="num">${Math.round(x.a / x.days)}</td><td class="num">${x.l}</td></tr>`).join("")
     : `<tr><td colspan="8" class="muted">مفيش أيام في الفترة دي.</td></tr>`;
-  const iss = S.res.issues;
-  $("p-issues").innerHTML = iss.length ? `<details open><summary>${iss.length} ملاحظة — الخانات دي مش هتترفع</summary><ul>${iss.slice(0, 300).map(t => `<li>${esc(t)}</li>`).join("")}</ul></details>` : "";
+  const iss = S.res.issues, fx = S.fixes || [];
+  $("p-issues").innerHTML = (fx.length ? `<div class="msg show warn" style="display:block;margin-top:8px;">اتصلح الرقم القومي لـ ${fx.length} عامل: الرقم في الشيت مختلف في رقم أو اتنين عن نفس العامل على البوابة، فالحضور هيترفع برقم البوابة. بلّغ العميل يصلّحه عنده.</div>
+       <table style="margin-top:6px"><thead><tr><th>الموقع</th><th>الاسم في الشيت</th><th>الرقم في الشيت</th><th>الرقم على البوابة</th><th>الكود</th></tr></thead><tbody>${fx.map(f =>
+         `<tr><td>${esc(f.site)}</td><td>${esc(f.name)}</td><td dir="ltr">${esc(f.from)}</td><td dir="ltr">${esc(f.to)}</td><td>${esc(f.code)}</td></tr>`).join("")}</tbody></table>` : "")
+    + (iss.length ? `<details open><summary>${iss.length} ملاحظة — الخانات دي مش هتترفع</summary><ul>${iss.slice(0, 300).map(t => `<li>${esc(t)}</li>`).join("")}</ul></details>` : "");
   $("save").disabled = !rows.length;
   $("preview").classList.remove("hidden");
   renderOver();

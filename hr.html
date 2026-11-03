@@ -162,7 +162,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
 <script type="module">
 import { getFirestore, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, SUP_SITES, isBasic } from './shared.js?v=20261103';
+import { db, auth, actorEmail, SUP_SITES, isBasic } from './shared.js?v=20261103b';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
