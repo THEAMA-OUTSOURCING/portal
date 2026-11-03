@@ -360,11 +360,11 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
 </div>
 
 <script type="module">
-import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, TIME_SITES, guessTimes, calcHours, isHelperJob, specialOf, MISSION_SHIFT, enDigits, isBasic } from './shared.js';
-import { openPrintView, openOrderEditor, printOrder } from './sheet.js';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, isBasic } from './shared.js?v=20261103';
+import { openPrintView, openOrderEditor, printOrder } from './sheet.js?v=20261103';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261103';
 
 
 const $ = id => document.getElementById(id);
@@ -584,9 +584,18 @@ $("cam").addEventListener("change", onFiles);
 $("pages").addEventListener("click", async e => {
   const del = e.target.closest("[data-del]");
   if (del) {
-    if (!confirm("تمسح الصورة دي؟ نتيجتها هتتشال من الحضور.")) return;
-    try { await deleteDoc(doc(db, "att_pages", del.dataset.del)); }
-    catch (err) { show($("up-msg"), "err", "مااتمسحتش: " + err.message); }
+    const pg = S.pages.find(x => x.id === del.dataset.del); if (!pg) return;
+    if (!confirm("تمسح الصورة دي؟ نتيجتها هتتشال من الحضور، والمسح بيتسجل باسمك.")) return;
+    // المسح بيتسجل في att_page_deletions (الـ Rules مابتسمحش بمسح صورة من غير السجل ده في نفس العملية)
+    try {
+      const u = auth.currentUser, b = writeBatch(db);
+      b.set(doc(db, "att_page_deletions", pg.id), { site: pg.site, date: pg.date, page: pg.id,
+        uploaded_email: pg.uploaded_email || "", uploaded_at: pg.created_at || null, rows: (pg.result?.rows || []).length,
+        archived_path: pg.archived_path || "", deleted_by: u.uid, deleted_email: actorEmail(u), deleted_at: serverTimestamp() });
+      b.delete(doc(db, "att_pages", pg.id));
+      await b.commit();
+    }
+    catch (err) { show($("up-msg"), "err", "مااتمسحتش: " + (err.code === "permission-denied" ? "اليوم اتأكد خلاص — المسح بقى للأدمن بس. لو الصورة غلط ارفع الصح وبلّغ الإدارة." : err.message)); }
     return;
   }
   const img = e.target.closest("img[data-view]");
@@ -838,12 +847,26 @@ function timeEntry(r, job, prevIn) {
   if (specialOf(r) === "mission" && r?.s !== "P") { const m = calcHours(MISSION_SHIFT.in, MISSION_SHIFT.out, job);
     return { tin: r?.tin || "", tout: r?.tout || "", in: MISSION_SHIFT.in, out: helper ? "" : MISSION_SHIFT.out, mission: true, min: m.min, dmin: m.dmin, nmin: m.nmin, ot: m.ot, otd: m.otd, otn: m.otn }; }
   const t = guessTimes(r?.tin, r?.tout, helper, prevIn), h = calcHours(t.in, t.out, job);
-  const issue = !t.in ? "مفيش وقت حضور" : !helper && !t.out ? "مفيش وقت انصراف" : r?.tq ? "راجع الوقت مع الورقة" : t.unsure ? "نهار ولا ليل؟" : h && h.min > 16 * 60 ? "أكتر من 16 ساعة" : "";
+  const issue = !t.in ? "مفيش وقت حضور" : !helper && !t.out ? "مفيش وقت انصراف" : r?.tq ? "راجع الوقت مع الورقة" : h && h.min > MAX_SHIFT_MIN ? "أكتر من 12 ساعة — راجع الوقت مع الورقة" : t.swapped ? "الحضور والانصراف كانوا معكوسين واتعدلوا — اتأكد" : t.unsure ? "نهار ولا ليل؟" : "";
   return { tin: r?.tin || "", tout: r?.tout || "", in: t.in, out: helper ? "" : t.out, ...(t.prev ? { t_prev: true } : {}),
-    ...(issue ? { t_issue: issue } : { min: h.min, dmin: h.dmin, nmin: h.nmin, ot: h.ot, otd: h.otd, otn: h.otn }) };
+    ...(issue ? { t_issue: issue } : {}), ...(h && (!issue || t.swapped && h.min <= MAX_SHIFT_MIN) ? { min: h.min, dmin: h.dmin, nmin: h.nmin, ot: h.ot, otd: h.otd, otn: h.otn } : {}) };
 }
 
 // الصفحات اللي بتتقري: اللي خلصت، ومن غير الصور اللي اتصورت تاني (السيرفر علّمها superseded_by بصورة أحدث لنفس الصفحة)
+// صورة اتقرت ومعظم أساميها مش من كشف الموقع ده = غالباً اترفعت على الموقع الغلط (الحساب فيه أكتر من موقع)
+function wrongSite(p) {
+  const rows = p.result?.rows || [];
+  if (p.status !== "done" || rows.length < 5) return null;
+  const hit = rows.filter(r => r.code).length;
+  return hit / rows.length < 0.3 ? { hit, n: rows.length, other: p.result?.wrong_site || null } : null;
+}
+function wrongSiteNote(p) {
+  const w = wrongSite(p); if (!w) return "";
+  const o = w.other;
+  return `<div class="pill p-err" style="white-space:normal;margin-bottom:4px;">⚠️ ${o
+    ? `الكشف ده شكله بتاع «${esc(o.site)}» (${fmt(o.matched)} اسم من ${fmt(w.n)} من كشفه) — امسح الصورة وارفعها على الموقع الصح`
+    : `${fmt(w.hit)} اسم بس من ${fmt(w.n)} من كشف ${esc(S.site)} — اتأكد إنك اخترت الموقع الصح قبل ما تكمل`}</div> `;
+}
 function livePages() {
   const ids = new Set(S.pages.map(p => p.id));
   return S.pages.filter(p => p.status === "done" && !(p.superseded_by && ids.has(p.superseded_by)));
@@ -883,11 +906,12 @@ function render() {
     else if (p.status === "reading") st = `<span class="pill p-wait">بيقرا...</span>`;
     else if (p.status === "error") st = `<span class="pill p-err">فشلت</span><div class="muted">${esc(p.error || "")}</div>`;
     else if (p.superseded_by && S.pages.some(x => x.id === p.superseded_by)) st = `<span class="pill p-warn">اتصورت تاني</span><div class="muted">فيه صورة أحدث لنفس الصفحة، والقراية من الأحدث</div>`;
-    else st = `<span class="pill p-ok">${fmt(rows.length)} صف</span> ` +
+    else st = wrongSiteNote(p) + `<span class="pill p-ok">${fmt(rows.length)} صف</span> ` +
       (res.count == null ? `<span class="pill p-warn">العدد المكتوب مااتقراش</span>`
         : res.count === calc ? `<span class="pill p-ok">العدد ${fmt(calc)} ✓</span>`
         : `<span class="pill p-warn">مكتوب ${fmt(res.count)} / محسوب ${fmt(calc)}</span>`);
-    const mine = p.uploaded_by === auth.currentUser?.uid && p.status !== "reading" && (S.admin || S.day?.status !== "approved");
+    // المشرف/الإقليمي يمسح صورته بس قبل ما اليوم يتأكد، والأدمن في أي وقت — وكل مسح بيتسجل
+    const mine = p.status !== "reading" && (S.admin || (p.uploaded_by === auth.currentUser?.uid && !S.day));
     return `<div class="pg"><img src="data:image/jpeg;base64,${esc(p.image)}" data-view alt="صفحة">
       <div class="b"><b>صورة ${fmt(pi + 1)}</b> ${st}${mine ? `<div style="margin-top:6px;"><button class="btn sec small" data-del="${p.id}">مسح</button></div>` : ""}</div></div>`;
   }).join("");
@@ -1123,6 +1147,8 @@ $("confirm").addEventListener("click", async () => {
     } catch (e) {}
     return show($("c-msg"), "err", "مينفعش تأكد: الحاضرين أكتر من العدد المطلوب. " + S.over.map(o => `${o.job}: ${o.n} والمطلوب ${o.plan}`).join("، "));
   }
+  const wrong = livePages().filter(wrongSite);
+  if (wrong.length && !confirm(`فيه ${fmt(wrong.length)} صورة معظم أساميها مش من كشف ${S.site} — غالباً اترفعت على الموقع الغلط.\nتأكد الحضور برضه؟`)) return;
   if (S.admin && S.day) {
     const stName = { confirmed: "مستني مراجعة الإقليمي", reviewed: "مستني الاعتماد", approved: "معتمد" }[S.day.status] || S.day.status;
     if (!confirm(`تعديل أدمن على ${S.site} يوم ${S.date}:\nحاضر ${P} — غايب ${A}${Qn ? ` — توقف ${Qn}` : ""}\n\nحالة اليوم هتفضل «${stName}».`)) return;

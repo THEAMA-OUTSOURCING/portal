@@ -212,8 +212,8 @@ th{background:#1d2024;}
 <script type="module">
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, fetchPlanBase, planBySite } from './shared.js';
-import { printOrder } from './sheet.js';
+import { db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite } from './shared.js?v=20261103';
+import { printOrder } from './sheet.js?v=20261103';
 
 // مواقع الساعات: الإضافي النهاري والليلي (بالدقايق) على خانة اليوم — والوقت اللي محتاج مراجعة بيتعلّم ومايتحسبش
 const TB_TIP = "الوقت محتاج مراجعة — اليوم ده مش محسوب في الإضافي";
@@ -1045,7 +1045,14 @@ $("a-dlist").addEventListener("change", e => {
 $("a-esave").onclick = async () => {
   const d = A.cur; if (!d) return;
   const entries = JSON.parse(JSON.stringify(d.entries || {})); let n = 0;
-  const timed = TIME_SITES.includes(d.site), bad = []; let fixed = 0;
+  const timed = TIME_SITES.includes(d.site), bad = [], over = [], flipped = []; let fixed = 0;
+  // أقصى وردية 12 ساعة: لو الحضور والانصراف معكوسين بيتعدلوا لوحدهم، ولو أكتر من 12 ساعة برضه ماينفعش يتحفظ
+  const cap = (tin, tout, job, who) => {
+    if (isHelperJob(job)) return [tin, tout];
+    const f = fixReversed(tin, tout); if (f) { flipped.push(`${who} (${tin}→${tout} بقت ${f.in}→${f.out})`); return [f.in, f.out]; }
+    const h = calcHours(tin, tout, job); if (h && h.min > MAX_SHIFT_MIN) over.push(`${who} (${tin}→${tout})`);
+    return [tin, tout];
+  };
   // البدلاء الجداد اللي المحاسب اختارهم (لغايب بس)
   const added = [], usedNew = new Set();
   for (const s of document.querySelectorAll("#a-dlist [data-addrep]")) {
@@ -1065,7 +1072,8 @@ $("a-esave").onclick = async () => {
     const TF = ["in", "out", "min", "dmin", "nmin", "ot", "otd", "otn"];
     // بديل الراحات قدام الغايب
     if (e.s === "A" && e.rep) {
-      const row = sel.closest("tr"), rin = row.querySelector("[data-rin]")?.value ?? e.rep.in ?? "", rout = row.querySelector("[data-rout]")?.value ?? e.rep.out ?? "";
+      const row = sel.closest("tr");
+      const [rin, rout] = cap(row.querySelector("[data-rin]")?.value ?? e.rep.in ?? "", row.querySelector("[data-rout]")?.value ?? e.rep.out ?? "", e.job, e.rep.name + " (بديل)");
       const rh = calcHours(rin, rout, e.job);
       if (!rh) bad.push(e.rep.name + " (بديل)");
       else {
@@ -1075,7 +1083,8 @@ $("a-esave").onclick = async () => {
       }
     }
     if (e.s !== "P") { TF.concat(["t_issue"]).forEach(f => delete e[f]); return; }
-    const cell = sel.closest("td"), tin = cell.querySelector("[data-ein]")?.value ?? e.in ?? "", tout = cell.querySelector("[data-eout]")?.value ?? e.out ?? "";
+    const cell = sel.closest("td");
+    const [tin, tout] = cap(cell.querySelector("[data-ein]")?.value ?? e.in ?? "", cell.querySelector("[data-eout]")?.value ?? e.out ?? "", e.job, e.name);
     const h = calcHours(tin, tout, e.job);
     if (!h) { bad.push(e.name); return; }
     if (tin !== (e.in || "") || (!isHelperJob(e.job) && tout !== (e.out || ""))) { e.by = "acc"; n++; }
@@ -1083,6 +1092,8 @@ $("a-esave").onclick = async () => {
     Object.assign(e, { in: tin, out: isHelperJob(e.job) ? "" : tout, min: h.min, dmin: h.dmin, nmin: h.nmin, ot: h.ot, otd: h.otd, otn: h.otn });
   });
   if (bad.length) return show($("a-msg"), "err", "اكتب وقت الحضور والانصراف لـ: " + bad.join("، "));
+  if (over.length) return show($("a-msg"), "err", "أقصى وردية 12 ساعة — صحّح الوقت لـ: " + over.join("، "));
+  if (flipped.length && !confirm("الحضور والانصراف كانوا معكوسين واتعدلوا:\n" + flipped.join("\n") + "\n\nتكمّل؟")) return;
   // العدد في الوظايف اللي اتضافلها بديل: الحاضرين (ومعاهم بدلاء الراحات والتوقف/الأجازة الرسمية) + الغايبين اللي ليهم بديل ≤ المطلوب
   if (added.length) {
     const per = {};

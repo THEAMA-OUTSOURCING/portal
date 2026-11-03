@@ -192,9 +192,26 @@ const near = t => Math.min(...SHIFT_STARTS.map(s => { const d = Math.abs(t - s) 
 const cands = v => { const t = toMin(v); if (t == null) return [null]; const h = Math.floor(t / 60);
   if (/^0\d:/.test(String(v).trim())) return [t];
   return h >= 13 || h === 0 ? [t] : h === 12 ? [t, t - 720] : [t, t + 720]; };
-// بيرجّع { in, out, unsure }: unsure = الصبح والمسا محتملين بنفس الدرجة (زي 8 → 8)، والمشرف لازم يأكد
+// أقصى وردية لأي وظيفة 12 ساعة: أي حضور وانصراف بيطلعوا أكتر من كده مش منطقيين
+export const MAX_SHIFT_MIN = 12 * 60;
+// لو الحضور والانصراف اتكتبوا معكوسين (زي 15:00 → 08:00 = 17 ساعة وهي 08:00 → 15:00):
+// بيرجّع الوقتين متعدلين لو المدة أكتر من 12 ساعة والعكس 12 ساعة أو أقل، وإلا null
+export function fixReversed(inHM, outHM) {
+  const a = toMin(inHM), o = toMin(outHM);
+  if (a == null || o == null) return null;
+  const d = (o - a + 1440) % 1440, r = (a - o + 1440) % 1440;
+  return o < a && d > MAX_SHIFT_MIN && r > 0 && r <= MAX_SHIFT_MIN ? { in: hhmm(o), out: hhmm(a) } : null;
+}
+// بيرجّع { in, out, unsure, swapped }: unsure = الصبح والمسا محتملين بنفس الدرجة (زي 8 → 8)، والمشرف لازم يأكد
 // prevIn = وقت حضور نفس العامل في اليوم اللي قبله (لو متأكد): لو الصبح والمسا محتملين، بناخد الأقرب لامبارح
+// swapped = مفيش قراية منطقية (4–12 ساعة) غير لما الحضور والانصراف يتعكسوا — اتعكسوا والمحاسب يأكد
 export function guessTimes(tin, tout, dayOnly = false, prevIn = null) {
+  const g = guessTimes1(tin, tout, dayOnly, prevIn);
+  if (!g.bad || !tin || !tout) return g;
+  const s = guessTimes1(tout, tin, dayOnly, prevIn);
+  return s.bad ? g : { ...s, swapped: true };
+}
+function guessTimes1(tin, tout, dayOnly, prevIn) {
   const best = [];
   // مساعد البيع شغله نهار بس
   for (const i of cands(tin).filter(x => !dayOnly || x == null || (x >= 300 && x < 1080))) for (const o of cands(tout)) {
@@ -202,7 +219,7 @@ export function guessTimes(tin, tout, dayOnly = false, prevIn = null) {
     let score;
     if (i == null) score = 500;                              // من غير حضور: الانصراف لوحده مش كفاية
     else if (o == null) score = near(i);
-    else { const d = (o - i + 1440) % 1440; score = near(i) + (d >= 240 && d <= 960 ? 0 : 10000); }
+    else { const d = (o - i + 1440) % 1440; score = near(i) + (d >= 240 && d <= MAX_SHIFT_MIN ? 0 : 10000); }
     best.push({ in: i, out: o, score });
   }
   if (!best.length) return { in: "", out: "", unsure: false };
@@ -212,10 +229,10 @@ export function guessTimes(tin, tout, dayOnly = false, prevIn = null) {
   if (rival && p != null && b.in != null && rival.in != null) {
     const dist = t => { const d = Math.abs(t - p) % 1440; return Math.min(d, 1440 - d); };
     if (dist(rival.in) < dist(b.in)) b = rival;
-    return { in: hhmm(b.in), out: hhmm(b.out), unsure: false, prev: true };
+    return { in: hhmm(b.in), out: hhmm(b.out), unsure: false, prev: true, bad: b.score >= 10000 };
   }
   // وكمان لو الحضور بعيد ساعة أو أكتر عن أي وردية معروفة
-  return { in: hhmm(b.in), out: hhmm(b.out), unsure: !!rival || (b.in != null && b.score >= 60) };
+  return { in: hhmm(b.in), out: hhmm(b.out), unsure: !!rival || (b.in != null && b.score >= 60), bad: b.score >= 10000 };
 }
 // دقايق متداخلة مع النهار (6 الصبح لـ 6 المسا) في فترة [a, b) — b ممكن يعدّي نص الليل
 function dayPart(a, b) {
@@ -293,4 +310,4 @@ window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-import('./notify.js').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+import('./notify.js?v=20261103').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
