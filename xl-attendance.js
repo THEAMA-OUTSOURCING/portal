@@ -65,7 +65,8 @@ export function parseChipsy(wb, XLSX) {
   const hi = findHeader(rows, v => v.includes("رقم البطاقة"));
   if (hi < 0) throw new Error("مش لاقي صف العناوين (رقم البطاقة) في شيت " + name);
   const H = rows[hi].map(clean);
-  const col = t => H.findIndex(h => h.startsWith(t));
+  // العنوان بالظبط الأول، ولو مش موجود أول عنوان بيبدأ بيه (عشان عمود زي «الاسم بالانجليزي» قبل «الاسم» مايتاخدش غلط)
+  const col = t => { const i = H.indexOf(t); return i >= 0 ? i : H.findIndex(h => h.startsWith(t)); };
   const iN = col("رقم البطاقة"), iName = col("الاسم"), iBr = col("الفرع"), iJob = col("الوظيفة 2"), iSub = col("الوظيفة 3"), iType = col("وظيفة 1"), iCode = col("الكود");
   const dRow = rows.slice(0, hi).reverse().find(r => (r || []).filter(v => v instanceof Date).length >= 5) || [];
   // أعمدة الأيام بس: اللي عنوانها اسم يوم (تاريخ التعيين وغيره بيتساب)
@@ -137,7 +138,8 @@ export function parseSharqia(wb, XLSX) {
   const hi = findHeader(rows, v => v === "القطاع");
   if (hi < 0) throw new Error("مش لاقي صف العناوين (القطاع)");
   const H = rows[hi].map(clean);
-  const col = t => H.findIndex(h => arNorm(h).replace(/[ـ\s]/g, "").startsWith(t));
+  const hk = H.map(h => arNorm(h).replace(/[ـ\s]/g, ""));
+  const col = t => { const i = hk.indexOf(t); return i >= 0 ? i : hk.findIndex(h => h.startsWith(t)); };
   const iCode = col("الرقم"), iName = col("الاسم"), iJob = col("الوظيفه"), iLoc = col("الموقع"), iSec = col("القطاع");
   const dRow = rows.slice(hi + 1, hi + 3).find(r => (r || []).filter(v => v instanceof Date).length >= 5) || [];
   const dates = dRow.map(asDate);

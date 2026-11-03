@@ -1096,11 +1096,13 @@ function stopServerStatus(){
 
 // ===== دخول الموظف (Firebase Auth) =====
 async function doLogin(){
-  const code = document.getElementById('emp-code').value.trim();
+  // الكود بأرقام عربي أو حروف small بيتحول (نفس اللي بيحصل في بحث المشرف)
+  const code = staffCode(document.getElementById('emp-code').value);
   const pass = document.getElementById('emp-pass').value.trim();
   const errEl = document.getElementById('login-error');
   const msgEl = document.getElementById('login-error-msg');
   const btn = document.getElementById('login-btn');
+  if(btn.disabled) return;   // Enter مرتين بسرعة مايبدأش دخولين في نفس الوقت
   const fail = (m)=>{ msgEl.textContent = m; errEl.style.display='block'; };
   const resetBtn = ()=>{ btn.innerHTML='دخول <i class="ti ti-arrow-left" style="font-size:16px;vertical-align:-2px;margin-right:4px;"></i>'; btn.disabled=false; };
   errEl.style.display='none';
@@ -1108,8 +1110,16 @@ async function doLogin(){
   btn.innerHTML='<span class="spinner"></span> جاري التحقق...'; btn.disabled=true;
   try{
     // 1) التحقق من الكود والباسورد على Firebase نفسه
+    // لو كلمة المرور فيها أرقام عربي (الرقم القومي من كيبورد عربي) ومنفعتش زي ما هي، نجرّبها بأرقام إنجليزي
+    const passEn = pass.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+    let usedPass = pass;
     try{
-      await signInWithEmailAndPassword(auth, code+'@'+EMP_EMAIL_DOMAIN, pass);
+      try{ await signInWithEmailAndPassword(auth, code+'@'+EMP_EMAIL_DOMAIN, pass); }
+      catch(e1){
+        const c1 = e1.code || '';
+        if(passEn === pass || c1==='auth/too-many-requests' || c1==='auth/network-request-failed') throw e1;
+        await signInWithEmailAndPassword(auth, code+'@'+EMP_EMAIL_DOMAIN, passEn); usedPass = passEn;
+      }
     }catch(e){
       const c = e.code || '';
       if(c==='auth/too-many-requests') fail('محاولات غلط كتير — استنى شوية وجرّب تاني');
@@ -1136,7 +1146,7 @@ async function doLogin(){
     loggedUser = {code: myCode, rows, nationalId, payHidden: !shown.length};
 
     // 3) لو داخل بالرقم القومي (أول مرة أو بعد إعادة تعيين) — لازم يغيّره
-    if(pass === nationalId){
+    if(usedPass === nationalId){
       showScreen('set-pass-screen');
     } else {
       await proceedAfterAuth();
@@ -1209,6 +1219,8 @@ window.doChangePass = doChangePass;
 // ===== عرض الراتب (ديناميكي) =====
 function renderSalary(src, viewOnly){
   src = src || loggedUser;
+  // الملاحظة اللي تحت ممكن تكون اتخبت لعامل قبله على نفس الموبايل (مرتبه خلص وقت عرضه) — ترجع تظهر
+  if(!viewOnly) document.getElementById('sv-note').style.display = '';
   // أعمدة الشيت مشتركة مع مراجعة الرفع (SAL_PLUS / SAL_MINUS / SAL_DAYS)
   const PLUS=SAL_PLUS, MINUS=SAL_MINUS, DAYS=SAL_DAYS;
   const BAD=['غياب','جزاء','توقف'];
@@ -1242,10 +1254,11 @@ function renderSalary(src, viewOnly){
   }
 
   rows.forEach((row,idx)=>{
-    const plus=PLUS.map(c=>[c,num(get(row,c))]).filter(x=>x[1]>0);
-    const minus=MINUS.map(c=>[c,num(get(row,c))]).filter(x=>x[1]>0);
+    // أي بند مش صفر بيظهر (حتى لو بالسالب — تسوية مثلاً)، والمجاميع من نفس دالة مراجعة الرفع عشان تطابق الصافي
+    const plus=PLUS.map(c=>[c,num(get(row,c))]).filter(x=>x[1]!==0);
+    const minus=MINUS.map(c=>[c,num(get(row,c))]).filter(x=>x[1]!==0);
     const days=DAYS.map(([c,l])=>[l,num(get(row,c))]).filter(x=>x[1]>0);
-    const P=plus.reduce((a,x)=>a+x[1],0), M=minus.reduce((a,x)=>a+x[1],0);
+    const {P, M}=salTotals(row);
     const net=salNet(row);
     const period=clean(get(row,'فترة القبض'));
     const job=clean(get(row,'الوظيفة'));
@@ -1286,7 +1299,7 @@ function renderSalary(src, viewOnly){
 // ===== عرض مرتب موظف (الأدمن والمشاهد والمحاسب) — نفس شاشة الموظف بالظبط، من غير أزرار الموظف =====
 let staffView = false;
 async function lookupSalary(){
-  const code = document.getElementById('search-sal-code').value.trim();
+  const code = staffCode(document.getElementById('search-sal-code').value);
   const errEl = document.getElementById('search-sal-error');
   const msgEl = document.getElementById('search-sal-error-msg');
   const btn = document.getElementById('search-sal-btn');
@@ -1406,13 +1419,15 @@ async function openMedicalCard(){
   currentCardUrl = null;
 
   const r = loggedUser.rows[0];
-  document.getElementById('card-emp-name').textContent = (r['الاسم']||'') + ' — كود ' + loggedUser.code;
+  document.getElementById('card-emp-name').textContent = String(salGet(r,'الاسم')||'').trim() + ' — كود ' + loggedUser.code;
 
   try{
     const snap = await getDoc(doc(db,'medical_cards',loggedUser.code));
     document.getElementById('card-loading').style.display = 'none';
 
     if(!snap.exists()){
+      // نرجّع النص الأصلي (لو اتغير قبل كده لرسالة الخطأ بسبب النت)
+      document.querySelector('#card-notfound p').textContent = 'مفيش بطاقة طبية متسجّلة على الكود ده';
       document.getElementById('card-notfound').style.display = 'block';
       return;
     }
@@ -1485,7 +1500,7 @@ async function openRequestForm(){
   document.getElementById('req-error').style.display = 'none';
   document.getElementById('req-success').style.display = 'none';
   const r = loggedUser.rows[0];
-  document.getElementById('req-emp-name').textContent = (r['الاسم']||'') + ' — كود ' + loggedUser.code;
+  document.getElementById('req-emp-name').textContent = String(salGet(r,'الاسم')||'').trim() + ' — كود ' + loggedUser.code;
 
   // وضع إجباري (أول دخول قبل الشيت) مقابل وضع عادي (من داخل الشيت)
   const backBtn = document.getElementById('req-back-btn');
@@ -1527,7 +1542,7 @@ window.openRequestForm = openRequestForm;
 async function saveRequest(){
   const tshirt = document.getElementById('req-tshirt').value.trim();
   const shoe = document.getElementById('req-shoe').value.trim();
-  const phone = document.getElementById('req-phone').value.trim();
+  const phone = document.getElementById('req-phone').value.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/\s+/g,'');
   const errEl = document.getElementById('req-error');
   const okEl = document.getElementById('req-success');
   const btn = document.getElementById('req-save-btn');
@@ -1557,7 +1572,7 @@ async function saveRequest(){
     const r = loggedUser.rows[0];
     const reqData = {
       code: loggedUser.code,
-      name: r['الاسم'] || '',
+      name: String(salGet(r,'الاسم')||'').trim(),
       tshirt, shoe, phone,
       form_v: REQ_FORM_VERSION,
       updated_at: new Date().toISOString()

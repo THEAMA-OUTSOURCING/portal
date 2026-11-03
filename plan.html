@@ -404,7 +404,7 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
 <script type="module">
 import { getFirestore, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite } from './shared.js';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits } from './shared.js';
 import { bellStaff, bellLabel, sendPersonal } from './notify.js';
 
 
@@ -1208,7 +1208,7 @@ function initBlacklist() {
       : `<tr><td colspan="5" class="muted">مفيش.</td></tr>`;
   }, () => {});
   $("bl-add").onclick = async () => {
-    const nid = $("bl-nid").value.replace(/\D/g, ""), name = $("bl-name").value.trim(), u = auth.currentUser;
+    const nid = enDigits($("bl-nid").value).replace(/\D/g, ""), name = $("bl-name").value.trim(), u = auth.currentUser;
     if (nid.length !== 14) return show($("bl-msg"), "err", "الرقم القومي لازم 14 رقم.");
     if (!confirm(`إضافة ${name || nid} للبلاك ليست؟`)) return;
     try {
@@ -1424,7 +1424,7 @@ $("w-file")?.addEventListener("change", async e => {
     rows.forEach((r, i) => {
       let code = col(r, "الكود", "كود الموظف", "code").toUpperCase();
       // من غير كود: لو الرقم القومي موجود في الرواتب نجيب كوده ونعامله كتعديل
-      const nidIn = code ? "" : col(r, "الرقم القومي", "الرقم القومى").replace(/\D/g, "");
+      const nidIn = code ? "" : enDigits(col(r, "الرقم القومي", "الرقم القومى")).replace(/\D/g, "");
       const known = nidIn ? WS.base.find(w => String(w.nid) === nidIn) : null;
       if (known) code = String(known.code).toUpperCase();
       if (!code) {
@@ -1451,7 +1451,7 @@ $("w-file")?.addEventListener("change", async e => {
     });
     // عمال على نفس المواقع في البوابة ومش في الشيت (مش بيتغيروا، للمعلومة بس)
     const seen = new Set(rows.map(r => col(r, "الكود", "كود الموظف", "code").toUpperCase()).filter(Boolean));
-    rows.forEach(r => { const n = col(r, "الرقم القومي", "الرقم القومى").replace(/\D/g, ""); const k = n && WS.base.find(w => String(w.nid) === n); if (k) seen.add(String(k.code).toUpperCase()); });
+    rows.forEach(r => { const n = enDigits(col(r, "الرقم القومي", "الرقم القومى")).replace(/\D/g, ""); const k = n && WS.base.find(w => String(w.nid) === n); if (k) seen.add(String(k.code).toUpperCase()); });
     const fileSites = new Set(rows.map(r => col(r, "الموقع")).filter(s => W_SITES.includes(s)));
     const missing = WS.base.filter(w => { const c = current(w); return fileSites.has(c.site) && c.type !== "مشي" && !seen.has(String(w.code).toUpperCase()); });
     const missNote = !missing.length ? "" : `\nتنبيه: ${fmt(missing.length)} عامل على ${[...fileSites].join(" / ")} في البوابة مش موجودين في الشيت ومش هيتغيروا — لو مشيوا اكتبهم بالنوع "مشي": ` + missing.slice(0, 10).map(w => `${w.code} ${w.name}`).join("، ") + (missing.length > 10 ? " …" : "");

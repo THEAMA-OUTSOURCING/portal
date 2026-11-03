@@ -124,6 +124,13 @@ onAuthStateChanged(auth, async user => {
   renderNav(el, claims);
 });
 
+// ===== أرقام ونصوص =====
+// الأرقام الهندية (٠١٢٣ / ۰۱۲۳ من كيبورد عربي أو فارسي) → إنجليزي. لازم قبل أي replace(/\D/g) أو مقارنة كود/رقم قومي/موبايل،
+// لأن \D بيعتبر ٠-٩ مش أرقام فبيمسحها.
+export const enDigits = s => String(s ?? "").replace(/[٠-٩]/g, d => d.charCodeAt(0) - 0x0660).replace(/[۰-۹]/g, d => d.charCodeAt(0) - 0x06F0);
+// العامل أساسي؟ القوة فيها «اساسي» و«أساسي» (بهمزة ومن غير)، و«جديد» = أساسي مضاف بالبطاقة لسه مستني
+export const isBasic = t => ["اساسي", "جديد"].includes(String(t ?? "").replace(/[أإآ]/g, "ا").trim());
+
 // ===== المخطط (شيت احتياج بيبسي) =====
 const pnorm = s => String(s ?? "").replace(/\s+/g, " ").trim();
 const pkey = s => pnorm(s).toLowerCase();

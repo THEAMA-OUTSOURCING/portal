@@ -362,7 +362,7 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
 <script type="module">
 import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, TIME_SITES, guessTimes, calcHours, isHelperJob, specialOf, MISSION_SHIFT } from './shared.js';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, TIME_SITES, guessTimes, calcHours, isHelperJob, specialOf, MISSION_SHIFT, enDigits, isBasic } from './shared.js';
 import { openPrintView, openOrderEditor, printOrder } from './sheet.js';
 import { CHIPSY_SITE_PLAN } from './xl-attendance.js';
 
@@ -379,11 +379,13 @@ const S = { regional: false, admin: false, office: false, timed: false, prevIn: 
 
 // ===== العدد المطلوب من شيت الاحتياج (الحساب نفسه في shared.js — نفس حساب صفحة الإدارة) =====
 async function loadPlan() {
-  S.plan = {};
-  try { S.plan = planBySite(await fetchPlanBase(S.date.slice(0, 7)), S.date)[S.site] || {}; }
-  catch (e) { S.plan = {}; }
+  const site = S.site, date = S.date;   // الموقع واليوم وقت الطلب (لو اتغيروا قبل ما الرد يرجع، الرد القديم يتساب)
+  let plan = {};
+  try { plan = planBySite(await fetchPlanBase(date.slice(0, 7)), date)[site] || {}; }
+  catch (e) { plan = {}; }
   // شيبسي مالهاش شيت احتياج على البوابة: المخطط الثابت (HC CFI)
-  if (!Object.keys(S.plan).length && CHIPSY_SITE_PLAN[S.site]) S.plan = { ...CHIPSY_SITE_PLAN[S.site] };
+  if (!Object.keys(plan).length && CHIPSY_SITE_PLAN[site]) plan = { ...CHIPSY_SITE_PLAN[site] };
+  if (site === S.site && date === S.date) S.plan = plan;
 }
 // أيام موقع في فترة بس (بدل كل أيام الموقع من البداية) — محتاج index على att_days: site + date.
 // لو الـ index لسه مااتعملش، بيرجع للطريقة القديمة عشان الصفحة متقفش.
@@ -400,11 +402,13 @@ async function siteDays(site, from, to) {
 }
 async function loadLate() {
   S.lateCount = 0;
+  const site = S.site, date = S.date; let n = 0;
   try {
-    const month = S.date.slice(0, 7);
-    const days = await siteDays(S.site, month + "-01", month + "-31");
-    days.forEach(d => { const x = d.data(); if ((S.regional ? x.review_late : x.late) && x.date !== S.date) S.lateCount++; });
-  } catch (e) { S.lateCount = 0; }
+    const month = date.slice(0, 7);
+    const days = await siteDays(site, month + "-01", month + "-31");
+    days.forEach(d => { const x = d.data(); if ((S.regional ? x.review_late : x.late) && x.date !== date) n++; });
+  } catch (e) { n = 0; }
+  if (site === S.site && date === S.date) S.lateCount = n;
 }
 const ORD = ["الأولى", "التانية", "التالتة", "الرابعة", "الخامسة", "السادسة", "السابعة", "التامنة", "التاسعة", "العاشرة"];
 const ordinal = n => ORD[n - 1] || `رقم ${n}`;
@@ -463,9 +467,12 @@ function deadlineOf(date) {
 async function openDay() {
   S.site = $("site").value; S.date = $("date").value;
   if (!S.site || !S.date) return;
+  // لو الموقع أو اليوم اتغير تاني قبل ما ده يخلص تحميل: النسخة القديمة توقف بعد أي await
+  // (من غيرها كانت listeners الموقع القديم بتفضل شغالة وتكتب بياناته فوق الموقع الجديد)
+  const tok = S.openTok = (S.openTok || 0) + 1;
   S.unsubPages?.(); S.unsubDay?.();
   S.unsubPages = S.unsubDay = null;
-  S.pages = []; S.day = null; S.choice = {}; S.xpick = {}; S.xq = {}; S.xunpick = new Set(); S.mpick = {}; S.munpick = new Set(); S.mwarn = {};
+  S.pages = []; S.day = null; S.plan = {}; S.choice = {}; S.xpick = {}; S.xq = {}; S.xunpick = new Set(); S.mpick = {}; S.munpick = new Set(); S.mwarn = {};
   hide($("up-msg")); hide($("c-msg"));
   // مواقع شيبسي والإمداد: حضورها إكسيل من الأدمن، فالمشرف ليه الكشف والبطايق والطلبات بس (من غير تصوير ولا تأكيد)
   S.photo = ATT_SITES.includes(S.site) && !S.office;
@@ -480,12 +487,19 @@ async function openDay() {
   if (!S.photo) hide($("deadline"));   // مالوش ميعاد رفع
 
   S.unsubRoster?.(); S.unsubPool?.(); S.unsubRem?.(); S.rep = {}; $("refresh-box").classList.add("hidden"); hide($("refresh-msg"));
+  let rosterErr = null, rosterNow = [];
   try {
     const r = await getDoc(doc(db, "rosters", S.site));
-    S.rosterNow = S.roster = r.exists() ? (r.data().workers || []) : [];
-  } catch (e) { S.rosterNow = S.roster = []; }
-  if (!S.rosterNow.length) show($("day-state"), "err", "كشف الموقع مش موجود لسه. الأدمن لازم يعمل مزامنة من لوحة الإدارة.");
+    rosterNow = r.exists() ? (r.data().workers || []) : [];
+  } catch (e) { rosterErr = e; }
+  if (tok !== S.openTok) return;
+  S.rosterNow = S.roster = rosterNow;
+  if (rosterErr) show($("day-state"), "err", rosterErr.code === "permission-denied"
+    ? "الحساب ده مالوش صلاحية على كشف الموقع ده."
+    : "مش قادر أحمّل كشف الموقع — اتأكد إن النت شغال وجرّب تاني.");
+  else if (!S.rosterNow.length) show($("day-state"), "err", "كشف الموقع مش موجود لسه. الأدمن لازم يعمل مزامنة من لوحة الإدارة.");
   else hide($("day-state"));
+  S.unsubRoster?.(); S.unsubPool?.(); S.unsubRem?.();
   S.unsubRoster = onSnapshot(doc(db, "rosters", S.site), snap => { if (snap.exists()) { S.rosterNow = snap.data().workers || []; render(); renderManage(); renderForce(); } }, () => {});
   S.unsubPool = onSnapshot(doc(db, "pools", S.site), snap => { S.pool = snap.exists() ? (snap.data().workers || []) : []; render(); }, () => {});
   S.unsubNew?.();
@@ -496,8 +510,10 @@ async function openDay() {
   S.unsubRem = onSnapshot(query(collection(db, "sheet_removals"), where("site", "==", S.site)), snap => {
     S.removals = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderManage();
   }, () => {});
-  if (!S.photo) { await loadPlan(); render(); renderForce(); return; }
+  if (!S.photo) { await loadPlan(); if (tok !== S.openTok) return; render(); renderForce(); return; }
   await Promise.all([loadPlan(), loadLate(), loadPrev()]);
+  if (tok !== S.openTok) return;
+  S.unsubPages?.(); S.unsubDay?.();
 
   S.unsubDay = onSnapshot(doc(db, "att_days", S.site + "__" + S.date), snap => {
     S.day = snap.exists() ? snap.data() : null;
@@ -767,11 +783,13 @@ function lockedForMe() {
 async function loadPrev() {
   S.prevIn = {}; S.prevOut = {};
   if (!S.timed) return;
-  const d = new Date(S.date + "T00:00:00"); d.setDate(d.getDate() - 1);
+  const site = S.site, date = S.date, pin = {}, pout = {};
+  const d = new Date(date + "T00:00:00"); d.setDate(d.getDate() - 1);
   try {
-    const p = await getDoc(doc(db, "att_days", S.site + "__" + ymd(d)));
-    Object.entries(p.exists() ? p.data().entries || {} : {}).forEach(([k, e]) => { if (e.s === "P" && e.in && e.min != null && !e.t_issue) { S.prevIn[k] = e.in; S.prevOut[k] = e.out || ""; } });
+    const p = await getDoc(doc(db, "att_days", site + "__" + ymd(d)));
+    Object.entries(p.exists() ? p.data().entries || {} : {}).forEach(([k, e]) => { if (e.s === "P" && e.in && e.min != null && !e.t_issue) { pin[k] = e.in; pout[k] = e.out || ""; } });
   } catch (e) {}
+  if (site === S.site && date === S.date) { S.prevIn = pin; S.prevOut = pout; }
 }
 // بديل الراحات (اسمه مكتوب قدام الغايب من غير ساعة): ساعة مقترحة، والمحاسب بيأكدها أو يعدّلها في الاعتماد.
 // 1) وردية العامل الأصلي امبارح  2) الأكتر بين زمايله في نفس الوظيفة النهارده  3) الوردية العادية للوظيفة (Code&time)
@@ -1006,10 +1024,9 @@ function render() {
   if (S.over.length) msgs.push("الحاضرين عدّوا العدد المطلوب: " + S.over.map(o => `${o.job} ${fmt(o.n)} والمطلوب ${fmt(o.plan)}`).join("، ") + ". حدد مين اللي مش هيتحسب (علّم عليه غياب).");
   if (msgs.length) show($("checks"), "warn", msgs.join("\n")); else hide($("checks"));
   const btn = $("confirm");
-  btn.textContent = S.regional ? "مراجعة الإقليمي وتأكيد" : "تأكيد الحضور";
   btn.disabled = open > 0 || busy > 0 || lockedForMe();
   $("back-acc").classList.toggle("hidden", !(S.admin && S.day?.status === "approved"));
-  btn.textContent = open > 0 ? `فاضل ${fmt(open)} عامل محتاجين قرار` : busy ? "استنى لحد ما الصور تتقري" : S.over.length ? "العدد أكتر من المطلوب" : (S.day ? "تأكيد التعديل" : "تأكيد الحضور");
+  btn.textContent = open > 0 ? `فاضل ${fmt(open)} عامل محتاجين قرار` : busy ? "استنى لحد ما الصور تتقري" : S.over.length ? "العدد أكتر من المطلوب" : S.regional ? "مراجعة الإقليمي وتأكيد" : (S.day ? "تأكيد التعديل" : "تأكيد الحضور");
 }
 
 $("workers").addEventListener("click", e => {
@@ -1440,7 +1457,7 @@ function renderManage() {
     `<div class="w"><div class="nm"><b>${esc(r.name)}</b><small>${esc(r.reason)}${r.note ? " — " + esc(r.note) : ""}</small></div><button class="btn sec small" data-restore="${esc(r.id)}">رجّعه</button></div>`).join("") : "";
 }
 // بحث عن اسم للشيل: كل ما يكتب حرف القايمة تقرب لحد ما يختار
-const rmNorm = s => String(s ?? "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/\s+/g, " ").trim();
+const rmNorm = s => enDigits(s).replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/\s+/g, " ").trim();
 function renderRmHits() {
   const q = rmNorm($("m-q").value); if (!q || $("m-who").value) { $("m-hits").innerHTML = ""; return; }
   const words = q.split(" ");
@@ -1517,7 +1534,7 @@ function openNc() {
 }
 $("ncm-close").addEventListener("click", () => $("ncm").classList.add("hidden"));
 $("nc-ok").addEventListener("click", async () => {
-  const name = $("nc-name").value.replace(/\s+/g, " ").trim(), nid = $("nc-nid").value.replace(/\D/g, ""), job = $("nc-job").value, typ = $("nc-type").value;
+  const name = $("nc-name").value.replace(/\s+/g, " ").trim(), nid = enDigits($("nc-nid").value).replace(/\D/g, ""), job = $("nc-job").value, typ = $("nc-type").value;
   if (!name || name.split(" ").length < 3) return show($("nc-msg"), "err", "اكتب الاسم ثلاثي على الأقل.");
   const age = nidAge(nid);
   if (age == null) return show($("nc-msg"), "err", "الرقم القومى لازم 14 رقم وصحيح.");
@@ -1556,9 +1573,14 @@ async function compressCard(file, limit = 460000, maxSide = 1400) {
   }
   throw new Error("الصورة كبيرة جداً");
 }
+// صاحب الصف اللي هيتسجل له بديل: عامل في القوة، أو صف قديم في الكشف (S.roster)، أو بديل راحات مطبوع (مفتاحه R+الرقم القومي)
+function targetWorker(target) {
+  return S.rosterNow.find(x => x.code === target) || S.roster.find(x => x.code === target)
+    || (S.pool || []).find(p => subKey(p) === target) || null;
+}
 function openId(purpose, target) {
   ID.purpose = purpose; ID.target = target || null; ID.check = null; ID.result = null; ID.unsub?.();
-  const w = target ? S.rosterNow.find(x => x.code === target) : null;
+  const w = target ? targetWorker(target) : null;
   $("idm-title").textContent = purpose === "roster" ? "إضافة عامل جديد للكشف" : "بديل جديد";
   $("idm-sub").textContent = purpose === "roster" ? "صوّر وش بطاقة العامل. الاسم والرقم القومي بيتسجلوا زي البطاقة بالظبط."
     : `بديل لـ ${w?.name || ""}. صوّر وش بطاقته، وبعدها هيفضل في قايمة البدلاء.`;
@@ -1637,7 +1659,7 @@ $("idm-ok").addEventListener("click", async () => {
         throw new Error("العامل ده ممنوع تشغيله في تيما. راجع الإدارة.");
       }
       await setDoc(doc(db, "new_workers", d.nid), { nid: d.nid, name: d.name, site: S.site,
-        job: ID.purpose === "roster" ? $("idm-job").value : (S.rosterNow.find(x => x.code === ID.target)?.job || ""),
+        job: ID.purpose === "roster" ? $("idm-job").value : (targetWorker(ID.target)?.job || ""),
         ...(typ ? { type: typ } : {}),
         role: ID.purpose === "roster" && !toRoster ? "replacement" : ID.purpose, check_id: ID.check, first_day: S.date, added_by: u.uid, added_email: actorEmail(u), at: serverTimestamp() });
     }
@@ -1761,7 +1783,7 @@ function renderLvList() {
   const rows = LV.list.filter(e => (e.to || e.from || "") >= c || e.status === "pending" || e.status === "client_wait")
     .sort((a, b) => String(b.from).localeCompare(String(a.from)));
   $("lv-list").innerHTML = rows.length ? rows.map(e => {
-    const [st, cls] = LV_ST[e.status] || [e.status, "p-grey"];
+    const [st, cls] = LV_ST[e.status] || [esc(e.status), "p-grey"];
     const moved = e.original && (e.original.from !== e.from || e.original.to !== e.to)
       ? `<div class="muted">اتعدلت من ${esc(e.original.from)} → ${esc(e.original.to)}</div>` : "";
     const why = e.status === "rejected" && e.note ? `<div class="muted">السبب: ${esc(e.note)}</div>` : "";
@@ -1802,7 +1824,7 @@ function lvCheck() {
   if (!f || !t) err = "حدد من ولحد";
   else if (t < f) err = "«لحد» قبل «من»";
   // الإجازة والمرضي وإصابة العمل للأساسي بس (بيبسي وشيبسي والإمداد) — اليومية وبدايل الراحات لأ
-  else if (LV.who && !["اساسي", "جديد"].includes(LV.who.type)) err = "الإجازة والمرضي للأساسي بس — العامل ده مش أساسي";
+  else if (LV.who && !isBasic(LV.who.type)) err = "الإجازة والمرضي للأساسي بس — العامل ده مش أساسي";
   $("lv-days").textContent = err || `${lvWorkDays(f, t)} يوم (الجمعة مش بتتحسب)`;
   const ov = !err && LV.who ? lvOverlap(LV.who, f, t) : null;
   if (ov) show($("lv-m"), "warn", `فيه طلب تاني لنفس العامل في الأيام دي (${lvTyTxt(ov)} من ${ov.from} لحد ${ov.to} — ${(LV_ST[ov.status] || [ov.status])[0]}).`);
