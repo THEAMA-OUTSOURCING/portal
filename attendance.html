@@ -693,7 +693,7 @@ function aiState() {
     (p.result?.rows || []).forEach(r => { const m = rowMatch(r); if (m && m.code !== r.code && !map[m.code]) map[m.code] = { ...r, code: m.code, match: m.how, page: p.id }; });
   });
   livePages().forEach(p => {
-    (p.result?.extra || []).forEach(x => {
+    (p.result?.extra || []).forEach((x, i) => {
       const w = matchExtra(x);
       if (w && !map[w.code]) map[w.code] = { s: "P", conf: "M", match: "handwritten", note: x.note || "", code: w.code, page: p.id };
       // مااتطابقش لوحده والمشرف اختاره بنفسه من عمال الكشف
