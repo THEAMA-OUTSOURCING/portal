@@ -223,7 +223,7 @@ async function fixNids() {
       const w = pick[key];
       if (!w || d.entries[w.nid]) continue;   // نفس العامل متسجل بالرقم الصح في نفس اليوم: نسيب الاتنين زي ما هما
       delete d.entries[k];
-      d.entries[w.nid] = { ...e, nid: w.nid, nid_from: n };
+      d.entries[w.nid] = { ...e, nid: w.nid, code: String(e.code || "") === n ? w.nid : e.code, nid_from: n };   // الكود في إمداد = الرقم القومي، فيتصلح معاه
     }
   }
 }
