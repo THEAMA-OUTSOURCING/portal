@@ -26,6 +26,7 @@
       beforeBreadcrumb: function (b) {
         // مفيش تسجيل للضغطات أو الكلام اللي بيتكتب، وطلبات الشبكة من غير البارامترات
         if (b.category === "ui.input" || b.category === "ui.click") return null;
+        if (b.category === "console") delete b.data;   // الرسالة بس (متنضّفة تحت) — من غير الحاجات اللي اتطبعت معاها (ممكن يبقى فيها بيانات عامل)
         if (b.data && b.data.url) b.data.url = cleanUrl(b.data.url);
         if (b.message) b.message = scrub(b.message);
         return b;

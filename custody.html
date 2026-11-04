@@ -216,10 +216,10 @@ th{color:#6a6e75;font-weight:500;}
 <script type="module">
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, writeBatch, query, where, onSnapshot, runTransaction, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, SUP_SITES, ask } from './shared.js?v=20261104b';
+import { db, auth, actorEmail, SUP_SITES, ask } from './shared.js?v=20261104e';
 
 const $ = id => document.getElementById(id);
-const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
 function hide(el) { el.className = "msg"; }
 const ymd = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
@@ -248,7 +248,7 @@ const S = { user: null, admin: false, canEdit: false, sites: [], site: "", cycle
 
 // ===== الدخول =====
 $("l-btn").onclick = async () => { try { await signInWithEmailAndPassword(auth, $("l-email").value.trim(), $("l-pass").value); } catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); } };
-$("logout").onclick = () => signOut(auth); $("d-out").onclick = () => signOut(auth);
+$("logout").onclick = () => signOut(auth).finally(() => location.reload()); $("d-out").onclick = () => signOut(auth).finally(() => location.reload());
 
 onAuthStateChanged(auth, async user => {
   ["login", "denied", "app"].forEach(id => $(id).classList.add("hidden"));
@@ -298,6 +298,7 @@ function openSite() {
   if ($("site").value === STORE) return openStore();
   S.site = $("site").value; S.cycle = null; S.roster = []; S.docs = {}; S.stock = []; S.removals = {};
   hide($("w-msg")); hide($("cy-msg"));
+  $("cy-start").value = ""; S.cyAuto = "";   // الشهر المقترح للدورة يتحسب لكل فرع من جديد (مايفضلش من الفرع اللي قبله)
   render();
   const err = what => e => show($("w-msg"), "err", "مقدرتش أقرا " + what + ": " + (e.code === "permission-denied" ? "مفيش صلاحية" : e.message));
   S.unsubs.push(onSnapshot(doc(db, "custody_cycles", S.site), snap => { S.cycle = snap.exists() ? snap.data() : null; render(); }, err("الدورة")));
@@ -348,7 +349,8 @@ function render() {
   }
   if (S.admin) {
     const st = $("cy-start");
-    if (!st.value) st.value = cy ? addMonths(cy.end, 1) : ym(new Date());
+    const sug = cy ? addMonths(cy.end, 1) : ym(new Date());
+    if (!st.value || st.value === S.cyAuto) { st.value = sug; S.cyAuto = sug; }   // الاقتراح بيتحدث لما بيانات الدورة توصل — إلا لو الأدمن كتب شهر بإيده
     $("cy-end").textContent = st.value ? "لحد " + monthAr(addMonths(st.value, 5)) : "";
     $("cy-go").textContent = cy ? "ابدأ الدورة الجاية" : "ابدأ دورة";
     $("st-log").innerHTML = S.stock.slice().sort((a, b) => (b.at?.seconds || 0) - (a.at?.seconds || 0)).map(s =>
@@ -598,7 +600,7 @@ $("rep-needs").onclick = async () => {
         const [it, sz] = k.split("|"); if (n <= 0) return;
         const lab = ITEM[it].ar + (ITEM[it].pieces > 1 ? " (قطعة)" : "");
         const t = (tot[ITEM[it].ar + "|" + sz] = tot[ITEM[it].ar + "|" + sz] || [lab, sz, 0, 0, 0]);
-        t[5] = n; t[4] = Math.max(0, t[2] - t[3] - n);
+        t[5] = n; t[4] = Math.max(0, t[4] - n);   // اللي ناقص في الفروع (فرع زيادة مابيغطيش فرع ناقص) − المخزن العام
       });
       html += `<h2 style="margin-top:6px;">الإجمالي</h2>` + `<div style="overflow-x:auto;"><table><thead><tr><th>الصنف</th><th>المقاس</th><th>المطلوب</th><th>في الفروع</th>${sto ? "<th>في المخزن العام</th>" : ""}<th>هنشتري</th></tr></thead><tbody>${
         Object.values(tot).map(t => `<tr><td>${esc(t[0])}</td><td>${esc(t[1])}</td><td class="num">${t[2]}</td><td class="num">${t[3]}</td>${sto ? `<td class="num">${t[5] || 0}</td>` : ""}<td class="num"><b>${t[4]}</b></td></tr>`).join("")}</tbody></table></div><h2 style="margin-top:12px;">بالفرع</h2>`;

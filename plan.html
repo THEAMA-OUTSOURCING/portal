@@ -18,7 +18,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <script src="sentry.js"></script>
 <script src="https://js-de.sentry-cdn.com/9e9117440dc053dd5910abeaf878fa7a.min.js" crossorigin="anonymous"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.49.0/dist/tabler-icons.min.css" integrity="sha384-IcAOG/1tqv9Qnam+j3mZYPAFcNQMnQpMcafc8Nsvd44AUeTCzhUzdQiJkrROmqW6" crossorigin="anonymous">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -411,8 +411,8 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
 <script type="module">
 import { getFirestore, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, ask, tell } from './shared.js?v=20261104b';
-import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261104b';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, ask, tell } from './shared.js?v=20261104e';
+import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261104e';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====
@@ -453,7 +453,7 @@ const short = loc => norm(loc).replace(/\s*Bev-EGY$/i, "");
 const fmt = n => Number(n || 0).toLocaleString("ar-EG");
 const sign = n => (n > 0 ? "+" : n < 0 ? "−" : "") + fmt(Math.abs(n));
 const cls = d => d < 0 ? "s" : d > 0 ? "o" : "k";
-const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const ckey = (loc, pos) => norm(loc) + "|" + nkey(pos);
 function show(el, type, text) { el.className = "msg show " + type; el.textContent = text; }
 function hide(el) { el.className = "msg"; el.textContent = ""; }
@@ -472,8 +472,8 @@ $("l-btn").addEventListener("click", async () => {
   catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); }
 });
 $("l-pass").addEventListener("keydown", e => { if (e.key === "Enter") $("l-btn").click(); });
-$("logout").addEventListener("click", () => signOut(auth));
-$("d-out").addEventListener("click", () => signOut(auth));
+$("logout").addEventListener("click", () => signOut(auth).finally(() => location.reload()));
+$("d-out").addEventListener("click", () => signOut(auth).finally(() => location.reload()));
 
 onAuthStateChanged(auth, async user => {
   ["login", "denied", "app"].forEach(id => $(id).classList.add("hidden"));
@@ -484,7 +484,7 @@ onAuthStateChanged(auth, async user => {
   S.role = role;
   // HR أو محاسب ليه فروع: بيانات العمال لفروعه بس
   S.scoped = ["hr", "accountant"].includes(role) && Array.isArray(claims.sites) && claims.sites.length ? claims.sites : null;
-  if (S.scoped) W_SITES = SUP_SITES.filter(s => S.scoped.includes(s));
+  W_SITES = S.scoped ? SUP_SITES.filter(s => S.scoped.includes(s)) : [...SUP_SITES, SHARQIA_SITE];   // من جديد مع كل دخول (لو حساب تاني دخل من نفس الصفحة)
   document.body.classList.toggle("view-only", role === "viewer");
   document.querySelectorAll(".admin-only").forEach(el => el.classList.toggle("hidden", role !== "admin"));
   $("who").textContent = (user.email || "") + " — " + ({ admin: "أدمن", hr: "HR", accountant: "محاسب", viewer: "مشاهد (عرض بس)" }[role]);
@@ -507,7 +507,7 @@ async function loadAll() {
   S.plans = {}; plansSnap.forEach(d => S.plans[d.id] = d.data());
   S.settings = setSnap.exists() ? setSnap.data() : null;
   const months = Object.keys(S.plans).sort().reverse();
-  if (!months.includes(S.month) && months.length) S.month = months[0];
+  if (!months.includes(S.month) && months.length) S.month = months.find(m => m <= thisMonth()) || months[0];   // مش شهر جاي اترفع بدري
   const sel = $("month");
   const opts = [...new Set([S.month, thisMonth(), ...months])].sort().reverse();
   sel.innerHTML = opts.map(m => `<option value="${m}">${monthLabel(m)}${S.plans[m] ? "" : " (مفيش شيت)"}</option>`).join("");
@@ -1248,7 +1248,7 @@ function ficheDue(first) {
 }
 function ficheCell(x) {
   if (x.fiche) return `<span class="c-k">اترفع</span>`;
-  const due = ficheDue(x.first_day), late = due && new Date() > due;
+  const due = ficheDue(x.first_day), late = due && ymdOf(new Date()) > ymdOf(due);   // يوم المهلة نفسه لسه مسموح (زي صفحة الحضور)
   const can = (auth.currentUser?.email || "").toLowerCase() === FICHE_EXCEPTION_EMAIL;
   let h = due ? `<span class="${late ? "c-s" : "muted"}">${late ? "المهلة خلصت" : "لحد"} ${due.toLocaleDateString("ar-EG", { day: "numeric", month: "short" })}</span>` : "";
   if (x.fiche_exception) h += ` <span class="amd">استثناء</span>`;
@@ -1263,7 +1263,7 @@ $("w-new-xl")?.addEventListener("click", () => {
   const fiche = x => {
     if (x.fiche) return "اترفع";
     const due = ficheDue(x.first_day);
-    return (due ? (new Date() > due ? "المهلة خلصت " : "لحد ") + ymdOf(due) : "") + (x.fiche_exception ? " (استثناء)" : "");
+    return (due ? (ymdOf(new Date()) > ymdOf(due) ? "المهلة خلصت " : "لحد ") + ymdOf(due) : "") + (x.fiche_exception ? " (استثناء)" : "");
   };
   const aoa = [["الاسم", "الرقم القومى", "الموقع", "الوظيفة", "النوع", "اتضاف كـ", "البطاقة", "أول يوم", "اتضاف يوم", "الفيش"],
     ...rows.map(x => [x.name || "", String(x.nid || ""), x.site || "", x.job || "", x.type ? typeLabel(x.type) : (x.role === "roster" ? "جديد (مستني)" : "بديل جديد"),

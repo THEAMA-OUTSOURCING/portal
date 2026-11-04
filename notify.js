@@ -6,7 +6,7 @@
 // - كل مستلم ليه نسخة في notif_inbox (id = uid__id) — منها «اتقرا إمتى» و«قرأه كام واحد».
 // - الإشعارات ما بتتمسحش. الجرس بيعرض آخر 14 يوم، والأقدم بزرار «عرض الأقدم».
 // - توفير القراءات: أول ما الصفحة تفتح = عدّ بس (قراية واحدة)، والقايمة بتتحمل لما حد يدوس على الجرس.
-import { tell, askText } from './shared.js?v=20261104b';
+import { tell, askText } from './shared.js?v=20261104e';
 import { collection, doc, getDoc, getDocs, query, where, orderBy, limit, startAfter, writeBatch,
          serverTimestamp, getCountFromServer, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
@@ -67,6 +67,7 @@ function emailsIn(o) {
 
 function teardown() {
   ME = null; if (TIMER) clearInterval(TIMER); TIMER = null;
+  PENDING_N = 0; STAFF_CACHE = null;   // مايتنقلوش لحساب تاني يدخل من نفس الصفحة
   document.getElementById("nb-btn")?.remove(); document.getElementById("nb-panel")?.remove();
 }
 
@@ -112,6 +113,7 @@ function style() {
   document.head.appendChild(s);
 }
 
+let CLICK_ON = false;
 function mount() {
   style();
   const b = document.createElement("button");
@@ -119,10 +121,13 @@ function mount() {
   b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>';
   b.onclick = togglePanel;
   document.body.appendChild(b);
+  if (CLICK_ON) return;   // مرة واحدة بس (mount بيتنادى مع كل دخول)
+  CLICK_ON = true;
   document.addEventListener("click", e => {
     const p = document.getElementById("nb-panel");
     // composedPath: المسار وقت الضغطة نفسها (لو الزرار اتشال بعدها، لسه معروف إنه كان جوه اللوحة)
     const path = e.composedPath();
+    if (path.some(n => n.tagName === "DIALOG") || document.querySelector("dialog[open]")) return;   // الضغط جوه رسالة تأكيد (زي سبب الرفض) مايقفلش اللوحة
     if (p && !path.includes(p) && !path.includes(document.getElementById("nb-btn")) && !document.getElementById("nb-view")) p.remove();
   });
 }
@@ -167,7 +172,9 @@ function togglePanel() {
 }
 const body = () => document.querySelector("#nb-panel .nb-body");
 function showTab() {
-  const b = body(); if (!b) return;
+  // كل مرة جسم جديد: لو تاب قديم لسه بيحمّل وخلص بعدين، بيكتب في الجسم القديم اللي اتشال (مش بيبوّظ التاب الجديد)
+  const old = body(); if (!old) return;
+  const b = document.createElement("div"); b.className = "nb-body"; old.replaceWith(b);
   b.innerHTML = '<div class="nb-muted">جاري التحميل...</div>';
   ({ inbox: tabInbox, send: tabSend, mine: tabMine, pending: tabPending })[TAB]().catch(e => { b.innerHTML = `<div class="nb-err">${esc(errText(e))}</div>`; });
 }
@@ -183,6 +190,7 @@ async function tabInbox() {
   const b = body();
   const cut = Timestamp.fromDate(new Date(Date.now() - DAYS_SHOWN * 864e5));
   const snap = await getDocs(query(collection(DB, "notif_inbox"), where("uid", "==", ME.uid), where("sent_at", ">=", cut), orderBy("sent_at", "desc"), limit(50)));
+  if (!b) return;
   b.innerHTML = snap.empty ? `<div class="nb-muted">مفيش إشعارات في آخر ${DAYS_SHOWN} يوم.</div>` : "";
   snap.docs.forEach(d => b.appendChild(inboxItem(d)));
   LAST_OLD = null;
@@ -203,7 +211,7 @@ async function tabInbox() {
     } catch (e) { more.disabled = false; tell(errText(e)); }
   };
   b.appendChild(more);
-  markRead(snap.docs);
+  if (b.isConnected) markRead(snap.docs);   // ماتتعلّمش «اتقرت» لو المستخدم راح لتاب تاني قبل ما تظهر
 }
 function inboxItem(d) {
   const x = d.data();

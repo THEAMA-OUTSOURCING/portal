@@ -174,9 +174,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
 <script type="module">
 import { getFirestore, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, SUP_SITES, isBasic, ask } from './shared.js?v=20261104b';
+import { db, auth, actorEmail, SUP_SITES, isBasic, ask } from './shared.js?v=20261104e';
 const $ = id => document.getElementById(id);
-const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
 const TY = { sick: "مرضي", leave: "إجازة", resign: "استقالة" };
 const ST = { pending: "مستني HR تيما", client_wait: "مستني رد العميل", approved: "معتمد", rejected: "مرفوض" };
@@ -610,7 +610,7 @@ let VIEW = false;   // المشاهد: عرض بس
 let SCOPED = null;
 function evQ(...w) { return SCOPED ? query(collection(db, "hr_events"), ...w, where("site", "in", SCOPED)) : query(collection(db, "hr_events"), ...w); }
 $("l-btn").onclick = async () => { try { await signInWithEmailAndPassword(auth, $("l-email").value.trim(), $("l-pass").value); } catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); } };
-$("logout").onclick = () => signOut(auth); $("d-out").onclick = () => signOut(auth);
+$("logout").onclick = () => signOut(auth).finally(() => location.reload()); $("d-out").onclick = () => signOut(auth).finally(() => location.reload());
 onAuthStateChanged(auth, async user => {
   ["login", "denied", "app"].forEach(i => $(i).classList.add("hidden"));
   if (!user) return $("login").classList.remove("hidden");
@@ -801,7 +801,7 @@ $("list").onclick = async e => {
   }
   if (ds.back) {
     const st = ev.status === "client_wait" ? "مستنية رد العميل" : ev.status === "approved" ? "معتمدة" : ev.status === "rejected" ? "مرفوضة" : "متسجلة";
-    if (!(await ask(`${ev.name} — ${tyTxt(ev)} ${ev.from ? `من ${ev.from} لحد ${ev.to}` : ""}\nالحالة دي ${st} دلوقتي.\n\nترجّعها «مستنية HR تيما»؟ ${ev.status === "approved" || ev.client ? "الاعتماد ورد العميل هيتشالوا، ولازم تتعتمد من الأول." : "القرار اللي عليها هيتشال."}`, { ok: "رجّعها", danger: true }))) return;
+    if (!(await ask(`${ev.name} — ${tyTxt(ev)} ${ev.from ? `من ${ev.from} لحد ${ev.to}` : ""}\nالحالة دي ${st} دلوقتي.\n\nترجّعها «مستنية HR تيما»؟ ${ev.status === "approved" || ev.client ? "الاعتماد ورد العميل هيتشالوا، ولازم تتعتمد من الأول." : ev.status === "client_wait" ? "موافقة HR تيما هتتشال، ولازم توافق عليها تاني." : ev.status === "rejected" ? "الرفض هيتشال." : "القرار اللي عليها هيتشال."}`, { ok: "رجّعها", danger: true }))) return;
     return save(id, { status: "pending", decided_by: null, decided_email: null, decided_at: null, hr_ok_by: null, hr_ok_email: null, hr_ok_at: null, client: null, approved_days: null, client_limit: null }, "رجعت «مستني HR تيما».");
   }
   if (ds.cok) return save(id, clientUpd(ev, "approved", ev.from, ev.to, note), "اتسجل إن العميل وافق.");

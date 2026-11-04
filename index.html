@@ -18,7 +18,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <script src="sentry.js"></script>
 <script src="https://js-de.sentry-cdn.com/9e9117440dc053dd5910abeaf878fa7a.min.js" crossorigin="anonymous"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.49.0/dist/tabler-icons.min.css" integrity="sha384-IcAOG/1tqv9Qnam+j3mZYPAFcNQMnQpMcafc8Nsvd44AUeTCzhUzdQiJkrROmqW6" crossorigin="anonymous">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
@@ -463,7 +463,7 @@ document.addEventListener("click", function (e) {
 <script type="module">
 import { getFirestore, collection, getDocs, addDoc, deleteDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ask, tell, askText } from './shared.js?v=20261104b';
+import { db, auth, actorEmail, ask, tell, askText } from './shared.js?v=20261104e';
 
 
 let loggedUser = null;
@@ -546,20 +546,23 @@ async function checkAdminPass(){
   const errEl = document.getElementById('admin-error');
   errEl.style.display='none';
   if(!email || !p){document.getElementById('admin-error-msg').textContent='ادخل الإيميل والباسورد';errEl.style.display='block';return;}
+  if(ADMIN_BUSY) return;   // Enter مرتين بسرعة مايبدأش دخولين
+  ADMIN_BUSY = true;
   try{
     await signInWithEmailAndPassword(auth, email, p);
     // إظهار لوحة الرفع بيتم تلقائياً من onAuthStateChanged
   }catch(e){
     document.getElementById('admin-error-msg').textContent='الإيميل أو الباسورد غلط';
     errEl.style.display='block';
-  }
+  }finally{ ADMIN_BUSY = false; }
 }
+let ADMIN_BUSY = false;
 window.checkAdminPass = checkAdminPass;
 
 // خروج الإدارة
 async function adminLogout(){
-  await signOut(auth);
-  showScreen('login-screen');
+  try{ await signOut(auth); }catch(e){}
+  location.reload();   // تحميل من جديد = مفيش مرتبات أو بيانات فاضلة في الصفحة بعد الخروج (لو الجهاز بيتشارك)
 }
 window.adminLogout = adminLogout;
 
@@ -968,10 +971,13 @@ window.uploadSheet = uploadSheet;
 // ===== مسح البيانات =====
 async function confirmClear(){
   if(!await ask('هتمسح كل بيانات الرواتب. متأكد؟', { ok: "امسح الكل", danger: true })) return;
-  const snap = await getDocs(collection(db,'payroll'));
-  for(let i=0; i<snap.docs.length; i+=400){
-    const b = writeBatch(db); snap.docs.slice(i,i+400).forEach(d=>b.delete(d.ref)); await b.commit();
-  }
+  try{
+    const snap = await getDocs(collection(db,'payroll'));
+    for(let i=0; i<snap.docs.length; i+=400){
+      const b = writeBatch(db); snap.docs.slice(i,i+400).forEach(d=>b.delete(d.ref)); await b.commit();
+    }
+  }catch(e){ tell('المسح ماكملش: '+(e.code==='permission-denied'?'مش مسموح لحسابك':e.message)+'\nممكن يكون اتمسح جزء — دوس مسح تاني.'); return; }
+  showPayVis().catch(()=>{});   // مدة ظهور المرتب تتحدث بعد المسح
   tell('تم مسح كل البيانات');
 }
 window.confirmClear = confirmClear;
@@ -1339,6 +1345,7 @@ async function lookupSalary(){
   const errEl = document.getElementById('search-sal-error');
   const msgEl = document.getElementById('search-sal-error-msg');
   const btn = document.getElementById('search-sal-btn');
+  if(btn.disabled) return;   // Enter مرتين بسرعة مايبدأش بحثين
   const fail = m=>{ msgEl.textContent = m; errEl.style.display = 'block'; };
   errEl.style.display = 'none';
   if(!code){ fail('ادخل كود الموظف'); return; }
@@ -1386,6 +1393,19 @@ async function doLogout(){
 window.doLogout = doLogout;
 
 // ===== عرض الكارنيه الطبي (PDF) على كل الأجهزة =====
+// نوع الملف من أول بايتات الملف نفسه (مش من النوع المكتوب في المستند): PDF أو صورة بس.
+// أي حاجة تانية (زي صفحة HTML) لو اتفتحت في تاب جديد كانت هتشتغل كأنها جزء من البوابة، فبتتعامل كملف للتحميل بس.
+function cardType(stored, b){
+  const at = (i, ...v) => v.every((x, k) => b[i + k] === x);
+  if(b && b.length > 12){
+    if(at(0, 0x25, 0x50, 0x44, 0x46)) return 'application/pdf';                       // %PDF
+    if(at(0, 0xFF, 0xD8, 0xFF)) return 'image/jpeg';
+    if(at(0, 0x89, 0x50, 0x4E, 0x47)) return 'image/png';
+    if(at(0, 0x52, 0x49, 0x46, 0x46) && at(8, 0x57, 0x45, 0x42, 0x50)) return 'image/webp'; // RIFF....WEBP
+    if(at(0, 0x47, 0x49, 0x46, 0x38)) return 'image/gif';
+  }
+  return 'application/octet-stream';
+}
 // متصفحات الموبايل مش بتعرض PDF جوه iframe (بتطلع زرار تحميل/فتح بس)،
 // فبنرسم صفحات الـ PDF صور بـ pdf.js — تظهر على الموبايل والكمبيوتر، والعامل يقدر يضغط عليها مطوّلاً ويحفظها.
 const PDFJS_BASE = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/';
@@ -1395,6 +1415,7 @@ function loadPdfJs(){
   if(!pdfjsReady) pdfjsReady = new Promise((ok,fail)=>{
     const sc = document.createElement('script');
     sc.src = PDFJS_BASE+'pdf.min.js';
+    sc.integrity = 'sha384-OemFRmhjDZwhIKuUld0HJozkF2YErsgDaCL41trxGQZt4/WgnopJQqQl2DvDZ07Z'; sc.crossOrigin = 'anonymous';   // لو الملف على الـ CDN اتغيّر مايشتغلش
     sc.onload = ()=>{ if(!window.pdfjsLib){ fail(new Error('pdf.js')); return; }
       window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_BASE+'pdf.worker.min.js'; ok(window.pdfjsLib); };
     sc.onerror = ()=>{ pdfjsReady = null; fail(new Error('pdf.js مااتحمّلش')); };
@@ -1470,13 +1491,12 @@ async function openMedicalCard(){
 
     const d = snap.data();
     const b64 = d.data;
-    const type = d.contentType || 'application/pdf';
-    currentCardType = type;
-
     // نحوّل base64 لـ Blob ونعمل رابط مؤقت
     const byteChars = atob(b64);
     const bytes = new Uint8Array(byteChars.length);
     for(let i=0;i<byteChars.length;i++) bytes[i] = byteChars.charCodeAt(i);
+    const type = cardType(d.contentType, bytes);
+    currentCardType = type;
     const blob = new Blob([bytes], {type});
     currentCardUrl = URL.createObjectURL(blob);
 
@@ -1602,7 +1622,7 @@ async function saveRequest(){
   }
 
   btn.disabled = true;
-  const oldTxt = btn.textContent;
+  const oldTxt = btn.innerHTML;   // innerHTML عشان الأيقونة ماتضيعش بعد أول مرة
   btn.textContent = 'جاري الحفظ...';
   try{
     const r = loggedUser.rows[0];
@@ -1627,7 +1647,7 @@ async function saveRequest(){
     console.error('save request error:', e);
   }finally{
     btn.disabled = false;
-    btn.textContent = oldTxt;
+    btn.innerHTML = oldTxt;
   }
 }
 window.saveRequest = saveRequest;
@@ -1639,7 +1659,7 @@ async function exportRequests(){
   const btn = document.getElementById('req-export-btn');
   errEl.style.display = 'none';
   btn.disabled = true;
-  const oldTxt = btn.textContent;
+  const oldTxt = btn.innerHTML;   // innerHTML عشان الأيقونة ماتضيعش بعد أول مرة
   btn.textContent = 'جاري التحميل...';
   try{
     const snap = await getDocs(collection(db,'employee_requests'));
@@ -1676,7 +1696,7 @@ async function exportRequests(){
     console.error('export requests error:', e);
   }finally{
     btn.disabled = false;
-    btn.textContent = oldTxt;
+    btn.innerHTML = oldTxt;
   }
 }
 window.exportRequests = exportRequests;
@@ -1715,11 +1735,11 @@ async function searchMedicalCard(){
       return;
     }
     const d = snap.data();
-    const type = d.contentType || 'application/pdf';
-    adminCardType = type;
     const byteChars = atob(d.data);
     const bytes = new Uint8Array(byteChars.length);
     for(let i=0;i<byteChars.length;i++) bytes[i] = byteChars.charCodeAt(i);
+    const type = cardType(d.contentType, bytes);
+    adminCardType = type;
     const blob = new Blob([bytes], {type});
     adminCardUrl = URL.createObjectURL(blob);
     const preview = document.getElementById('search-card-preview');

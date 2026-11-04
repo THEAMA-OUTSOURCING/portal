@@ -18,7 +18,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <script src="sentry.js"></script>
 <script src="https://js-de.sentry-cdn.com/9e9117440dc053dd5910abeaf878fa7a.min.js" crossorigin="anonymous"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.49.0/dist/tabler-icons.min.css" integrity="sha384-IcAOG/1tqv9Qnam+j3mZYPAFcNQMnQpMcafc8Nsvd44AUeTCzhUzdQiJkrROmqW6" crossorigin="anonymous">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
@@ -219,8 +219,8 @@ th{background:#1d2024;}
 <script type="module">
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite, ask } from './shared.js?v=20261104b';
-import { printOrder } from './sheet.js?v=20261104b';
+import { db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite, ask } from './shared.js?v=20261104e';
+import { printOrder } from './sheet.js?v=20261104e';
 
 // مواقع الساعات: الإضافي النهاري والليلي (بالدقايق) على خانة اليوم — والوقت اللي محتاج مراجعة بيتعلّم ومايتحسبش
 const TB_TIP = "الوقت محتاج مراجعة — اليوم ده مش محسوب في الإضافي";
@@ -238,7 +238,7 @@ function cellOf(e, app) {
 }
 const DAYN = ["الحد", "الاتنين", "التلات", "الأربع", "الخميس", "الجمعة", "السبت"];
 const $ = id => document.getElementById(id);
-const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const pad = n => String(n).padStart(2, "0");
 const ymd = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
@@ -246,7 +246,7 @@ function hide(el) { el.className = "msg"; }
 const S = { role: null, sites: [], office: false, report: null };
 
 $("l-btn").onclick = async () => { try { await signInWithEmailAndPassword(auth, $("l-email").value.trim(), $("l-pass").value); } catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); } };
-$("logout").onclick = () => signOut(auth); $("d-out").onclick = () => signOut(auth);
+$("logout").onclick = () => signOut(auth).finally(() => location.reload()); $("d-out").onclick = () => signOut(auth).finally(() => location.reload());
 
 onAuthStateChanged(auth, async user => {
   ["login", "denied", "app"].forEach(i => $(i).classList.add("hidden"));
@@ -664,6 +664,7 @@ function loadExcelJS() {
   return excelJsP || (excelJsP = new Promise((res, rej) => {
     const s = document.createElement("script");
     s.src = "https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js";
+    s.integrity = "sha384-Pqp51FUN2/qzfxZxBCtF0stpc9ONI6MYZpVqmo8m20SoaQCzf+arZvACkLkirlPz"; s.crossOrigin = "anonymous";   // لو الملف على الـ CDN اتغيّر مايشتغلش
     s.onload = () => res(window.ExcelJS);
     s.onerror = () => { excelJsP = null; rej(new Error("مكتبة الإكسيل ماتحمّلتش")); };
     document.head.appendChild(s);
@@ -935,7 +936,7 @@ $("a-list").onclick = async e => {
   }
   const i = t.dataset.ap ?? t.dataset.un; if (i === undefined || !S.canApprove) return;
   if (t.dataset.un && !await ask("تلغي الاعتماد؟ الإقليمي هيقدر يعدّل اليوم تاني.", { ok: "الغي الاعتماد", danger: true })) return;
-  try { await setStatus(A[+i], !!t.dataset.ap); $("a-go").click(); } catch (er) { show($("a-msg"), "err", "مااتحفظش: " + er.message); }
+  try { await setStatus(A[+i], !!t.dataset.ap); $("a-detail").classList.add("hidden"); $("a-go").click(); } catch (er) { show($("a-msg"), "err", "مااتحفظش: " + er.message); }
 };
 // ترتيب الكشف الورقي لأيام اتأكدت قبل ما الترتيب يتسجل مع اليوم: من ترتيب الكشف الحالي للموقع (كشف العمال + الترتيب + الخطة)
 const ORD_CACHE = {};

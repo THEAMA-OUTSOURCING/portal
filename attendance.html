@@ -18,7 +18,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <script src="sentry.js"></script>
 <script src="https://js-de.sentry-cdn.com/9e9117440dc053dd5910abeaf878fa7a.min.js" crossorigin="anonymous"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.49.0/dist/tabler-icons.min.css" integrity="sha384-IcAOG/1tqv9Qnam+j3mZYPAFcNQMnQpMcafc8Nsvd44AUeTCzhUzdQiJkrROmqW6" crossorigin="anonymous">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
 <style>
@@ -369,13 +369,13 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
 <script type="module">
 import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, isBasic, nearWorkers, ask, tell } from './shared.js?v=20261104b';
-import { openPrintView, openOrderEditor, printOrder } from './sheet.js?v=20261104b';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261104b';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, isBasic, nearWorkers, ask, tell } from './shared.js?v=20261104e';
+import { openPrintView, openOrderEditor, printOrder } from './sheet.js?v=20261104e';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261104e';
 
 
 const $ = id => document.getElementById(id);
-const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = n => Number(n || 0).toLocaleString("ar-EG");
 function show(el, type, text) { el.className = "msg show " + type; el.textContent = text; }
 function hide(el) { el.className = "msg"; el.textContent = ""; }
@@ -427,8 +427,8 @@ $("l-btn").addEventListener("click", async () => {
   catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); }
 });
 $("l-pass").addEventListener("keydown", e => { if (e.key === "Enter") $("l-btn").click(); });
-$("logout").addEventListener("click", () => signOut(auth));
-$("d-out").addEventListener("click", () => signOut(auth));
+$("logout").addEventListener("click", () => signOut(auth).finally(() => location.reload()));
+$("d-out").addEventListener("click", () => signOut(auth).finally(() => location.reload()));
 
 onAuthStateChanged(auth, async user => {
   ["login", "denied", "app"].forEach(id => $(id).classList.add("hidden"));

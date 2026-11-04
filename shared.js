@@ -349,6 +349,10 @@ dialog.tdlg .no{background:#fff;color:#1f2328;border-color:#d0d4da;}
 dialog.tdlg button:focus-visible{outline:3px solid #9cc2ee;outline-offset:2px;}`;
     document.head.appendChild(s);
   }
+  if (typeof window.HTMLDialogElement !== "function" || !window.HTMLDialogElement.prototype.showModal) {
+    // موبايلات قديمة جداً (آيفون قبل iOS 15.4): رسايل المتصفح العادية بدل ما الزرار مايعملش حاجة
+    return Promise.resolve(input !== null ? window.prompt(msg, value) : cancel ? window.confirm(msg) : (window.alert(msg), true));
+  }
   return new Promise(resolve => {
     const d = document.createElement("dialog");
     d.className = "tdlg";
@@ -385,4 +389,4 @@ window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-import('./notify.js?v=20261104b').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+import('./notify.js?v=20261104e').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
