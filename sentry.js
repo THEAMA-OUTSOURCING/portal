@@ -49,8 +49,9 @@
   // بيحصل لما النت يفصل وهو بيحمّل مكتبات Firebase، أو لما الموبايل يجيب نسخة قديمة من shared.js بعد تحديث البوابة.
   // من غيره الزراير (زي «دخول») بتبقى ميتة والعامل مش فاهم في إيه — فبنظهرله شريط فيه زرار «تحديث».
   // shared.js بيحط window.__portalReady أول ما يتحمّل، وكل الصفحات بتستورده.
-  window.addEventListener("load", function () {
-    if (window.__portalReady || document.getElementById("load-fail")) return;
+  // بيظهر لما الصفحة تخلص تحميل وكود البوابة ماتحملش، أو بعد 10 ثواني لو لسه بتحمّل (النت الضعيف ممكن يطوّل الـ load دقايق)
+  var showFail = function () {
+    if (window.__portalReady || document.getElementById("load-fail") || !document.body) return;
     var b = document.createElement("div");
     b.id = "load-fail"; b.setAttribute("role", "alert");
     b.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:6000;background:#a61b12;color:#fff;direction:rtl;" +
@@ -67,5 +68,7 @@
       } else go();
     };
     document.body.appendChild(b);
-  });
+  };
+  window.addEventListener("load", showFail);
+  setTimeout(showFail, 10000);
 })();

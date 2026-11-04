@@ -608,7 +608,20 @@ const ORDER_CSS = `
 #so li.flash{background:#fff3c4;}
 #so .paste{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:8px;margin-top:8px;}
 #so .paste textarea{width:100%;min-height:90px;font:12px monospace;direction:ltr;}
-@media (max-width:560px){#so li button.mv,#so li .nm small{display:none;}}
+/* الموبايل: ▲▼ بتستخبى (فيه خانة المكان و⤒ ⤓)، بس آخر 4 أرقام من الرقم القومي تفضل ظاهرة في سطر لوحدها
+   عشان الاسمين اللي شبه بعض (زي «اسلام ...») يبانوا — والأزرار أكبر عشان الصباع */
+@media (max-width:560px){#so li button.mv{display:none;}
+  #so li .nm small{display:block;margin:2px 0 0;font-size:12.5px;color:#6a6e75;text-align:right;}
+  #so li button,#so li input.pos,#so li select.sec{min-height:40px;font-size:14px;padding:6px 10px;border-radius:9px;}
+  #so li input.pos{width:52px;}
+  /* السطر الأول: ☰ + المكان + الاسم (وتحته آخر 4 أرقام) — والأزرار في السطر اللي بعده */
+  #so li .nm{flex:1 1 calc(100% - 120px);}
+  #so li .h{font-size:22px;padding:6px;}
+  #so .so-tabs button{min-height:40px;font-size:14px;}
+  #so .so-top{padding:6px 0 8px;}#so h2{font-size:16px;}}
+#so .so-help{margin:0 0 8px;font-size:13px;}
+#so .so-help summary{cursor:pointer;color:#185fa5;padding:6px 0;list-style:revert;}
+#so .so-help .muted{line-height:1.7;}
 `;
 
 // opts: { site, roster, subs, order, plan, canEdit, canAdmin (الأقسام ولصق ترتيب جاهز), onSave(doc) → Promise, lastChange: "نص" }
@@ -642,7 +655,6 @@ export async function openOrderEditor(opts) {
   const so = document.createElement("div");
   so.id = "so";
   document.body.appendChild(so);
-  autoHideBar(so, ".so-top");
   const prevOverflow = document.body.style.overflow;
   document.body.style.overflow = "hidden";
   const close = () => { so.remove(); document.body.style.overflow = prevOverflow; };
@@ -693,19 +705,19 @@ export async function openOrderEditor(opts) {
     so.innerHTML = `<div class="so-in">
       <div class="so-top">
         <h2>ترتيب كشف ${esc(opts.site)}</h2>
-        <div class="muted">اكتب رقم المكان في الخانة اللي جنب الاسم (مثلاً 1) ودوس Enter، أو ⤒ لأول الوظيفة و⤓ لآخرها. السحب و▲▼ شغالين برده. ✂ = فاصل صفحة بعد الاسم ده. «شيل» = الاسم مايتطبعش في الكشف. ${esc(opts.lastChange || "")}</div>
         <div class="so-tabs">${types.map(t => `<button data-tab="${t.id}" class="${t.id === tab ? "on" : ""}">${t.label}</button>`).join("")}</div>
-        <div class="so-sum">${summaryHtml(layout)}</div>
-        ${overJobs.length ? `<div class="so-sum"><span class="bad">⚠ زيادة عن المطلوب: ${overJobs.map(j => `${esc(j.job)} (${j.extra.length})`).join("، ")} — دوس «شيل» على اللي مش في الكشف، وإلا اللي في آخر الوظيفة مش هيتطبع</span></div>` : ""}
         <div class="so-acts">
           ${opts.canEdit ? `<button class="btn" data-act="save">حفظ الترتيب</button>` : ""}
           <button class="btn sec" data-act="close">${dirty ? "إلغاء" : "رجوع"}</button>
           ${opts.canEdit && opts.canAdmin ? `<button class="btn sec" data-act="paste">لصق ترتيب جاهز</button>` : ""}
         </div>
-        ${pasteOpen ? `<div class="paste"><div class="muted">الصق هنا كود الترتيب اللي بيجهزه Claude (بيغيّر الترتيب على الشاشة بس — راجعه وبعدين دوس «حفظ الترتيب»).</div>
-          <textarea id="so-paste" spellcheck="false"></textarea><div class="so-acts"><button class="btn" data-act="apply">تطبيق</button><button class="btn sec" data-act="paste">إلغاء</button></div></div>` : ""}
         <div class="msg" id="so-msg"></div>
       </div>
+      <details class="so-help"><summary>إزاي أرتب؟</summary><div class="muted">اكتب رقم المكان في الخانة اللي جنب الاسم (مثلاً 1) ودوس Enter، أو ⤒ لأول الوظيفة و⤓ لآخرها. السحب و▲▼ شغالين برده. ✂ = فاصل صفحة بعد الاسم ده. «شيل» = الاسم مايتطبعش في الكشف. ${esc(opts.lastChange || "")}</div></details>
+        <div class="so-sum">${summaryHtml(layout)}</div>
+        ${overJobs.length ? `<div class="so-sum"><span class="bad">⚠ زيادة عن المطلوب: ${overJobs.map(j => `${esc(j.job)} (${j.extra.length})`).join("، ")} — دوس «شيل» على اللي مش في الكشف، وإلا اللي في آخر الوظيفة مش هيتطبع</span></div>` : ""}
+        ${pasteOpen ? `<div class="paste"><div class="muted">الصق هنا كود الترتيب اللي بيجهزه Claude (بيغيّر الترتيب على الشاشة بس — راجعه وبعدين دوس «حفظ الترتيب»).</div>
+          <textarea id="so-paste" spellcheck="false"></textarea><div class="so-acts"><button class="btn" data-act="apply">تطبيق</button><button class="btn sec" data-act="paste">إلغاء</button></div></div>` : ""}
       ${jobs.map((j, ji) => {
         const L = info.get(j.job) || { names: [], extra: [], spare: [], need: null, blanks: 0 };
         const printed = new Set(L.names.map(keyOf)), extra = new Set(L.extra.map(keyOf)), spare = new Set(L.spare.map(keyOf));

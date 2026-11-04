@@ -307,33 +307,14 @@ export function codeFor(map, site, job, sec) {
   return all.length === 1 ? all[0] : "";
 }
 
-// ===== الوضع الطولي على الموبايل =====
-// manifest.json فيه "portrait"، بس أندرويد بيطبقه وقت التثبيت أو لما يحدّث البوابة المثبتة.
-// هنا بنحاول نقفل الشاشة طولي، ولو منفعش بتظهر رسالة «لف الموبايل» لما الموبايل يبقى بالعرض.
-// الكشف المطبوع وشاشة المعاينة مش متأثرين، لأن الرسالة بتظهر بس على الموبايلات (شاشة لمس وارتفاع صغير).
-(() => {
-  try { screen.orientation?.lock?.("portrait").catch(() => {}); } catch (e) {}
-  if (document.getElementById("rot-msg")) return;
-  const st = document.createElement("style");
-  st.textContent = `#rot-msg{display:none;position:fixed;inset:0;z-index:5000;background:#a61b12;color:#fff;
-    flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;direction:rtl;
-    font-family:'IBM Plex Sans Arabic','Segoe UI',Tahoma,sans-serif;font-size:18px;padding:20px;}
-  #rot-msg i{font-size:46px;}
-  @media (orientation:landscape) and (max-height:500px) and (pointer:coarse){#rot-msg{display:flex;}body{overflow:hidden;}}
-  @media print{#rot-msg{display:none !important;}}`;
-  document.head.appendChild(st);
-  const add = () => {
-    const d = document.createElement("div");
-    d.id = "rot-msg";
-    d.innerHTML = `<i class="ti ti-device-mobile-rotated"></i><b>لف الموبايل</b><span style="font-size:14px;opacity:.85">البوابة بتشتغل والموبايل واقف (طولي)</span>`;
-    document.body.appendChild(d);
-  };
-  document.body ? add() : document.addEventListener("DOMContentLoaded", add);
-})();
+// ===== شاشة التحميل =====
+// كل صفحة فيها <div id="boot"> (لوجو + «جاري التحميل…») ظاهر من الـ HTML نفسه، عشان المستخدم مايشوفش صفحة فاضية
+// لحد ما Firebase يتحمّل. بيستخبى لوحده بالـ CSS أول ما الدخول أو الصفحة يظهروا، وهنا احتياطي للمتصفحات القديمة.
+onAuthStateChanged(auth, () => { setTimeout(() => document.getElementById("boot")?.remove(), 0); });
 
 // علامة إن كود الصفحة اتحمّل كامل (sentry.js بيشيّك عليها: لو مش موجودة بعد تحميل الصفحة يبقى الكود ماتحملش ويظهر شريط «تحديث»)
 window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-import('./notify.js?v=20261103b').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+import('./notify.js?v=20261104').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));

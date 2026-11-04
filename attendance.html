@@ -132,6 +132,13 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
 <body>
 <div class="wrap">
 
+  <!-- شاشة التحميل: ظاهرة من الـ HTML لحد ما الدخول أو الصفحة يظهروا (بدل صفحة فاضية على النت الضعيف) -->
+  <div id="boot" role="status" style="text-align:center;padding:64px 16px;color:#6a6e75;font-size:15px;">
+    <div style="width:34px;height:34px;margin:0 auto 14px;border:3px solid #e6e7ea;border-top-color:#a61b12;border-radius:50%;animation:bootspin .8s linear infinite"></div>
+    جاري التحميل…
+    <style>@keyframes bootspin{to{transform:rotate(360deg)}}
+    body:has(#login:not(.hidden)) #boot,body:has(#app:not(.hidden)) #boot,body:has(#denied:not(.hidden)) #boot{display:none!important}</style>
+  </div>
   <div id="login" class="card center hidden">
     <h2>تسجيل الحضور</h2>
     <p class="muted" style="margin-bottom:12px;">ادخل بحساب الموقع.</p>
@@ -362,9 +369,9 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
 <script type="module">
 import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, isBasic, nearWorkers } from './shared.js?v=20261103b';
-import { openPrintView, openOrderEditor, printOrder } from './sheet.js?v=20261103b';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261103b';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, isBasic, nearWorkers } from './shared.js?v=20261104';
+import { openPrintView, openOrderEditor, printOrder } from './sheet.js?v=20261104';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261104';
 
 
 const $ = id => document.getElementById(id);

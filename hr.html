@@ -88,6 +88,13 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
 </head>
 <body>
 <div class="wrap">
+  <!-- شاشة التحميل: ظاهرة من الـ HTML لحد ما الدخول أو الصفحة يظهروا (بدل صفحة فاضية على النت الضعيف) -->
+  <div id="boot" role="status" style="text-align:center;padding:64px 16px;color:#6a6e75;font-size:15px;">
+    <div style="width:34px;height:34px;margin:0 auto 14px;border:3px solid #e6e7ea;border-top-color:#a61b12;border-radius:50%;animation:bootspin .8s linear infinite"></div>
+    جاري التحميل…
+    <style>@keyframes bootspin{to{transform:rotate(360deg)}}
+    body:has(#login:not(.hidden)) #boot,body:has(#app:not(.hidden)) #boot,body:has(#denied:not(.hidden)) #boot{display:none!important}</style>
+  </div>
   <div id="login" class="card center hidden">
     <h2>اعتماد الحالات</h2>
     <div style="display:flex;flex-direction:column;gap:8px;">
@@ -167,7 +174,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
 <script type="module">
 import { getFirestore, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, SUP_SITES, isBasic } from './shared.js?v=20261103b';
+import { db, auth, actorEmail, SUP_SITES, isBasic } from './shared.js?v=20261104';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }

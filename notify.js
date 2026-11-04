@@ -76,6 +76,8 @@ function style() {
   s.textContent = `
   #nb-btn{position:fixed;bottom:16px;left:16px;z-index:9000;width:52px;height:52px;border-radius:50%;border:0;background:#fff;
     box-shadow:0 2px 10px rgba(0,0,0,.22);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;}
+  /* صفحة فيها شريط تأكيد لازق تحت (زي «تأكيد الحضور»): الجرس يطلع فوقه بدل ما يغطي على الزرار */
+  body:has(#app:not(.hidden) .sticky) #nb-btn{bottom:92px;}
   #nb-btn svg{width:24px;height:24px;stroke:#a61b12;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
   #nb-btn .nb-n{position:absolute;top:-3px;right:-3px;min-width:20px;height:20px;border-radius:10px;background:#a61b12;color:#fff;
     font:700 11.5px/20px system-ui,sans-serif;text-align:center;padding:0 5px;box-sizing:border-box;}
