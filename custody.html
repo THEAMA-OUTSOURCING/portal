@@ -216,7 +216,7 @@ th{color:#6a6e75;font-weight:500;}
 <script type="module">
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, writeBatch, query, where, onSnapshot, runTransaction, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, SUP_SITES } from './shared.js?v=20261104';
+import { db, auth, actorEmail, SUP_SITES, ask } from './shared.js?v=20261104b';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -435,7 +435,7 @@ $("jobs").addEventListener("click", async e => {
   const w = S.roster.find(x => String(x.nid) === b.dataset.nid);
   if (!w) return;
   const item = b.dataset.item, want = !hasItem(w.nid, item);
-  if (!want && !confirm(`تشيل علامة استلام ${ITEM[item].ar} من ${w.name}؟`)) return;
+  if (!want && !await ask(`تشيل علامة استلام ${ITEM[item].ar} من ${w.name}؟`, { ok: "شيل العلامة", danger: true })) return;
   await mark(w, item, want);
 });
 // الإيكونات بتتعلّم واحدة واحدة — العامل اللي اتنقل من فرع تاني بتتنقل عهدته معاه لما تعلّم هنا
@@ -464,7 +464,7 @@ $("left").addEventListener("click", async e => {
   const b = e.target.closest("button[data-ret]");
   if (!b) return;
   const d = S.docs[b.dataset.ret], item = b.dataset.item, k = key(item);
-  if (!d || !k || !confirm(`${d.name} رجّع ${ITEM[item].ar}؟ القطعة هترجع للمخزون.`)) return;
+  if (!d || !k || !await ask(`${d.name} رجّع ${ITEM[item].ar}؟ القطعة هترجع للمخزون.`, { ok: "رجّع" })) return;
   b.disabled = true;
   try {
     await runTransaction(db, async tx => {
@@ -500,7 +500,7 @@ $("cy-go").onclick = async () => {
   if (!/^20\d{2}-\d{2}$/.test(start)) return show($("st-msg"), "err", "اختار شهر البداية.");
   const end = addMonths(start, 5);
   if (S.cycle && start <= S.cycle.end) return show($("st-msg"), "err", `الدورة الحالية لسه لحد ${monthAr(S.cycle.end)} — الجديدة لازم تبدأ بعدها.`);
-  if (!confirm(`تبدأ دورة ${S.site}: ${monthAr(start)} ← ${monthAr(end)}؟\nكل العمال هيبقوا «ما استلموش» في الدورة الجديدة.`)) return;
+  if (!await ask(`تبدأ دورة ${S.site}: ${monthAr(start)} ← ${monthAr(end)}؟\nكل العمال هيبقوا «ما استلموش» في الدورة الجديدة.`, { ok: "ابدأ الدورة" })) return;
   try {
     await setDoc(doc(db, "custody_cycles", S.site), { site: S.site, start, end, started_by: S.user.uid, started_at: serverTimestamp() });
     show($("st-msg"), "ok", "الدورة اتبدأت.");
@@ -510,7 +510,7 @@ $("cy-go").onclick = async () => {
 $("st-add").onclick = async () => {
   const item = $("st-item").value, size = $("st-size").value, qty = Number($("st-qty").value), note = $("st-note").value.trim();
   if (!Number.isInteger(qty) || qty === 0 || Math.abs(qty) > 5000) return show($("st-msg"), "err", "اكتب العدد (رقم صحيح، والسالب للتصحيح).");
-  if (!confirm(`${qty > 0 ? "تضيف" : "تخصم"} ${Math.abs(qty)} ${ITEM[item].ar} مقاس ${size} ${qty > 0 ? "لـ" : "من"} مخزون ${S.site}؟`)) return;
+  if (!await ask(`${qty > 0 ? "تضيف" : "تخصم"} ${Math.abs(qty)} ${ITEM[item].ar} مقاس ${size} ${qty > 0 ? "لـ" : "من"} مخزون ${S.site}؟`, { ok: qty > 0 ? "ضيف" : "اخصم" })) return;
   $("st-add").disabled = true;
   try {
     const d = { site: S.site, item, size, qty, by: S.user.uid, at: serverTimestamp() };
@@ -669,7 +669,7 @@ const fbErr = e => e.code === "permission-denied" ? "مفيش صلاحية" : e.
 $("sb-add").onclick = async () => {
   const item = $("sb-item").value, size = $("sb-size").value, qty = Number($("sb-qty").value), note = $("sb-note").value.trim();
   if (!Number.isInteger(qty) || qty === 0 || Math.abs(qty) > 5000) return show($("so-msg"), "err", "اكتب العدد (رقم صحيح، والسالب للتصحيح).");
-  if (!confirm(`${qty > 0 ? "تضيف" : "تخصم"} ${Math.abs(qty)} ${ITEM[item].ar} مقاس ${size} ${qty > 0 ? "للمخزن العام" : "من المخزن العام"}؟`)) return;
+  if (!await ask(`${qty > 0 ? "تضيف" : "تخصم"} ${Math.abs(qty)} ${ITEM[item].ar} مقاس ${size} ${qty > 0 ? "للمخزن العام" : "من المخزن العام"}؟`, { ok: qty > 0 ? "ضيف" : "اخصم" })) return;
   $("sb-add").disabled = true;
   try {
     const d = { type: "buy", item, size, qty, by: S.user.uid, at: serverTimestamp() };
@@ -684,7 +684,7 @@ $("so-add").onclick = async () => {
   if (!Number.isInteger(qty) || qty <= 0 || qty > 5000) return show($("so-msg"), "err", "اكتب العدد (رقم صحيح أكبر من صفر).");
   const have = storeBalance(S.store)[item + "|" + size] || 0;
   if (qty > have) return show($("so-msg"), "err", `الرصيد في المخزن العام من ${ITEM[item].ar} مقاس ${size} = ${have} بس.`);
-  if (!confirm(`تصرف ${qty} ${ITEM[item].ar} مقاس ${size} من المخزن العام لـ ${site}؟`)) return;
+  if (!await ask(`تصرف ${qty} ${ITEM[item].ar} مقاس ${size} من المخزن العام لـ ${site}؟`, { ok: "اصرف" })) return;
   $("so-add").disabled = true;
   try {
     const id = doc(collection(db, "custody_store")).id, b = writeBatch(db);

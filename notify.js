@@ -6,6 +6,7 @@
 // - كل مستلم ليه نسخة في notif_inbox (id = uid__id) — منها «اتقرا إمتى» و«قرأه كام واحد».
 // - الإشعارات ما بتتمسحش. الجرس بيعرض آخر 14 يوم، والأقدم بزرار «عرض الأقدم».
 // - توفير القراءات: أول ما الصفحة تفتح = عدّ بس (قراية واحدة)، والقايمة بتتحمل لما حد يدوس على الجرس.
+import { tell, askText } from './shared.js?v=20261104b';
 import { collection, doc, getDoc, getDocs, query, where, orderBy, limit, startAfter, writeBatch,
          serverTimestamp, getCountFromServer, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
@@ -199,7 +200,7 @@ async function tabInbox() {
       if (s.size < PAGE) { more.remove(); const m = document.createElement("div"); m.className = "nb-muted"; m.textContent = s.size || LAST_OLD ? "مفيش أقدم من كده." : "مفيش إشعارات أقدم."; b.appendChild(m); }
       else more.disabled = false;
       markRead(s.docs);
-    } catch (e) { more.disabled = false; alert(errText(e)); }
+    } catch (e) { more.disabled = false; tell(errText(e)); }
   };
   b.appendChild(more);
   markRead(snap.docs);
@@ -227,7 +228,7 @@ async function markRead(docs) {
 async function openFile(id) {
   try {
     const s = await getDoc(doc(DB, "notif_files", id));
-    if (!s.exists()) return alert("الملف مش موجود.");
+    if (!s.exists()) return tell("الملف مش موجود.");
     const f = s.data();
     if (f.kind === "pdf") {
       const bin = atob(String(f.data).split(",").pop());
@@ -242,7 +243,7 @@ async function openFile(id) {
       v.appendChild(img); v.onclick = () => v.remove();
       document.body.appendChild(v);
     }
-  } catch (e) { alert(errText(e)); }
+  } catch (e) { tell(errText(e)); }
 }
 
 // ----- إرسال -----
@@ -474,7 +475,7 @@ async function decide(d, x, ok, el) {
       await bt.commit();
       m.innerHTML = `<div class="nb-muted">اتبعت لـ ${rec.length} حساب.</div>`;
     } else {
-      const why = (prompt("سبب الرفض (إجباري):") || "").trim();
+      const why = (await askText("سبب الرفض (إجباري):", { ok: "ارفض", danger: true, required: true }) || "").trim();
       if (!why) { el.querySelectorAll("button").forEach(btn => btn.disabled = false); return; }
       bt.update(d.ref, { status: "rejected", decided_at: serverTimestamp(), reject_reason: why.slice(0, 500) });
       await bt.commit();

@@ -130,8 +130,8 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
 <script type="module">
 import { getFirestore, doc, getDoc, getDocs, collection, query, where, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, fetchPlanBase, planBySite, nearWorkers } from './shared.js?v=20261104';
-import { detect, parseChipsy, parseEmdad, parseSharqia, emdadMonths, counts, COMPANY_LABEL, CHIPSY_PLAN, countsForPlan, chipsySections, trimOverPlan } from './xl-attendance.js?v=20261104';
+import { db, auth, actorEmail, fetchPlanBase, planBySite, nearWorkers, ask } from './shared.js?v=20261104b';
+import { detect, parseChipsy, parseEmdad, parseSharqia, emdadMonths, counts, COMPANY_LABEL, CHIPSY_PLAN, countsForPlan, chipsySections, trimOverPlan } from './xl-attendance.js?v=20261104b';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -305,7 +305,7 @@ async function siteDays(site, from, to) {
 $("save").onclick = async () => {
   const list = selected(); if (!list.length) return;
   const sites = [...new Set(list.map(([, d]) => d.site))];
-  if (!confirm(`حفظ ${list.length} يوم حضور (${sites.join("، ")}) كمعتمد؟\nالأيام اللي اترفعت قبل كده هتتحدث بالملف ده.`)) return;
+  if (!await ask(`حفظ ${list.length} يوم حضور (${sites.join("، ")}) كمعتمد؟\nالأيام اللي اترفعت قبل كده هتتحدث بالملف ده.`, { ok: "احفظ" })) return;
   $("save").disabled = true; show($("s-msg"), "info", "بيحفظ...");
   try {
     // أمان: منكتبش فوق يوم متسجل من الكشوف المصورة

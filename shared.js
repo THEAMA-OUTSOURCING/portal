@@ -307,6 +307,74 @@ export function codeFor(map, site, job, sec) {
   return all.length === 1 ? all[0] : "";
 }
 
+// ===== توحيد الزراير في كل الصفحات =====
+// الأحمر المليان = الزرار الأساسي (زي ما هو)، الأخضر = اعتماد/تأكيد، والأحمر المفرغ = مسح/شيل/رفض/إلغاء اعتماد
+// (عشان «اعتمد» و«امسح» مايبقوش شبه بعض). بيتحط بعد CSS الصفحة فبيكسب.
+{
+  const s = document.createElement("style");
+  s.textContent = `
+.btn.ok{background:#16683a;color:#fff;border:none;}
+.btn.ok:hover{background:#13612c;}
+.btn.danger{background:#fff;color:#a61b12;border:1px solid #e0a09a;}
+.btn.danger:hover{background:#fdecea;}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+.btn:focus-visible{outline:3px solid #9cc2ee;outline-offset:2px;}
+@media (pointer:coarse){.btn{min-height:44px;}.btn.small{min-height:40px;}}`;
+  document.head.appendChild(s);
+}
+
+// ===== رسايل التأكيد والتنبيه (بدل confirm / alert / prompt بتوع المتصفح) =====
+// نفس الشكل في كل الصفحات، بالعربي ومن اليمين، وزرار «إلغاء» واضح. كلهم بيرجعوا Promise:
+//   if (!(await ask("تمسح الصورة دي؟", { ok: "امسح", danger: true }))) return;
+//   await tell("ماتحفظش: …");
+//   const why = await askText("سبب الرفض (إجباري):", { required: true });   // null لو اتلغى
+// النص بيتحط كـ textContent (مفيش HTML)، و \n بتنزل سطر.
+let dlgCss = false;
+function dlg(msg, { ok = "تمام", cancel = "إلغاء", danger = false, input = null, value = "", required = false } = {}) {
+  if (!dlgCss) {
+    dlgCss = true;
+    const s = document.createElement("style");
+    s.textContent = `
+dialog.tdlg{border:0;border-radius:14px;padding:0;width:min(420px,calc(100vw - 32px));box-shadow:0 12px 40px rgba(0,0,0,.25);direction:rtl;font:inherit;color:#1f2328;}
+dialog.tdlg::backdrop{background:rgba(20,22,26,.45);}
+dialog.tdlg form{padding:20px 20px 16px;margin:0;}
+dialog.tdlg p{margin:0 0 16px;white-space:pre-line;line-height:1.7;font-size:15.5px;max-height:60vh;overflow:auto;}
+dialog.tdlg input{width:100%;box-sizing:border-box;margin:0 0 6px;padding:10px 12px;font:inherit;font-size:15px;border:1px solid #d0d4da;border-radius:10px;}
+dialog.tdlg .err{color:#c0392b;font-size:13px;min-height:18px;margin:0 0 6px;}
+dialog.tdlg .acts{display:flex;gap:10px;justify-content:flex-start;}
+dialog.tdlg button{min-height:44px;min-width:96px;padding:0 18px;border-radius:10px;font:inherit;font-size:15px;font-weight:600;cursor:pointer;border:1px solid transparent;}
+dialog.tdlg .ok{background:#16683a;color:#fff;}
+dialog.tdlg .ok.danger{background:#a61b12;}
+dialog.tdlg .no{background:#fff;color:#1f2328;border-color:#d0d4da;}
+dialog.tdlg button:focus-visible{outline:3px solid #9cc2ee;outline-offset:2px;}`;
+    document.head.appendChild(s);
+  }
+  return new Promise(resolve => {
+    const d = document.createElement("dialog");
+    d.className = "tdlg";
+    d.innerHTML = `<form method="dialog"><p></p>${input !== null ? `<input type="${input}" autocomplete="off"><div class="err"></div>` : ""}<div class="acts"><button class="ok" value="ok"></button>${cancel ? `<button class="no" value="no" formnovalidate></button>` : ""}</div></form>`;
+    d.querySelector("p").textContent = String(msg ?? "");
+    const okB = d.querySelector(".ok"), noB = d.querySelector(".no"), inp = d.querySelector("input");
+    okB.textContent = ok; if (danger) okB.classList.add("danger");
+    if (noB) noB.textContent = cancel;
+    if (inp) inp.value = value;
+    d.querySelector("form").addEventListener("submit", e => {
+      if (e.submitter === okB && inp && required && !inp.value.trim()) { e.preventDefault(); d.querySelector(".err").textContent = "لازم تكتب حاجة هنا"; inp.focus(); }
+    });
+    d.addEventListener("close", () => {
+      const yes = d.returnValue === "ok";
+      d.remove();
+      resolve(inp ? (yes ? inp.value : null) : yes);
+    });
+    document.body.appendChild(d);
+    d.showModal();
+    (inp || (danger && noB) || okB).focus();   // في الحاجات الخطيرة الفوكس على «إلغاء» عشان Enter مايمسحش بالغلط
+  });
+}
+export const ask = (msg, o = {}) => dlg(msg, o);
+export const tell = (msg, o = {}) => dlg(msg, { cancel: "", ...o });
+export const askText = (msg, o = {}) => dlg(msg, { input: "text", ...o });
+
 // ===== شاشة التحميل =====
 // كل صفحة فيها <div id="boot"> (لوجو + «جاري التحميل…») ظاهر من الـ HTML نفسه، عشان المستخدم مايشوفش صفحة فاضية
 // لحد ما Firebase يتحمّل. بيستخبى لوحده بالـ CSS أول ما الدخول أو الصفحة يظهروا، وهنا احتياطي للمتصفحات القديمة.
@@ -317,4 +385,4 @@ window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-import('./notify.js?v=20261104').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+import('./notify.js?v=20261104b').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));

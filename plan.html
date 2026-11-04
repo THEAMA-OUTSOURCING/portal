@@ -411,8 +411,8 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
 <script type="module">
 import { getFirestore, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits } from './shared.js?v=20261104';
-import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261104';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, ask, tell } from './shared.js?v=20261104b';
+import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261104b';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====
@@ -816,7 +816,7 @@ $("a-save").addEventListener("click", async () => {
   if (!date || !date.startsWith(S.month)) return show(msg, "err", "التاريخ لازم يكون جوه الشهر المختار.");
   if (!reason) return show(msg, "err", "اكتب السبب أو المرجع، عشان يبان في السجل بعدين.");
   const e = clientPlan(S.month, S.amends, monthEnd(S.month)).get(k);
-  if (!confirm(`${short(e.loc)} — ${e.pos}\nمن ${e.value} إلى ${to}، ساري من ${date}.\nالتعديل مش هيتمسح بعد الحفظ. متأكد؟`)) return;
+  if (!await ask(`${short(e.loc)} — ${e.pos}\nمن ${e.value} إلى ${to}، ساري من ${date}.\nالتعديل مش هيتمسح بعد الحفظ. متأكد؟`)) return;
   $("a-save").disabled = true;
   try {
     await addDoc(collection(db, "plan_amendments"), {
@@ -905,7 +905,7 @@ async function renderPreview() {
 $("u-cancel").addEventListener("click", () => { PENDING = null; $("u-preview").classList.add("hidden"); });
 $("u-save").addEventListener("click", async () => {
   if (!PENDING) return;
-  if (S.plans[PENDING.month] && !confirm("فيه شيت محفوظ لنفس الشهر. تستبدله؟")) return;
+  if (S.plans[PENDING.month] && !await ask("فيه شيت محفوظ لنفس الشهر. تستبدله؟", { ok: "استبدله", danger: true })) return;
   $("u-save").disabled = true;
   try {
     await setDoc(doc(db, "plans", PENDING.month), {
@@ -928,7 +928,7 @@ function renderCountsStatus() {
 }
 $("c-run").addEventListener("click", async () => {
   const msg = $("c-msg"); hide(msg);
-  if (!confirm(`هيقرا شيت الرواتب المرفوع حالياً كله مرة واحدة ويحفظ الملخص لشهر ${monthLabel(S.month)}. نكمل؟`)) return;
+  if (!await ask(`هيقرا شيت الرواتب المرفوع حالياً كله مرة واحدة ويحفظ الملخص لشهر ${monthLabel(S.month)}. نكمل؟`)) return;
   $("c-run").disabled = true; show(msg, "info", "جاري القراءة...");
   try {
     const snap = await getDocs(collection(db, "payroll"));
@@ -1085,19 +1085,19 @@ document.querySelector('[data-panel="accounts"]').addEventListener("click", asyn
   if (t.dataset.plan) { const p = PLANNED.find(x => x.email === t.dataset.plan); fillForm({ ...p, disabled: false }); return saveAccount(); }
   if (t.dataset.edit) { const a = STAFF.find(x => x.email === t.dataset.edit); if (a) fillForm(a); return; }
   if (t.dataset.pass) {
-    if (!confirm(`باسورد مؤقت جديد لـ ${t.dataset.pass}؟ الباسورد القديم هيبطل، وأي حد داخل بيه هيخرج.`)) return;
+    if (!await ask(`باسورد مؤقت جديد لـ ${t.dataset.pass}؟ الباسورد القديم هيبطل، وأي حد داخل بيه هيخرج.`, { ok: "باسورد جديد", danger: true })) return;
     return runAccountTask("account_password", { email: t.dataset.pass });
   }
 });
 $("ac-save").addEventListener("click", () => saveAccount());
 $("ac-copy").addEventListener("click", () => navigator.clipboard?.writeText($("ac-secret-val").textContent));
-function saveAccount() {
+async function saveAccount() {
   const email = $("ac-email").value.trim().toLowerCase(), role = $("ac-role").value;
   const sites = ["supervisor", "hr", "accountant"].includes(role) ? [...$("ac-sites").querySelectorAll("input:checked")].map(i => i.value) : [];
   const payroll = role === "accountant" && $("ac-payroll").checked;
   if (!email || !email.includes("@")) return show($("ac-msg"), "err", "اكتب الإيميل.");
   if (role === "supervisor" && !sites.length && email !== SHARED_EMAIL
-      && !confirm("مشرف من غير مواقع = نفس صلاحيات مشرف الشرقية للدخان. متأكد؟")) return;
+      && !await ask("مشرف من غير مواقع = نفس صلاحيات مشرف الشرقية للدخان. متأكد؟", { ok: "أيوه، احفظ" })) return;
   const name = $("ac-name").value.trim().slice(0, 40);
   // الاسم بيتبعت بس لو مكتوب — لحد ما الـ Rules والسيرفر يتحدّثوا، الحفظ من غير اسم يفضل شغال
   return runAccountTask("account_save", { email, ...(name ? { name } : {}), role, sites, payroll, disabled: $("ac-disabled").checked });
@@ -1154,7 +1154,7 @@ async function initWorkers() {
     $("w-new").innerHTML = rows.length ? rows.map(x => `<tr><td>${esc(x.name)}</td><td style="direction:ltr;text-align:right">${esc(x.nid)}</td><td>${esc(x.site)}</td><td>${esc(x.job)}</td>
       <td>${x.role === "roster" ? "عامل في الكشف" : "بديل"}${x.no_card ? `<div class="c-s" style="font-size:12px;">من غير بطاقة</div>` : ""}</td><td style="direction:ltr;text-align:right">${esc(x.first_day || "")}</td><td>${ficheCell(x)}</td>
       <td><span class="vo-txt">${x.type ? typeLabel(x.type) : (x.role === "roster" ? "جديد (مستني)" : "بديل جديد")}</span><select data-ntype="${esc(x.id)}"><option value="">${x.role === "roster" ? "جديد (مستني)" : "بديل جديد"}</option>${["اساسي", "بديل راحات", "يومية"].map(t => `<option value="${t}" ${x.type === t ? "selected" : ""}>${typeLabel(t)}</option>`).join("")}</select></td>
-      <td class="row" style="gap:4px;"><button class="btn sec small" data-nsave="${esc(x.id)}">حفظ</button><button class="btn sec small" data-nrej="${esc(x.id)}">رفض</button></td></tr>`).join("")
+      <td class="row" style="gap:4px;"><button class="btn sec small" data-nsave="${esc(x.id)}">حفظ</button><button class="btn danger small" data-nrej="${esc(x.id)}">رفض</button></td></tr>`).join("")
       : `<tr><td colspan="9" class="muted">مفيش.</td></tr>`;
     renderRem();
   }, () => {});
@@ -1211,13 +1211,13 @@ function initBlacklist() {
   $("bl-form").classList.toggle("hidden", !canBL);
   onSnapshot(collection(db, "blacklist_info"), snap => {
     const rows = snap.docs.map(d => d.data()).sort((a, b) => (b.at?.seconds || 0) - (a.at?.seconds || 0));
-    $("bl-list").innerHTML = rows.length ? rows.map(x => `<tr><td>${esc(x.name)}</td><td style="direction:ltr;text-align:right">${esc(x.nid)}</td><td>${esc(x.reason)}${x.note ? `<div class="muted">${esc(x.note)}</div>` : ""}</td><td class="muted">${esc(x.by_email || "")}</td><td>${canBL ? `<button class="btn sec small" data-blrm="${esc(x.nid)}">شيل</button>` : ""}</td></tr>`).join("")
+    $("bl-list").innerHTML = rows.length ? rows.map(x => `<tr><td>${esc(x.name)}</td><td style="direction:ltr;text-align:right">${esc(x.nid)}</td><td>${esc(x.reason)}${x.note ? `<div class="muted">${esc(x.note)}</div>` : ""}</td><td class="muted">${esc(x.by_email || "")}</td><td>${canBL ? `<button class="btn danger small" data-blrm="${esc(x.nid)}">شيل</button>` : ""}</td></tr>`).join("")
       : `<tr><td colspan="5" class="muted">مفيش.</td></tr>`;
   }, () => {});
   $("bl-add").onclick = async () => {
     const nid = enDigits($("bl-nid").value).replace(/\D/g, ""), name = $("bl-name").value.trim(), u = auth.currentUser;
     if (nid.length !== 14) return show($("bl-msg"), "err", "الرقم القومي لازم 14 رقم.");
-    if (!confirm(`إضافة ${name || nid} للبلاك ليست؟`)) return;
+    if (!await ask(`إضافة ${name || nid} للبلاك ليست؟`, { ok: "ضيفه", danger: true })) return;
     try {
       // الاتنين مع بعض: يا يتحفظوا الاتنين يا ولا واحد (عشان ميبقاش فيه عامل ممنوع ومش ظاهر في القايمة)
       const b = writeBatch(db);
@@ -1228,7 +1228,7 @@ function initBlacklist() {
     } catch (e) { show($("bl-msg"), "err", "ماتضافش: " + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules." : e.message)); }
   };
   $("bl-list").onclick = async e => {
-    const nid = e.target.dataset.blrm; if (!nid || !confirm("تشيله من البلاك ليست؟")) return;
+    const nid = e.target.dataset.blrm; if (!nid || !await ask("تشيله من البلاك ليست؟", { ok: "شيله" })) return;
     try { const b = writeBatch(db); b.delete(doc(db, "blacklist", nid)); b.delete(doc(db, "blacklist_info", nid)); await b.commit(); } catch (er) { show($("bl-msg"), "err", er.message); }
   };
 }
@@ -1280,21 +1280,21 @@ const ymdOf = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, 
 $("w-new")?.addEventListener("click", async e => {
   if (e.target.dataset.fex) {
     const on = e.target.dataset.on === "1";
-    if (on && !confirm("تسمح للعامل ده يتسجل حضوره من غير فيش؟")) return;
+    if (on && !await ask("تسمح للعامل ده يتسجل حضوره من غير فيش؟")) return;
     try { await updateDoc(doc(db, "new_workers", e.target.dataset.fex), { fiche_exception: on, fiche_exception_at: serverTimestamp() }); }
-    catch (err) { alert("ماتحفظش: " + err.message); }
+    catch (err) { tell("ماتحفظش: " + err.message); }
     return;
   }
   const id = e.target.dataset.nsave || e.target.dataset.nrej; if (!id) return;
   try {
     if (e.target.dataset.nrej) {
-      if (!confirm("ترفض العامل ده؟ هيتشال من الكشف وقايمة البدلاء.")) return;
+      if (!await ask("ترفض العامل ده؟ هيتشال من الكشف وقايمة البدلاء.", { ok: "ارفضه", danger: true })) return;
       await updateDoc(doc(db, "new_workers", id), { status: "rejected" });
     } else {
       const t = document.querySelector(`[data-ntype="${id}"]`).value;
       await updateDoc(doc(db, "new_workers", id), { type: t || null });
     }
-  } catch (err) { alert("ماتحفظش: " + err.message); }
+  } catch (err) { tell("ماتحفظش: " + err.message); }
 });
 // عامل اتضاف من المشرف (new_workers) ومش في الرواتب: نلاقيه بالكود/الرقم القومي أو بالاسم والموقع
 function newOf(r) {
@@ -1307,15 +1307,15 @@ $("w-rem")?.addEventListener("click", async e => {
   const w = WS.base.find(x => x.code === code);
   if (!w) {
     const nw = newOf({ code, site: e.target.dataset.rsite, name: e.target.dataset.rname });
-    if (!nw) return alert("العامل ده مش في بيانات الرواتب ولا في العمال الجداد.");
-    if (!confirm(`${nw.name} اتضاف من المشرف ومش في الرواتب.\nترفضه؟ هيتشال من الكشف وقايمة البدلاء.`)) return;
+    if (!nw) return tell("العامل ده مش في بيانات الرواتب ولا في العمال الجداد.");
+    if (!await ask(`${nw.name} اتضاف من المشرف ومش في الرواتب.\nترفضه؟ هيتشال من الكشف وقايمة البدلاء.`, { ok: "ارفضه", danger: true })) return;
     try { await updateDoc(doc(db, "new_workers", nw.id), { status: "rejected" }); }
-    catch (err) { alert("ماتسجلش: " + err.message); }
+    catch (err) { tell("ماتسجلش: " + err.message); }
     return;
   }
-  if (!confirm(`تسجل ${w.name} إنه مشي؟`)) return;
+  if (!await ask(`تسجل ${w.name} إنه مشي؟`, { ok: "مشي", danger: true })) return;
   try { await setDoc(doc(db, "roster_overrides", code), ovrDoc(w, "مشي", w.job, w.site, today(), "اتشال من الكشف")); }
-  catch (err) { alert("ماتسجلش: " + err.message); }
+  catch (err) { tell("ماتسجلش: " + err.message); }
 });
 function current(w) { const o = WS.ovr[w.code]; return o ? { ...w, site: o.site || w.site, job: o.job || w.job, type: o.type || w.type, edited: true } : w; }
 function renderWorkers() {
@@ -1356,7 +1356,7 @@ function workersList() {
 $("w-export")?.addEventListener("click", () => {
   const site = $("w-site").value;
   const list = workersList().sort((a, b) => a.site.localeCompare(b.site, "ar") || String(a.job).localeCompare(String(b.job), "ar") || String(a.name).localeCompare(String(b.name), "ar"));
-  if (!list.length) return alert("مفيش عمال في القايمة دي.");
+  if (!list.length) return tell("مفيش عمال في القايمة دي.");
   const head = ["الاسم", "الكود", "الرقم القومي", "الموقع", "الوظيفة", "النوع", "معدّل يدوي"];
   // كل الخانات نص — عشان الرقم القومي مايتحولش لرقم علمي في الإكسيل
   const aoa = [head, ...list.map(w => [String(w.name || ""), String(w.code || ""), String(w.nid || ""), String(w.site || ""), String(w.job || ""), typeLabel(w.type), w.edited ? "أيوه" : ""])];
@@ -1405,8 +1405,8 @@ $("w-save")?.addEventListener("click", async () => {
 });
 $("w-ovr")?.addEventListener("click", async e => {
   const code = e.target.dataset.undo; if (!code) return;
-  if (!confirm("تلغي التعديل ده؟ العامل هيرجع زي ما هو في شيت الرواتب.")) return;
-  try { await deleteDoc(doc(db, "roster_overrides", code)); } catch (err) { alert("مااتلغاش: " + err.message); }
+  if (!await ask("تلغي التعديل ده؟ العامل هيرجع زي ما هو في شيت الرواتب.", { ok: "الغي التعديل", danger: true })) return;
+  try { await deleteDoc(doc(db, "roster_overrides", code)); } catch (err) { tell("مااتلغاش: " + err.message); }
 });
 // رفع من إكسيل
 function nidCheck(nid) {

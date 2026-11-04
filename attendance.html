@@ -227,7 +227,7 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
           <input type="file" id="m-resign-file" accept="image/*" class="hidden">
         </div>
         <input type="text" id="m-note" placeholder="ملاحظة (اختياري)" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:10px;margin-bottom:8px;">
-        <button class="btn" id="m-remove-save">شيل من الكشف</button>
+        <button class="btn danger" id="m-remove-save">شيل من الكشف</button>
       </div>
       <div id="m-removed" style="margin-top:10px;"></div>
       <div class="msg" id="m-msg"></div>
@@ -266,7 +266,7 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
         <div id="extras"></div>
       </div>
       <div class="sticky">
-        <button class="btn block" id="confirm">تأكيد الحضور</button>
+        <button class="btn ok block" id="confirm">تأكيد الحضور</button>
         <button class="btn sec block hidden" id="back-acc" style="margin-top:6px;">رجّع اليوم للمحاسب يراجعه ويعتمده</button>
         <div class="msg" id="c-msg"></div>
       </div>
@@ -369,9 +369,9 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
 <script type="module">
 import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, isBasic, nearWorkers } from './shared.js?v=20261104';
-import { openPrintView, openOrderEditor, printOrder } from './sheet.js?v=20261104';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261104';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, isBasic, nearWorkers, ask, tell } from './shared.js?v=20261104b';
+import { openPrintView, openOrderEditor, printOrder } from './sheet.js?v=20261104b';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261104b';
 
 
 const $ = id => document.getElementById(id);
@@ -592,7 +592,7 @@ $("pages").addEventListener("click", async e => {
   const del = e.target.closest("[data-del]");
   if (del) {
     const pg = S.pages.find(x => x.id === del.dataset.del); if (!pg) return;
-    if (!confirm("تمسح الصورة دي؟ نتيجتها هتتشال من الحضور، والمسح بيتسجل باسمك.")) return;
+    if (!await ask("تمسح الصورة دي؟ نتيجتها هتتشال من الحضور، والمسح بيتسجل باسمك.", { ok: "امسح", danger: true })) return;
     // المسح بيتسجل في att_page_deletions (الـ Rules مابتسمحش بمسح صورة من غير السجل ده في نفس العملية)
     try {
       const u = auth.currentUser, b = writeBatch(db);
@@ -920,7 +920,7 @@ function render() {
     // المشرف/الإقليمي يمسح صورته بس قبل ما اليوم يتأكد، والأدمن في أي وقت — وكل مسح بيتسجل
     const mine = p.status !== "reading" && (S.admin || (p.uploaded_by === auth.currentUser?.uid && !S.day));
     return `<div class="pg"><img src="data:image/jpeg;base64,${esc(p.image)}" data-view alt="صفحة">
-      <div class="b"><b>صورة ${fmt(pi + 1)}</b> ${st}${mine ? `<div style="margin-top:6px;"><button class="btn sec small" data-del="${p.id}">مسح</button></div>` : ""}</div></div>`;
+      <div class="b"><b>صورة ${fmt(pi + 1)}</b> ${st}${mine ? `<div style="margin-top:6px;"><button class="btn danger small" data-del="${p.id}">مسح</button></div>` : ""}</div></div>`;
   }).join("");
 
   const hasDone = S.pages.some(p => p.status === "done") || S.day;
@@ -1072,7 +1072,7 @@ $("workers").addEventListener("click", e => {
 // الـ Rules بتسمح بده للأدمن (الحالة بس بتتغير، من غير ما يتمسح مين أكد أو راجع)
 $("back-acc").addEventListener("click", async () => {
   if (!S.admin || S.day?.status !== "approved") return;
-  if (!confirm(`ترجّع ${S.site} يوم ${S.date} للمحاسب؟\nاليوم هيبقى «مستني اعتماد» لحد ما المحاسب يراجعه ويعتمده تاني.`)) return;
+  if (!await ask(`ترجّع ${S.site} يوم ${S.date} للمحاسب؟\nاليوم هيبقى «مستني اعتماد» لحد ما المحاسب يراجعه ويعتمده تاني.`, { ok: "رجّعه للمحاسب", danger: true })) return;
   $("back-acc").disabled = true;
   try {
     await updateDoc(doc(db, "att_days", S.site + "__" + S.date), { status: "reviewed" });
@@ -1155,10 +1155,10 @@ $("confirm").addEventListener("click", async () => {
     return show($("c-msg"), "err", "مينفعش تأكد: الحاضرين أكتر من العدد المطلوب. " + S.over.map(o => `${o.job}: ${o.n} والمطلوب ${o.plan}`).join("، "));
   }
   const wrong = livePages().filter(wrongSite);
-  if (wrong.length && !confirm(`فيه ${fmt(wrong.length)} صورة معظم أساميها مش من كشف ${S.site} — غالباً اترفعت على الموقع الغلط.\nتأكد الحضور برضه؟`)) return;
+  if (wrong.length && !await ask(`فيه ${fmt(wrong.length)} صورة معظم أساميها مش من كشف ${S.site} — غالباً اترفعت على الموقع الغلط.\nتأكد الحضور برضه؟`)) return;
   if (S.admin && S.day) {
     const stName = { confirmed: "مستني مراجعة الإقليمي", reviewed: "مستني الاعتماد", approved: "معتمد" }[S.day.status] || S.day.status;
-    if (!confirm(`تعديل أدمن على ${S.site} يوم ${S.date}:\nحاضر ${P} — غايب ${A}${Qn ? ` — توقف ${Qn}` : ""}\n\nحالة اليوم هتفضل «${stName}».`)) return;
+    if (!await ask(`تعديل أدمن على ${S.site} يوم ${S.date}:\nحاضر ${P} — غايب ${A}${Qn ? ` — توقف ${Qn}` : ""}\n\nحالة اليوم هتفضل «${stName}».`)) return;
     $("confirm").disabled = true;
     try {
       await updateDoc(doc(db, "att_days", S.site + "__" + S.date), {
@@ -1173,8 +1173,8 @@ $("confirm").addEventListener("click", async () => {
   }
   const late = new Date() > deadlineOf(S.date);
   const nth = S.lateCount + 1;
-  if (late && !(S.regional ? S.day?.review_late : S.day?.late) && !confirm(`اتأخرت في رفع حضور يوم ${S.date}.\nدي المرة ${ordinal(nth)} الشهر ده.\nالتأخير بيتسجل وبيأثر على تقييمك وراتبك.\n\nتأكد الحضور؟`)) return;
-  if (!late && !confirm(`تأكيد حضور ${S.site} يوم ${S.date}:\nحاضر ${P} — غايب ${A}${Qn ? ` — توقف ${Qn}` : ""}`)) return;
+  if (late && !(S.regional ? S.day?.review_late : S.day?.late) && !await ask(`اتأخرت في رفع حضور يوم ${S.date}.\nدي المرة ${ordinal(nth)} الشهر ده.\nالتأخير بيتسجل وبيأثر على تقييمك وراتبك.\n\nتأكد الحضور؟`)) return;
+  if (!late && !await ask(`تأكيد حضور ${S.site} يوم ${S.date}:\nحاضر ${P} — غايب ${A}${Qn ? ` — توقف ${Qn}` : ""}`, { ok: "أكّد الحضور" })) return;
   $("confirm").disabled = true;
   try {
     const base = {
@@ -1243,7 +1243,7 @@ $("refresh-times").addEventListener("click", async () => {
   const stop = v.filter(e => e.s === "L" && e.c === "ق").length; if (stop) counts.stop = stop;
   const msg = `هيتحدث ساعات ${nT} عامل` + (added.length ? `، وهيتضاف ${added.length} بديل حاضر:\n${added.join("\n")}` : "")
     + (dups.length ? `\nوهيتشال ${dups.length} اسم متكرر (نفس العامل اتسجل مرتين)` : "") + ".\nتكمل؟";
-  if (!confirm(msg)) return;
+  if (!await ask(msg)) return;
   $("refresh-times").disabled = true;
   try {
     await updateDoc(doc(db, "att_days", S.site + "__" + S.date), { entries, counts, times_refreshed_at: serverTimestamp(), times_refreshed_by: auth.currentUser.uid });
@@ -1441,7 +1441,7 @@ $("extras").addEventListener("click", e => {
     const nid = who.slice(2), w = ELSE_LIST.find(q => q.nid === nid && q.site === pk.dataset.site) || elsewhere(nid); if (!w) return;
     pk.style.opacity = ".5"; pk.textContent = "بيدوّر عليه في باقي المواقع...";
     otherSitesSameDay(nid).then(found => {
-      if (found.length) { alert(`${w.name} مينفعش يتسجل هنا: متسجل يوم ${S.date} في ${found.join("، ")}.\nشيله من هناك الأول.`); render(); return; }
+      if (found.length) { tell(`${w.name} مينفعش يتسجل هنا: متسجل يوم ${S.date} في ${found.join("، ")}.\nشيله من هناك الأول.`); render(); return; }
       delete S.mwarn[nid]; S.munpick.delete(nid);
       S.mpick[nid] = { name: w.name, code: w.code || "", job: w.job || "", type: w.type || "بديل", site: w.site };
       S.xpick[key] = who; if (S.xq) delete S.xq[key];
@@ -1529,7 +1529,7 @@ $("m-remove-save").addEventListener("click", async () => {
   const resign = resignOn();
   if (resign && !RS.img) return show($("m-msg"), "err", "صوّر الاستقالة الأول.");
   if (resign && !/^\d{14}$/.test(String(w.nid || ""))) return show($("m-msg"), "err", "الرقم القومي للعامل ده ناقص في الكشف — ابعت الاستقالة للإدارة.");
-  if (!confirm(`تشيل ${w.name} من الكشف؟ (السبب: ${$("m-reason").value})`)) return;
+  if (!await ask(`تشيل ${w.name} من الكشف؟ (السبب: ${$("m-reason").value})`, { ok: "شيله", danger: true })) return;
   const u = auth.currentUser;
   try {
     // الاستقالة الأول: لو الصورة مارفعتش، الاسم ميتشالش
@@ -1543,6 +1543,8 @@ $("m-remove-save").addEventListener("click", async () => {
 });
 $("m-removed").addEventListener("click", async e => {
   const id = e.target.dataset.restore; if (!id) return;
+  const nm = e.target.closest("div")?.querySelector("b")?.textContent || "العامل ده";
+  if (!(await ask(`ترجّع ${nm} للكشف؟ الشيل هيتلغي.`, { ok: "رجّعه" }))) return;
   try { await deleteDoc(doc(db, "sheet_removals", id)); show($("m-msg"), "ok", "رجع للكشف."); }
   catch (err) { show($("m-msg"), "err", "مارجعش: " + err.message); }
 });
@@ -1698,7 +1700,7 @@ $("idm-ok").addEventListener("click", async () => {
       if (near.length) {
         const w = near[0];
         if (ID.purpose === "replacement" && ID.target && near.length === 1 && !S.rosterNow.some(x => x.nid === w.nid)
-          && confirm(`البطاقة اتقرت برقم ${d.nid}\nوفيه «${w.name}» برقم ${w.nid} — فرق ${w.diff === 1 ? "رقم واحد" : "رقمين"} بس.\n\nغالباً القراية غلطت. نسجّل الموجود (${w.nid}) بديل؟`)) {
+          && await ask(`البطاقة اتقرت برقم ${d.nid}\nوفيه «${w.name}» برقم ${w.nid} — فرق ${w.diff === 1 ? "رقم واحد" : "رقمين"} بس.\n\nغالباً القراية غلطت. نسجّل الموجود (${w.nid}) بديل؟`)) {
           S.rep[ID.target] = { nid: w.nid, name: w.name, code: w.code || "" };
           $("idm").classList.add("hidden"); show($("m-msg"), "ok", `${w.name} اتسجل بديل (برقمه المتسجل ${w.nid}).`);
           $("idm-ok").disabled = false; render(); return;

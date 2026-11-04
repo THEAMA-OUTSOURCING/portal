@@ -15,6 +15,7 @@
 //  - الأقسام (لو الموقع ليه أقسام، زي مصنع العامرية): كل قسم ليه صفحاته، وتحته وظايفه. الوظيفة اللي مش هتكفي
 //    في باقي الصفحة بتبدأ صفحة جديدة. الأقسام اللي في «pageGroups» بتتجمع في صفحة واحدة لو العدد يسمح.
 //    المطلوب لكل قسم/وظيفة من «secNeed» (بدل مطلوب الوظيفة في الخطة). كله محفوظ في sheet_order/{site}.
+import { ask } from './shared.js?v=20261104b';
 
 export const AUTO_ROWS = 30, MAX_ROWS = 35, OWN_PAGE_MIN = 13;
 const BODY_MM = 180, ROW_MM = 6, MIN_MM = 2.5, BLANK_UNIT = 0.5;   // جسم الجدول (30 صف × 6 مم)، والصف العادي، وأصغر خانة فاضية عادةً
@@ -767,7 +768,7 @@ export async function openOrderEditor(opts) {
     if (!b) return;
     if (b.dataset.tab) { tab = b.dataset.tab; render(); return; }
     if (b.dataset.act === "close") {
-      if (dirty && !confirm("فيه تعديلات مااتحفظتش — تخرج من غير حفظ؟")) return;
+      if (dirty && !await ask("فيه تعديلات مااتحفظتش — تخرج من غير حفظ؟", { ok: "اخرج من غير حفظ", danger: true })) return;
       close(); return;
     }
     if (b.dataset.act === "paste") { pasteOpen = !pasteOpen; render(); return; }

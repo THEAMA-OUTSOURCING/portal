@@ -31,12 +31,16 @@ input[type=text]:focus,input[type=password]:focus{border-color:#c0392b;}
 select.size-select{width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#222;font-family:inherit;font-size:14px;outline:none;cursor:pointer;}
 select.size-select:focus{border-color:#c0392b;}
 input[type=file]{width:100%;padding:8px;cursor:pointer;font-size:13px;border:1px dashed #ddd;border-radius:8px;background:#fafafa;}
-.btn-primary{width:100%;padding:10px;font-size:15px;font-weight:500;cursor:pointer;background:#c0392b;color:#fff;border:none;border-radius:8px;}
-.btn-primary:hover{background:#a93226;}
-.btn-primary:disabled{background:#e0a09a;cursor:not-allowed;}
-.btn-secondary{width:100%;padding:10px;font-size:14px;font-weight:500;cursor:pointer;background:#f5f5f0;color:#555;border:1px solid #ddd;border-radius:8px;margin-top:8px;}
-.btn-danger{width:100%;padding:10px;font-size:14px;font-weight:500;cursor:pointer;background:#fcebeb;color:#a32d2d;border:1px solid #f7c1c1;border-radius:8px;margin-top:8px;}
-.btn-warn{width:100%;padding:10px;font-size:14px;font-weight:500;cursor:pointer;background:#fff8e6;color:#ba7517;border:1px solid #f0d080;border-radius:8px;margin-top:8px;}
+.btn-primary,.btn-secondary,.btn-danger,.btn-warn,.btn-ok{width:100%;min-height:44px;padding:10px;font-size:15px;font-weight:600;cursor:pointer;border-radius:12px;}
+.btn-primary{background:#a61b12;color:#fff;border:none;}
+.btn-primary:hover{background:#8c160f;}
+.btn-ok{background:#16683a;color:#fff;border:none;}
+.btn-ok:hover{background:#13612c;}
+.btn-primary:disabled,.btn-ok:disabled{opacity:.5;cursor:not-allowed;}
+.btn-secondary{background:#fff;color:#1d2024;border:1px solid #e6e7ea;margin-top:8px;}
+.btn-danger{background:#fff;color:#a61b12;border:1px solid #e0a09a;margin-top:8px;}
+.btn-danger:hover{background:#fdecea;}
+.btn-warn{background:#fff8e6;color:#8a5a10;border:1px solid #f0d080;margin-top:8px;}
 .btn-logout{font-size:13px;cursor:pointer;display:flex;align-items:center;gap:4px;color:#888;border:1px solid #ddd;border-radius:8px;padding:6px 12px;background:transparent;}
 .card{background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:1.25rem;margin-bottom:1rem;}
 .tag{font-size:12px;padding:3px 10px;border-radius:6px;}
@@ -319,7 +323,7 @@ document.addEventListener("click", function (e) {
       <div class="error-box" id="upload-error"><i class="ti ti-alert-circle" style="font-size:14px;vertical-align:-2px;margin-left:4px;"></i><span id="upload-error-msg"></span></div>
       <div id="pay-review" style="display:none;"></div>
       <button class="btn-primary" onclick="reviewSheet()" id="review-btn">مراجعة الشيت قبل الرفع</button>
-      <button class="btn-primary" onclick="uploadSheet()" id="upload-btn" style="display:none;">تأكيد الرفع وتحديث البيانات</button>
+      <button class="btn-ok" onclick="uploadSheet()" id="upload-btn" style="display:none;">تأكيد الرفع وتحديث البيانات</button>
       <button class="btn-secondary" onclick="resetPayReview(true)" id="review-cancel" style="display:none;">إلغاء</button>
       <button class="btn-secondary" onclick="runSync()" id="sync-btn"><i class="ti ti-users-plus" style="font-size:15px;vertical-align:-2px;margin-left:4px;"></i>إنشاء حسابات الموظفين الجداد</button>
       <div id="sync-status" style="display:none;margin-top:10px;margin-bottom:0;"></div>
@@ -459,7 +463,7 @@ document.addEventListener("click", function (e) {
 <script type="module">
 import { getFirestore, collection, getDocs, addDoc, deleteDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail } from './shared.js?v=20261104';
+import { db, auth, actorEmail, ask, tell, askText } from './shared.js?v=20261104b';
 
 
 let loggedUser = null;
@@ -846,7 +850,7 @@ async function showPayVis(){
     const t = v.visible_until.toDate();
     const txt = (v.name || k || 'كل الشركات')+': '+(payHidden(v) ? 'مستخبي من '+visFmt(t) : 'ظاهر لحد '+visFmt(t));
     return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:3px 0;border-top:1px solid #e6edf3;"><span>'+esc(txt)+'</span>'
-      +'<button class="btn-secondary" style="width:auto;margin:0;padding:4px 12px;" data-ext="'+esc(k)+'">تمديد</button></div>';
+      +'<button class="btn-secondary" style="width:auto;min-height:34px;margin:0;padding:4px 12px;" data-ext="'+esc(k)+'">تمديد</button></div>';
   }).join('');
   box.onclick = e => { const b = e.target.closest('[data-ext]'); if(b) extendPayVis(b.dataset.ext); };
   box.style.display='block';
@@ -854,16 +858,16 @@ async function showPayVis(){
 async function extendPayVis(key){
   const meta = await loadPayVis();
   const cur0 = key ? meta?.tabs?.[key] : meta;
-  const v = prompt('تمديد ظهور مرتب «'+(cur0?.name || key || 'كل الشركات')+'» للعمال كام يوم؟\n(من آخر الميعاد لو لسه ماخلصش، أو من دلوقتي لو خلص)','2');
+  const v = await askText('تمديد ظهور مرتب «'+(cur0?.name || key || 'كل الشركات')+'» للعمال كام يوم؟\n(من آخر الميعاد لو لسه ماخلصش، أو من دلوقتي لو خلص)', { value: '2', input: 'number', ok: 'مدّد' });
   if(v===null) return;
   const n = parseInt(v,10);
-  if(!(n>=1 && n<=60)){ alert('اكتب عدد أيام من 1 لـ 60'); return; }
+  if(!(n>=1 && n<=60)){ tell('اكتب عدد أيام من 1 لـ 60'); return; }
   const cur = cur0?.visible_until?.toDate?.()?.getTime() || 0;
   const until = Timestamp.fromDate(new Date(Math.max(Date.now(), cur) + n*864e5));
   try{
     await setDoc(VIS_DOC(), key ? { tabs: { [key]: { visible_until: until, extended_at: serverTimestamp() } } } : { visible_until: until, extended_at: serverTimestamp() }, { merge: true });
   }catch(e){
-    alert('التمديد ماتسجلش: '+(e.code==='permission-denied'?'محتاج تحديث الـ Rules (payroll_meta)':e.message)); return;
+    tell('التمديد ماتسجلش: '+(e.code==='permission-denied'?'محتاج تحديث الـ Rules (payroll_meta)':e.message)); return;
   }
   showPayVis();
 }
@@ -877,11 +881,11 @@ async function uploadSheet(){
   successEl.style.display='none'; errEl.style.display='none';
   if(!payParsed){ resetPayReview(); return; }
   const picked = [...document.querySelectorAll('#pay-review .pv-pick:checked')].map(x=>x.value);
-  if(!picked.length){ alert('علّم على الشركات اللي هترفعها الأول'); return; }
+  if(!picked.length){ tell('علّم على الشركات اللي هترفعها الأول'); return; }
   const pickedK = new Set(picked.map(tabKey)), allPicked = picked.length === payParsed.tabs.length;
   const pTabs = payParsed.tabs.filter(t=>pickedK.has(tabKey(t.name)));
   const warn = pTabs.some(t=>t.diffs.length||t.unknown.size);
-  if(warn && !confirm('فيه تنبيهات في المراجعة. متأكد إنك عايز ترفع الشيت كده؟')) return;
+  if(warn && !await ask('فيه تنبيهات في المراجعة. متأكد إنك عايز ترفع الشيت كده؟', { ok: "ارفع برضه" })) return;
   const btnLabel = btn.textContent;
   btn.innerHTML='<span class="spinner"></span> جاري الرفع...'; btn.disabled=true;
   document.getElementById('review-cancel').style.display='none';
@@ -963,12 +967,12 @@ window.uploadSheet = uploadSheet;
 
 // ===== مسح البيانات =====
 async function confirmClear(){
-  if(!confirm('هتمسح كل بيانات الرواتب. متأكد؟')) return;
+  if(!await ask('هتمسح كل بيانات الرواتب. متأكد؟', { ok: "امسح الكل", danger: true })) return;
   const snap = await getDocs(collection(db,'payroll'));
   for(let i=0; i<snap.docs.length; i+=400){
     const b = writeBatch(db); snap.docs.slice(i,i+400).forEach(d=>b.delete(d.ref)); await b.commit();
   }
-  alert('تم مسح كل البيانات');
+  tell('تم مسح كل البيانات');
 }
 window.confirmClear = confirmClear;
 

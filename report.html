@@ -219,8 +219,8 @@ th{background:#1d2024;}
 <script type="module">
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite } from './shared.js?v=20261104';
-import { printOrder } from './sheet.js?v=20261104';
+import { db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite, ask } from './shared.js?v=20261104b';
+import { printOrder } from './sheet.js?v=20261104b';
 
 // مواقع الساعات: الإضافي النهاري والليلي (بالدقايق) على خانة اليوم — والوقت اللي محتاج مراجعة بيتعلّم ومايتحسبش
 const TB_TIP = "الوقت محتاج مراجعة — اليوم ده مش محسوب في الإضافي";
@@ -365,7 +365,7 @@ async function loadHolidays() {
   const m = $("h-month").value; if (!m) return;
   const h = await holidaysFor([m]);
   const rows = Object.entries(h).sort();
-  $("h-list").innerHTML = rows.length ? rows.map(([d, n]) => `<tr><td>${DAYN[new Date(d + "T00:00").getDay()]} ${d}</td><td>${esc(n)}</td><td>${S.role === "admin" ? `<button class="btn sec small" data-hdel="${d}">شيل</button>` : ""}</td></tr>`).join("") : `<tr><td colspan="3" class="muted">مفيش عطلات متسجلة للشهر ده.</td></tr>`;
+  $("h-list").innerHTML = rows.length ? rows.map(([d, n]) => `<tr><td>${DAYN[new Date(d + "T00:00").getDay()]} ${d}</td><td>${esc(n)}</td><td>${S.role === "admin" ? `<button class="btn danger small" data-hdel="${d}">شيل</button>` : ""}</td></tr>`).join("") : `<tr><td colspan="3" class="muted">مفيش عطلات متسجلة للشهر ده.</td></tr>`;
 }
 $("h-month").onchange = loadHolidays;
 $("h-add").onclick = async () => {
@@ -377,6 +377,7 @@ $("h-add").onclick = async () => {
 };
 $("h-list").onclick = async e => {
   const d = e.target.dataset.hdel; if (!d) return;
+  if (!(await ask(`تشيل عطلة يوم ${d}؟`, { ok: "شيلها", danger: true }))) return;
   const m = d.slice(0, 7), h = await holidaysFor([m]); delete h[d];
   try { await setDoc(doc(db, "holidays", m), { days: h, updated_at: serverTimestamp() }); loadHolidays(); } catch (er) { show($("h-msg"), "err", er.message); }
 };
@@ -829,7 +830,7 @@ $("a-go").onclick = async () => {
       return `<tr><td>${esc(d.site)}</td><td>${DAYN[new Date(d.date + "T00:00").getDay()]} ${d.date}</td><td>${d.counts?.present ?? ""}</td><td>${d.counts?.absent ?? ""}</td><td>${reps}</td><td>${sup}</td>
         <td class="muted">${esc(d.confirmed_email || "")}${d.late ? ` <span class="pill p-late">متأخر</span>` : ""}${d.reviewed_email ? `<br>راجعه: ${esc(d.reviewed_email)}${d.review_late ? ` <span class="pill p-late">متأخر</span>` : ""}` : ""}</td>
         <td>${apState(d)}</td>
-        <td><button class="btn sec small" data-view="${i}">تفاصيل</button> ${!S.canApprove ? "" : d.status === "approved" ? `<button class="btn sec small" data-un="${i}">إلغاء الاعتماد</button>` : (d.status === "reviewed" || S.role === "admin") ? (tIssues(d) ? `<button class="btn small" data-view="${i}">راجع الأوقات (${tIssues(d)})</button>` : `<button class="btn small" data-ap="${i}">اعتماد</button>`) : ""}</td></tr>`;
+        <td><button class="btn sec small" data-view="${i}">تفاصيل</button> ${!S.canApprove ? "" : d.status === "approved" ? `<button class="btn danger small" data-un="${i}">إلغاء الاعتماد</button>` : (d.status === "reviewed" || S.role === "admin") ? (tIssues(d) ? `<button class="btn small" data-view="${i}">راجع الأوقات (${tIssues(d)})</button>` : `<button class="btn ok small" data-ap="${i}">اعتماد</button>`) : ""}</td></tr>`;
     }).join("") : `<tr><td colspan="9" class="muted">مفيش.</td></tr>`;
     $("a-all").disabled = !A.some(canAp);
     hide($("a-msg"));
@@ -933,7 +934,7 @@ $("a-list").onclick = async e => {
     return;
   }
   const i = t.dataset.ap ?? t.dataset.un; if (i === undefined || !S.canApprove) return;
-  if (t.dataset.un && !confirm("تلغي الاعتماد؟ الإقليمي هيقدر يعدّل اليوم تاني.")) return;
+  if (t.dataset.un && !await ask("تلغي الاعتماد؟ الإقليمي هيقدر يعدّل اليوم تاني.", { ok: "الغي الاعتماد", danger: true })) return;
   try { await setStatus(A[+i], !!t.dataset.ap); $("a-go").click(); } catch (er) { show($("a-msg"), "err", "مااتحفظش: " + er.message); }
 };
 // ترتيب الكشف الورقي لأيام اتأكدت قبل ما الترتيب يتسجل مع اليوم: من ترتيب الكشف الحالي للموقع (كشف العمال + الترتيب + الخطة)
@@ -1100,7 +1101,7 @@ $("a-esave").onclick = async () => {
   });
   if (bad.length) return show($("a-msg"), "err", "اكتب وقت الحضور والانصراف لـ: " + bad.join("، "));
   if (over.length) return show($("a-msg"), "err", "أقصى وردية 12 ساعة — صحّح الوقت لـ: " + over.join("، "));
-  if (flipped.length && !confirm("الحضور والانصراف كانوا معكوسين واتعدلوا:\n" + flipped.join("\n") + "\n\nتكمّل؟")) return;
+  if (flipped.length && !await ask("الحضور والانصراف كانوا معكوسين واتعدلوا:\n" + flipped.join("\n") + "\n\nتكمّل؟")) return;
   // العدد في الوظايف اللي اتضافلها بديل: الحاضرين (ومعاهم بدلاء الراحات والتوقف/الأجازة الرسمية) + الغايبين اللي ليهم بديل ≤ المطلوب
   if (added.length) {
     const per = {};
@@ -1110,11 +1111,11 @@ $("a-esave").onclick = async () => {
     const over = [...new Set(added.map(e => e.job))].filter(j => A.plan[j] != null && per[j] > A.plan[j]);
     if (over.length) return show($("a-msg"), "err", "مينفعش تضيف البديل: العدد هيعدّي المطلوب — " + over.map(j => `${j}: ${per[j]} والمطلوب ${A.plan[j]}`).join("، "));
     const noPlan = [...new Set(added.map(e => e.job))].filter(j => A.plan[j] == null);
-    if (noPlan.length && !confirm(`مفيش عدد مطلوب متسجل لـ: ${noPlan.join("، ")}. تضيف البديل برضه؟`)) return;
+    if (noPlan.length && !await ask(`مفيش عدد مطلوب متسجل لـ: ${noPlan.join("، ")}. تضيف البديل برضه؟`)) return;
   }
-  if (fixed && !confirm(`فيه ${fixed} وقت كان متعلّم للمراجعة (الأصفر). اتأكدت منهم؟`)) return;
+  if (fixed && !await ask(`فيه ${fixed} وقت كان متعلّم للمراجعة (الأصفر). اتأكدت منهم؟`)) return;
   if (!n && d.status === "approved") return show($("a-msg"), "info", "مفيش تغيير.");
-  if (!confirm(`${n ? `تعديل ${n} عامل و` : ""}اعتماد ${d.site} يوم ${d.date}؟`)) return;
+  if (!await ask(`${n ? `تعديل ${n} عامل و` : ""}اعتماد ${d.site} يوم ${d.date}؟`, { ok: "اعتمد" })) return;
   const v = Object.values(entries), u = auth.currentUser;
   try {
     await updateDoc(doc(db, "att_days", d.id), { entries, counts: { ...(d.counts || {}), present: v.filter(e => e.s === "P").length, absent: v.filter(e => e.s === "A").length },
@@ -1124,7 +1125,7 @@ $("a-esave").onclick = async () => {
 };
 $("a-all").onclick = async () => {
   const pend = A.filter(canAp);
-  if (!confirm(`اعتماد ${pend.length} يوم؟`)) return;
+  if (!await ask(`اعتماد ${pend.length} يوم؟`, { ok: "اعتمد" })) return;
   try { for (const d of pend) await setStatus(d, true); show($("a-msg"), "ok", `اتعتمد ${pend.length} يوم.`); $("a-go").click(); }
   catch (er) { show($("a-msg"), "err", er.message); }
 };
