@@ -277,14 +277,14 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
 
     <!-- بيانات العمال -->
     <section data-panel="workers" class="hidden">
-      <!-- ===== اتكوّدوا (السجل الموحد): العمال الجداد اللي الـ HR اعتمدهم وطلع لهم كود ===== -->
+      <!-- ===== أكواد جديدة (السجل الموحد): العمال الجداد اللي الـ HR اعتمدهم وطلع لهم كود ===== -->
       <div class="card" id="cd-card">
-        <details class="fold" data-fold="cd" open><summary><h2>اتكوّدوا <span class="fold-n" id="cd-n"></span></h2></summary>
+        <details class="fold" data-fold="cd" open><summary><h2>أكواد جديدة <span class="fold-n" id="cd-n"></span></h2></summary>
         <details class="why" style="margin:8px 0;"><summary>الشرح</summary><p class="muted">العمال الجداد اللي الـ HR اعتمدهم وطلع لهم كود (أو رجعوا بكودهم القديم).
           «تصدير» بيطلّع اللي في القايمة قدامك في إكسيل، وبعدها بيتعلّموا «اتصدّر» عشان التصدير الجاي يجيب الجداد بس.
           شيل علامة «اللي ما اتصدروش بس» لو عايز تعيد تصدير حد.</p></details>
         <div class="row" style="align-items:flex-end;">
-          <label class="f">اتكوّدوا من<input type="date" id="cd-from"></label>
+          <label class="f">الكود طلع من<input type="date" id="cd-from"></label>
           <label class="f">لحد<input type="date" id="cd-to"></label>
           <label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="cd-new" checked> اللي ما اتصدروش بس</label>
           <button class="btn no-view" id="cd-exp" type="button">تصدير إكسيل</button>
@@ -1207,7 +1207,7 @@ document.querySelectorAll("[data-n]").forEach(n => {
   new MutationObserver(upd).observe(tb, { childList: true }); upd();
 });
 ["w-q", "w-site"].forEach(id => document.getElementById(id)?.addEventListener("input", () => { document.querySelector('[data-fold="w-list"]').open = true; }));
-// ===== اتكوّدوا (worker_events: إضافة اتنفذت) — الأدمن، والـ HR والمحاسب لفروعهم =====
+// ===== أكواد جديدة (worker_events: إضافة اتنفذت) — الأدمن، والـ HR والمحاسب لفروعهم =====
 const CD = { rows: [], unsub: null };
 const cdDay = t => { const d = t?.toDate?.(); return d ? d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") : ""; };
 function initCoded() {
@@ -1218,7 +1218,7 @@ function initCoded() {
     CD.rows = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(e => e.kind === "hire")
       .sort((a, b) => (b.applied_at?.seconds || 0) - (a.applied_at?.seconds || 0));
     renderCoded();
-  }, err => show($("cd-msg"), "err", "مش قادر أقرا «اتكوّدوا»: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (worker_events)." : err.message)));
+  }, err => show($("cd-msg"), "err", "مش قادر أقرا «أكواد جديدة»: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (worker_events)." : err.message)));
 }
 function codedShown() {
   const f = $("cd-from").value, t = $("cd-to").value, onlyNew = $("cd-new").checked;
@@ -1247,8 +1247,8 @@ $("cd-exp").addEventListener("click", async () => {
   // الأرقام القومية والتليفونات نص (عشان الإكسيل مايبوظهاش)
   for (let r = 1; r < data.length; r++) for (const c of [1, 3]) { const a = XLSX.utils.encode_cell({ r, c }); if (ws[a]) { ws[a].t = "s"; ws[a].z = "@"; } }
   const wb = XLSX.utils.book_new(); wb.Workbook = { Views: [{ RTL: true }] };
-  XLSX.utils.book_append_sheet(wb, ws, "اتكوّدوا");
-  XLSX.writeFile(wb, `اتكوّدوا ${today()}.xlsx`);
+  XLSX.utils.book_append_sheet(wb, ws, "أكواد جديدة");
+  XLSX.writeFile(wb, `أكواد جديدة ${today()}.xlsx`);
   // علامة «اتصدّر» (الـ Rules: للعامل اللي اتكوّد بس، وباسم اللي صدّر)
   const u = auth.currentUser, todo = rows.filter(e => !e.exported);
   let n = 0;

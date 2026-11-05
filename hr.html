@@ -1008,7 +1008,7 @@ $("wq-list").onclick = async ev => {
   try {
     await updateDoc(doc(db, "worker_events", id), data);
     show($("wq-msg"), "ok", ds.wqno ? "اترفض — المشرف هيشوف السبب." : ds.wqsave ? "اتحفظ التعديل."
-      : e.kind === "hire" ? "اتعتمد — الكود هيطلع خلال ثواني (هيظهر في «اتنفذ»)." : "اتعتمد — هيتسجل في السجل خلال ثواني.");
+      : e.kind === "hire" ? "اتعتمد — الكود هيطلع خلال ثواني (هيظهر في «اتنفذ» وفي «بيانات العمال ← أكواد جديدة»)." : "اتعتمد — هيتسجل في السجل خلال ثواني.");
   } catch (err) { ev.target.disabled = false; show($("wq-msg"), "err", "ماتحفظش: " + (err.code === "permission-denied" ? "مش مسموح (يمكن الطلب مش من فروعك، أو اتعدل من حد تاني)." : err.message)); }
 };
 </script>
