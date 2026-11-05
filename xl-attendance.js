@@ -40,9 +40,24 @@ export const COMPANY_LABEL = { chipsy: "شيبسي", emdad: "الإمداد", sh
 
 // الرموز: كل شركة ورموزها
 const LEAVE = { "ج": "إجازة", "م": "مرضي", "ض": "مرضي", "ق": "توقف", "ط": "عطلة رسمية", "ر": "راحة", "ف": "إجازة", "و": "إجازة", "ث": "إجازة", "ص": "إصابة عمل" };
+// رموز شيت مرتبات الشرقية (غير رموزنا) — بتتحول لرموز البوابة. k = الرمز الأصلي (بيظهر في التقرير)،
+// xd = أيام إضافي (حضور جمعة/عطلة)، xh = ساعات إضافي نهاري فوق اليوم
+const SHARQIA_CODES = {
+  "ش": { s: "P", c: "" }, "ر": { s: "P", c: "" }, "د": { s: "P", c: "" }, "خ": { s: "P", c: "" },   // حضور عادي
+  "ن": { s: "P", c: "ن" },                                            // نص يوم
+  "2ط": { s: "P", c: "", k: "2ط", xd: 1 }, "4ط": { s: "P", c: "", k: "4ط", xd: 2 },   // حضور يوم عطلة: يوم / يومين إضافي
+  "ض": { s: "P", c: "", k: "ض", xd: 1 }, "2ض": { s: "P", c: "", k: "2ض", xd: 2 },     // حضور جمعة: يوم / يومين إضافي
+  "س": { s: "L", c: "ج", k: "س" }, "ذ": { s: "L", c: "ج", k: "ذ" },    // إجازة سنوي / إجازة بإذن
+  "م": { s: "L", c: "م" }, "ط": { s: "L", c: "ط" }, "غ": { s: "A", c: "" },
+};
 function mark(v, company) {
   const s = clean(v);
   if (!s || s === "#N/A" || s === "*" ) return null;                 // فاضي / جمعة الشرقية / لسه مااتسجلش
+  if (company === "sharqia") {
+    if (SHARQIA_CODES[s]) return { ...SHARQIA_CODES[s] };
+    const h = s.match(/^(\d+(?:\.\d+)?)\s*س$/);                       // 7س = حاضر + 7 ساعات إضافي نهاري
+    if (h) return { s: "P", c: "", k: s, xh: Number(h[1]) };
+  }
   const n = Number(s);
   if (!isNaN(n)) return n > 0 ? { s: "P", c: n === 1 ? "" : String(n) } : null;   // 1 حاضر، 8 = ساعات فعلية (جمعة/عطلة/راحة)
   if (company === "sharqia") {
@@ -142,7 +157,11 @@ export function parseSharqia(wb, XLSX) {
   const col = t => { const i = hk.indexOf(t); return i >= 0 ? i : hk.findIndex(h => h.startsWith(t)); };
   const iCode = col("الرقم"), iName = col("الاسم"), iJob = col("الوظيفه"), iLoc = col("الموقع"), iSec = col("القطاع");
   const dRow = rows.slice(hi + 1, hi + 3).find(r => (r || []).filter(v => v instanceof Date).length >= 5) || [];
-  const dates = dRow.map(asDate);
+  // أيام الشهر بس: الأعمدة بعد بيانات العامل (تاريخ التعيين وغيره قبلها)، وقريبة من باقي أيام الشيت
+  const firstDay = Math.max(iCode, iName, iJob, iLoc, iSec) + 1;
+  const raw = dRow.map((v, i) => i >= firstDay ? asDate(v) : null);
+  const ts = raw.filter(Boolean).map(d => d.getTime()).sort((a, b) => a - b), mid = ts[Math.floor(ts.length / 2)];
+  const dates = raw.map(d => d && Math.abs(d.getTime() - mid) <= 40 * 864e5 ? d : null);
   for (const r of rows.slice(hi + 1)) {
     const code = clean(r?.[iCode]).replace(/\.0$/, "");
     if (!/^\d+$/.test(code) || !clean(r[iName])) continue;

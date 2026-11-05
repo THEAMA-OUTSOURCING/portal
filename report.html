@@ -232,9 +232,10 @@ function otInto(cell, x, site) {
 const hrsNum = m => m ? Math.round(m / 60 * 100) / 100 : null;   // ساعات بكسور عشان الإكسيل يجمعها
 // خانة اليوم: 1 حاضر، غ غايب، أو الرمز زي ما هو (ج م ض ر ق ن 8 ...). p = قيمة الحضور (ن = نص يوم)
 function cellOf(e, app) {
-  if (e.s === "P") return { v: e.c || "1", p: e.c === "ن" ? 0.5 : 1, hrs: !!e.x, app };   // x = ساعات في يوم راحة (الإمداد) → إضافي
+  // الشرقية (شيت المرتبات): k = رمزهم الأصلي للعرض، xd = أيام إضافي (جمعة/عطلة)، xh = ساعات إضافي نهاري
+  if (e.s === "P") return { v: e.k || e.c || "1", p: e.c === "ن" ? 0.5 : 1, hrs: !!e.x, app, ...(e.xd ? { xd: +e.xd } : {}), ...(e.xh ? { otd: +e.xh * 60 } : {}) };
   if (e.s === "A") return { v: "غ", p: 0, a: true, app };
-  return { v: e.c || "؟", p: 0, l: true, app };
+  return { v: e.c || "؟", p: 0, l: true, app };   // الإجازة بتظهر برمزنا (س/ذ ← ج)
 }
 const DAYN = ["الحد", "الاتنين", "التلات", "الأربع", "الخميس", "الجمعة", "السبت"];
 const $ = id => document.getElementById(id);
@@ -616,10 +617,10 @@ $("r-go").onclick = async () => {
     if (jobF) list = list.filter(r => r.job === jobF);
     list.sort((a, b) => a.site.localeCompare(b.site) || a.rep - b.rep || a.job.localeCompare(b.job) || (a.loc || "").localeCompare(b.loc || "") || a.name.localeCompare(b.name));
     // الإضافي: شغل في جمعة أو عطلة، أو ساعات مكتوبة بالرقم (زي 8 في يوم راحة منسقين الإمداد)
-    list.forEach(r => { r.total = 0; r.extra = 0; r.otd = 0; r.otn = 0; r.tbad = 0; dates.forEach(d => { const c = r.cells[d]; if (c?.p) { r.total += c.p; if (off(d) || c.hrs) r.extra += c.p; }
+    list.forEach(r => { r.total = 0; r.extra = 0; r.otd = 0; r.otn = 0; r.tbad = 0; dates.forEach(d => { const c = r.cells[d]; if (c?.p) { r.total += c.p; if (c.xd) r.extra += c.xd; else if (off(d) || c.hrs) r.extra += c.p; }
       if (c?.tbad) r.tbad++; else if (c) { r.otd += c.otd || 0; r.otn += c.otn || 0; } }); });
     // مواقع الساعات: عمودين للإضافي (نهاري / ليلي) بالساعات — الأيام اللي وقتها محتاج مراجعة مش بتتحسب فيهم
-    const timed = list.some(r => TIME_SITES.includes(r.site));
+    const timed = list.some(r => TIME_SITES.includes(r.site) || r.otd);   // + الشرقية لو فيها ساعات إضافي (7س)
     const otSum = k => list.reduce((a, r) => a + (r[k] || 0), 0), nBad = list.reduce((a, r) => a + r.tbad, 0);
     const hasLoc = list.some(r => r.loc);
     const late = days.filter(d => d.late).length, unapp = days.filter(d => d.status !== "approved").length;
@@ -632,7 +633,7 @@ $("r-go").onclick = async () => {
     list.forEach((r, i) => {
       h += `<tr data-i="${i}"><td>${i + 1}</td>${multi ? `<td>${esc(r.site)}</td>` : ""}<td class="nm">${esc(r.name)}${r.rep ? " <span class='muted'>(بديل)</span>" : ""}</td><td>${esc(r.nid || r.code)}</td><td>${esc(r.job)}</td>${hasLoc ? `<td>${esc(r.loc)}</td>` : ""}` +
         dates.map(d => { const c = r.cells[d]; return `<td class="${off(d) ? "off" : ""} ${c?.a ? "a" : ""} ${c?.l ? (isLeave(c) ? "lvg" : "lv") : ""} ${c?.conf ? "conf" : ""} ${c?.w ? "wt" : ""} ${c && !c.app ? "unapp" : ""} ${c?.tbad ? "tb" : ""}"${c?.ev || c?.conf || c?.tbad ? ` title="${esc(c.ev || c.conf || TB_TIP)}"` : ""}>${c ? esc(c.v) : ""}</td>`; }).join("") +
-        `<td><b>${r.total}</b></td><td>${r.extra || ""}</td>${timed ? (TIME_SITES.includes(r.site) ? `<td>${r.otd ? hrsTxt(r.otd) : ""}</td><td>${r.otn ? hrsTxt(r.otn) : ""}</td>` : "<td></td><td></td>") : ""}</tr>`;
+        `<td><b>${r.total}</b></td><td>${r.extra || ""}</td>${timed ? (TIME_SITES.includes(r.site) || r.otd ? `<td>${r.otd ? hrsTxt(r.otd) : ""}</td><td>${r.otn ? hrsTxt(r.otn) : ""}</td>` : "<td></td><td></td>") : ""}</tr>`;
     });
     const span = (multi ? 5 : 4) + (hasLoc ? 1 : 0);
     const footRow = (label, f, tail = timed ? "<td></td><td></td>" : "") => `<tr class="foot"><td colspan="${span}" style="text-align:right">${esc(label)}</td>` +
@@ -716,7 +717,7 @@ function buildReportWorkbook(ExcelJS, R) {
   R.list.forEach((r, i) => {
     const vals = [i + 1, ...(multi ? [r.site] : []), r.name, r.nid || r.code, r.job, ...(R.hasLoc ? [r.loc] : []), r.rep ? "بديل" : "",
       ...R.dates.map(d => { const c = r.cells[d]; return !c ? null : c.v === "1" ? 1 : (isNaN(+c.v) ? c.v : +c.v); }), r.total, r.extra || null,
-      ...(R.timed ? (TIME_SITES.includes(r.site) ? [hrsNum(r.otd), hrsNum(r.otn)] : [null, null]) : [])];
+      ...(R.timed ? (TIME_SITES.includes(r.site) || r.otd ? [hrsNum(r.otd), hrsNum(r.otn)] : [null, null]) : [])];
     const row = ws.addRow(vals);
     row.eachCell({ includeEmpty: true }, (cell, col) => {
       cell.border = box; cell.font = { name: "Arial", size: 10 };
