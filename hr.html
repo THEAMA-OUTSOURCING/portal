@@ -55,6 +55,10 @@ details.why>p{margin-top:6px;}
 .ev .ft{padding:10px 12px;border-top:1px solid #f0efe9;display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
 .pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:600;}
 .t-hire{background:#eaf3de;color:#3b6d11;} .t-change{background:#f3eefb;color:#5b3aa5;} .s-error{background:#fcebeb;color:#a32d2d;} .s-done{background:#eaf3de;color:#3b6d11;}
+.wq-row{display:block;width:100%;text-align:right;background:#fff;border:0;border-bottom:1px solid #eee;padding:10px 6px;cursor:pointer;font:inherit;color:inherit;}
+.wq-row:hover{background:#fbeceb;} .wq-row.on{background:#fbeceb;border-bottom-color:transparent;}
+.wq-row .nm{font-weight:600;font-size:15px;} .wq-row .muted{font-size:12px;}
+.wq-open{margin:0 0 12px;max-width:560px;}
 .wq-f{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;font-size:13px;margin-top:6px;align-items:center;}
 .wq-f input,.wq-f select{padding:4px 6px;font-size:13px;border:1px solid #ddd;border-radius:8px;width:100%;}
 .t-sick{background:#eef4fb;color:#185fa5;} .t-leave{background:#eaf3de;color:#3b6d11;} .t-resign{background:#fcebeb;color:#a32d2d;}
@@ -134,7 +138,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
         <label class="f">بحث<input id="wq-q" placeholder="الاسم أو الكود أو الرقم القومي أو الموقع"></label>
       </div>
       <div class="msg" id="wq-msg" style="white-space:pre-line;"></div>
-      <div class="grid" id="wq-list"></div>
+      <div id="wq-list"></div>
     </details>
     <details class="card fold no-view">
       <summary><h2>رفع إجازات ومرضي من إكسيل (شيبسي / بيبسي / الإمداد / الشرقية)</h2></summary>
@@ -863,7 +867,7 @@ $("zoom").onclick = () => $("zoom").classList.add("hidden");
 
 // ===================== طلبات القوة (worker_events) =====================
 // الـ HR بيعتمد أو يرفض — السيرفر (record_events.py) هو اللي بيكتب في السجل ويطلّع الكود.
-const WQ = { open: new Map(), hist: [], view: "open", role: null, uid: "" };
+const WQ = { open: new Map(), hist: [], view: "open", role: null, uid: "", sel: null };
 const WQ_KIND = { hire: "إضافة", leave: "خروج", change: "تغيير" };
 const WQ_ST = { pending: "مستني HR", error: "فيه خطأ", approved: "بيتنفذ…", done: "اتنفذ", rejected: "مرفوض" };
 const WQ_TYPES = ["اساسي", "يومية", "بديل راحات"];
@@ -950,6 +954,13 @@ function wqCard(e) {
       <button class="btn small" data-wqno="${e.id}">رفض</button></div>` : ""}
   </div>`;
 }
+function wqRow(e) {
+  const src = e.source === "page" ? "" : e.source === "sharqia_attendance_2026_10" ? " — من حضور الشرقية 2 أكتوبر" : " — من التعديلات القديمة";
+  return `<button type="button" class="wq-row ${WQ.sel === e.id ? "on" : ""}" data-wqopen="${e.id}">
+    <div class="row" style="justify-content:space-between;align-items:center;gap:6px;"><span class="nm">${esc(e.name || e.code || "")}</span>
+      <span><span class="pill t-${cls(e.kind)}">${WQ_KIND[e.kind] || esc(e.kind)}</span> <span class="pill s-${cls(e.status)}">${WQ_ST[e.status] || esc(e.status)}</span></span></div>
+    <div class="muted">${esc(e.site || e.branch || "")}${e.branch && e.branch !== e.site ? " — " + esc(e.branch) : ""} — ${wqDate(e.created_at)}${src}</div></button>`;
+}
 function wqRender() {
   const list = WQ.view === "open" ? [...WQ.open.values()] : WQ.hist;
   const k = $("wq-kind").value, q = $("wq-q").value.trim();
@@ -958,8 +969,13 @@ function wqRender() {
     .sort((a, b) => (a.status === "error" ? 0 : 1) - (b.status === "error" ? 0 : 1) || (a.created_at?.seconds || 0) - (b.created_at?.seconds || 0));
   const nOpen = [...WQ.open.values()].filter(e => e.status !== "approved").length;
   $("wq-count").textContent = nOpen ? nOpen + " مستني" : "";
-  $("wq-list").innerHTML = rows.length ? rows.slice(0, 120).map(wqCard).join("")
+  // قايمة أسامى تحت بعض — دوس على الاسم يفتح الكارت تحته.
+  // اللي اتكتب في الكارت المفتوح بيفضل لو القايمة اتحدّثت (طلب تاني اتغير)
+  const keep = {};
+  document.querySelectorAll("#wq-list .wq-open [data-wf], #wq-list .wq-open [data-wqwhy]").forEach(el => keep[el.dataset.wf || "_why"] = el.value);
+  $("wq-list").innerHTML = rows.length ? rows.slice(0, 300).map(e => wqRow(e) + (WQ.sel === e.id ? `<div class="wq-open">${wqCard(e)}</div>` : "")).join("")
     : `<p class="muted">${WQ.view === "open" ? "مفيش طلبات مستنية." : "مفيش."}</p>`;
+  document.querySelectorAll("#wq-list .wq-open [data-wf], #wq-list .wq-open [data-wqwhy]").forEach(el => { const k = el.dataset.wf || "_why"; if (k in keep) el.value = keep[k]; });
 }
 // البيانات اللي الـ HR عدّلها في الكارت (اللي اتغير بس)
 function wqEdits(card, e) {
@@ -985,6 +1001,8 @@ function wqCheck(e, upd) {
 $("wq-st").onchange = () => { WQ.view = $("wq-st").value; wqLoadHist(); };
 $("wq-kind").onchange = wqRender; $("wq-q").oninput = wqRender;
 $("wq-list").onclick = async ev => {
+  const o = ev.target.closest("[data-wqopen]");
+  if (o) { WQ.sel = WQ.sel === o.dataset.wqopen ? null : o.dataset.wqopen; return wqRender(); }
   const z = ev.target.closest("[data-wqzoom]");
   if (z) { $("zoom-img").src = (WQ.open.get(z.dataset.wqzoom) || WQ.hist.find(x => x.id === z.dataset.wqzoom))?.card_img || ""; return $("zoom").classList.remove("hidden"); }
   if (VIEW) return;
@@ -1007,6 +1025,7 @@ $("wq-list").onclick = async ev => {
   ev.target.disabled = true;
   try {
     await updateDoc(doc(db, "worker_events", id), data);
+    if (!ds.wqsave) { WQ.sel = null; wqRender(); }
     show($("wq-msg"), "ok", ds.wqno ? "اترفض — المشرف هيشوف السبب." : ds.wqsave ? "اتحفظ التعديل."
       : e.kind === "hire" ? "اتعتمد — الكود هيطلع خلال ثواني (هيظهر في «اتنفذ» وفي «بيانات العمال ← أكواد جديدة»)." : "اتعتمد — هيتسجل في السجل خلال ثواني.");
   } catch (err) { ev.target.disabled = false; show($("wq-msg"), "err", "ماتحفظش: " + (err.code === "permission-denied" ? "مش مسموح (يمكن الطلب مش من فروعك، أو اتعدل من حد تاني)." : err.message)); }
