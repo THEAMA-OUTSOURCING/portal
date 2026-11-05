@@ -69,6 +69,13 @@ h2{font-size:15px;font-weight:600;margin-bottom:8px;}
 .seg button[aria-pressed=true].a{background:#a32d2d;color:#fff;}
 .seg button[aria-pressed=true].q{background:#185fa5;color:#fff;}
 .hidden{display:none !important;}
+details.why{margin-bottom:8px;} details.why>summary{cursor:pointer;color:#185fa5;font-size:13px;width:max-content;} details.why>p{margin-top:6px;}
+.lv-grp{border:1px solid #eee;border-radius:12px;padding:0 12px;margin-bottom:8px;}
+.lv-grp>summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;padding:10px 0;font-weight:600;}
+.lv-grp>summary::-webkit-details-marker{display:none;}
+.lv-grp>summary span:first-child::before{content:"◂ ";color:#888;font-size:12px;}
+.lv-grp[open]>summary span:first-child::before{content:"▾ ";}
+.lv-grp>div:last-child{border-bottom:0 !important;}
 .center{max-width:380px;margin:50px auto;}
 .viewer{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:50;padding:10px;}
 .viewer img{max-width:100%;max-height:100%;}
@@ -235,7 +242,7 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
 
     <div class="card" id="lv-card">
       <h2>طلبات الإجازة والمرضي</h2>
-      <p class="muted" style="margin-bottom:8px;">اختار العامل والنوع والأيام، وصوّر الورقة (التقرير الطبي أو طلب الإجازة). الطلب بيروح للـ HR، وبعده لاعتماد العميل.</p>
+      <details class="why"><summary>الشرح</summary><p class="muted">اختار العامل والنوع والأيام، وصوّر الورقة (التقرير الطبي أو طلب الإجازة). الطلب بيروح للـ HR، وبعده لاعتماد العميل.</p></details>
       <button class="btn sec" id="lv-new"><i class="ti ti-calendar-plus"></i> طلب جديد</button>
       <div class="msg" id="lv-msg"></div>
       <div id="lv-list" style="margin-top:10px;"></div>
@@ -536,7 +543,7 @@ async function openDay() {
       S.choice = { ...fromSaved, ...S.choice };
       const t = S.day.confirmed_at?.toDate ? S.day.confirmed_at.toDate().toLocaleString("ar-EG") : "";
       const rt = S.day.reviewed_at?.toDate ? S.day.reviewed_at.toDate().toLocaleString("ar-EG") : "";
-      if (S.day.status === "approved") show($("day-state"), "ok", S.admin ? "اليوم ده اتعتمد من المحاسب. تقدر تعدّل فيه كأدمن، والاعتماد هيفضل زي ما هو." : "اليوم ده اتعتمد من المحاسب، ومينفعش يتعدل.");
+      if (S.day.status === "approved") show($("day-state"), "ok", S.admin ? "اليوم ده تم اعتماده من المحاسب. تقدر تعدّل فيه كأدمن، والاعتماد هيفضل زي ما هو." : "اليوم ده تم اعتماده من المحاسب، ومينفعش يتعدل.");
       else if (S.day.status === "reviewed") show($("day-state"), "ok", `الإقليمي راجع اليوم ده (${esc(S.day.reviewed_email || "")}${rt ? " — " + rt : ""})${S.day.review_late ? " (متأخر)" : ""}. ` + (S.admin ? "تقدر تعدّل فيه كأدمن، ومراجعة الإقليمي هتفضل زي ما هي." : S.regional ? "تقدر تعدّل وتراجع تاني لحد ما المحاسب يعتمده." : "مستني اعتماد المحاسب، ولو فيه تعديل كلّم الإقليمي."));
       else show($("day-state"), "ok", `المشرف أكد اليوم ده${t ? " — " + t : ""}${S.day.late ? " (متأخر)" : ""}. ` + (S.regional ? "راجعه وأكد عشان يروح للمحاسب." : "مستني مراجعة الإقليمي، وتقدر تعدّل لحد ما يراجعه."));
     }
@@ -567,7 +574,7 @@ async function compress(file) {
 async function onFiles(e) {
   const files = [...e.target.files]; e.target.value = "";
   if (!files.length) return;
-  if (lockedForMe()) return show($("up-msg"), "err", S.day?.status === "approved" ? "اليوم ده اتعتمد، مينفعش يترفعله صور." : "الإقليمي راجع اليوم ده، مينفعش يترفعله صور. كلّمه لو فيه تعديل.");
+  if (lockedForMe()) return show($("up-msg"), "err", S.day?.status === "approved" ? "اليوم ده تم اعتماده، مينفعش يترفعله صور." : "الإقليمي راجع اليوم ده، مينفعش يترفعله صور. كلّمه لو فيه تعديل.");
   const u = auth.currentUser;
   let ok = 0;
   for (let i = 0; i < files.length; i++) {
@@ -1194,11 +1201,11 @@ $("confirm").addEventListener("click", async () => {
     }
     show($("c-msg"), "ok", "اتأكد الحضور ✓");
   } catch (err) {
-    show($("c-msg"), "err", "ماتأكدش: " + (err.code === "permission-denied" ? "مش مسموح (يمكن اليوم اتراجع أو اتعتمد)." : err.message));
+    show($("c-msg"), "err", "ماتأكدش: " + (err.code === "permission-denied" ? "مش مسموح (يمكن اليوم اتراجع أو تم اعتماده)." : err.message));
   }
   $("confirm").disabled = false;
 });
-// ===== تحديث الساعات من القراءة (الأدمن، مواقع الساعات، يوم لسه مااتعتمدش) =====
+// ===== تحديث الساعات من القراءة (الأدمن، مواقع الساعات، يوم لسه ماتمش اعتماده) =====
 // بعد ما الصور تتقري تاني (reread_pages.py على السيرفر): الساعات المحفوظة بتتحسب من جديد من آخر قراءة،
 // والبدلاء الحاضرين اللي القراءة الجديدة لقيتهم ومش متسجلين بيتضافوا. حالة كل عامل وقرارات المشرف/الإقليمي مابتتغيرش.
 const TIME_KEYS = ["tin", "tout", "in", "out", "min", "dmin", "nmin", "ot", "otd", "otn", "t_issue", "t_prev", "t_src", "mission"];
@@ -1820,7 +1827,17 @@ const LV_MAX_PAGES = 3, LV_PAGE_ONE = 380000, LV_IMG_MULTI = 360000, LV_PAGES_BU
 const LV_TY = { sick: "مرضي", leave: "إجازة" };
 // إصابة العمل: النوع sick وsick_kind = injury، ومعاها صورة المحضر المختوم (image2) إجباري
 const lvTyTxt = e => e.type === "sick" && e.sick_kind === "injury" ? "إصابة عمل" : (LV_TY[e.type] || "");
-const LV_ST = { pending: ["مستني الـ HR", "p-wait"], client_wait: ["مستني اعتماد العميل", "p-warn"], approved: ["اتعتمد", "p-ok"], rejected: ["اترفض", "p-err"] };
+const LV_ST = { pending: ["مستني الـ HR", "p-wait"], client_wait: ["في انتظار الموافقة", "p-warn"], approved: ["تم الاعتماد", "p-ok"], rejected: ["اترفض", "p-err"] };
+// بنود القايمة: المستني (HR ثم العميل)، وبعدين الإجازات والمرضي (وإصابة العمل معاه) المعتمد والمرفوض
+const LV_GROUPS = [
+  { k: "pending", t: "مستني الـ HR", f: e => e.status === "pending" },
+  { k: "client_wait", t: "في انتظار الموافقة", f: e => e.status === "client_wait" },
+  { k: "leave_ok", t: "إجازات تم الاعتماد", f: e => e.type === "leave" && e.status === "approved" },
+  { k: "leave_no", t: "إجازات مرفوضة", f: e => e.type === "leave" && e.status === "rejected" },
+  { k: "sick_ok", t: "مرضي تم الاعتماد", f: e => e.type === "sick" && e.status === "approved" },
+  { k: "sick_no", t: "مرضي مرفوض", f: e => e.type === "sick" && e.status === "rejected" },
+];
+const LV_OPEN = new Set(["pending"]);   // البنود المفتوحة بتفضل مفتوحة مع كل تحديث للقايمة
 const lvWorkDays = (f, t) => { let n = 0; for (let d = new Date(f + "T00:00"); d <= new Date(t + "T00:00"); d.setDate(d.getDate() + 1)) if (d.getDay() !== 5) n++; return n; };
 function lvWatch() {
   const site = $("site").value;
@@ -1832,12 +1849,13 @@ function lvWatch() {
   }, err => show($("lv-msg"), "err", "مش قادر أقرا الطلبات: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : err.message)));
 }
 $("site").addEventListener("change", lvWatch);
+$("lv-list").addEventListener("toggle", e => { const g = e.target.closest?.("[data-lvg]"); if (g) g.open ? LV_OPEN.add(g.dataset.lvg) : LV_OPEN.delete(g.dataset.lvg); }, true);
 function renderLvList() {
   // آخر 60 يوم بس، الأحدث فوق
   const cut = new Date(); cut.setDate(cut.getDate() - 60); const c = ymd(cut);
   const rows = LV.list.filter(e => (e.to || e.from || "") >= c || e.status === "pending" || e.status === "client_wait")
     .sort((a, b) => String(b.from).localeCompare(String(a.from)));
-  $("lv-list").innerHTML = rows.length ? rows.map(e => {
+  const item = e => {
     const [st, cls] = LV_ST[e.status] || [esc(e.status), "p-grey"];
     const moved = e.original && (e.original.from !== e.from || e.original.to !== e.to)
       ? `<div class="muted">اتعدلت من ${esc(e.original.from)} → ${esc(e.original.to)}</div>` : "";
@@ -1845,7 +1863,14 @@ function renderLvList() {
     return `<div style="border-bottom:1px solid #eee;padding:8px 0;"><div class="row" style="justify-content:space-between;">
       <b>${esc(e.name)}</b><span><span class="pill p-grey">${lvTyTxt(e)}</span> <span class="pill ${cls}">${st}</span></span></div>
       <div class="muted">من ${esc(e.from)} لحد ${esc(e.to)} — ${esc(e.days)} يوم${e.approved_days != null && +e.approved_days < +e.days ? ` (العميل اعتمد ${esc(e.approved_days)})` : ""}</div>${moved}${why}</div>`;
-  }).join("") : `<div class="muted">مفيش طلبات في آخر 60 يوم.</div>`;
+  };
+  const used = new Set();
+  const groups = LV_GROUPS.map(g => { const list = rows.filter(e => !used.has(e) && g.f(e)); list.forEach(e => used.add(e)); return { ...g, list }; });
+  const other = rows.filter(e => !used.has(e));
+  if (other.length) groups.push({ k: "other", t: "حالات تانية", list: other });
+  $("lv-list").innerHTML = rows.length ? groups.filter(g => g.list.length).map(g =>
+    `<details class="lv-grp" data-lvg="${g.k}"${LV_OPEN.has(g.k) ? " open" : ""}><summary><span>${g.t}</span><span class="pill p-grey">${g.list.length}</span></summary>${g.list.map(item).join("")}</details>`).join("")
+    : `<div class="muted">مفيش طلبات في آخر 60 يوم.</div>`;
 }
 function lvReset() {
   LV.who = null; LV.img = ""; LV.imgFile = null; LV.pages = []; renderLvPages(); $("lv-q").value = ""; $("lv-type").value = "sick"; $("lv-extc").checked = true; lvTypeUi();
@@ -1869,7 +1894,7 @@ function lvPick(code) {
 $("lv-q").addEventListener("input", renderLvHits);
 $("lv-hits").addEventListener("click", e => { const b = e.target.closest("[data-lvpick]"); if (b) lvPick(b.dataset.lvpick); });
 $("lv-picked").addEventListener("click", e => { if (e.target.closest("[data-lvclear]")) { lvPick(""); $("lv-q").focus(); } });
-// نفس العامل في أيام متداخلة مع طلب تاني لسه شغال أو اتعتمد
+// نفس العامل في أيام متداخلة مع طلب تاني لسه شغال أو تم اعتماده
 function lvOverlap(w, f, t) {
   return LV.list.find(e => e.status !== "rejected" && ((w.nid && e.nid === w.nid) || String(e.code) === String(w.code)) && e.from <= t && (e.to || e.from) >= f);
 }

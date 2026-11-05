@@ -315,7 +315,7 @@ $("xsave").onclick = async () => {
   // السطر اللي اترفع قبل كده (نفس العامل + نفس «من» + نفس النوع) مش بيتكتب فوقه، عشان قرار الـ HR ميرجعش «مستني».
   // لو اتغيّر فيه حاجة (زي «لحد»): لو لسه مستني بيتحدّث، ولو اتاخد فيه قرار بيتعلّم «اتعدل بعد القرار — راجعه».
   const byId = new Map(ALL.map(x => [x.id, x]));
-  // السطور اللي مش في اللي محمّل دلوقتي (ممكن تكون اتعتمدت قبل كده): نتأكد منها واحدة واحدة
+  // السطور اللي مش في اللي محمّل دلوقتي (ممكن يكون تم اعتمادها قبل كده): نتأكد منها واحدة واحدة
   const idOf = r => `xl__${r.nid || r.code}__${r.from}__${r.type}${r.kind ? "_" + r.kind : ""}`;
   try {
     const miss = [...new Set(XROWS.map(idOf))].filter(id => !byId.has(id));
@@ -357,8 +357,8 @@ $("old-lv-ok").onclick = async () => {
       list.slice(i, i + 400).forEach(e => b.update(doc(db, "hr_events", e.id), { status: "approved", decided_by: u.uid, decided_email: actorEmail(u), decided_at: serverTimestamp() }));
       await b.commit(); n += Math.min(400, list.length - i);
     }
-    show($("msg"), "ok", `اتعتمد ${n} إجازة.`);
-  } catch (e) { show($("cl-msg"), "err", `اتعتمد ${n} ووقف عند خطأ: ` + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : e.message)); }
+    show($("msg"), "ok", `تم اعتماد ${n} إجازة.`);
+  } catch (e) { show($("cl-msg"), "err", `تم اعتماد ${n} ووقف عند خطأ: ` + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : e.message)); }
   $("old-lv-ok").disabled = false;
 };
 function clientUpd(ev, dec, from, to, note) {
@@ -756,7 +756,7 @@ function hrOk(ev, extra) {
   const upd = { ...extra, status: toClient ? "client_wait" : "approved", changed: false,
     hr_ok_by: u.uid, hr_ok_email: actorEmail(u), hr_ok_at: serverTimestamp(), client_group: groupOf(ev) };
   if (!toClient) Object.assign(upd, { decided_by: u.uid, decided_email: actorEmail(u), decided_at: serverTimestamp() });
-  return [upd, toClient ? "اتوافق عليها واتنقلت لـ «مستني رد العميل»." : "اتعتمدت."];
+  return [upd, toClient ? "اتوافق عليها واتنقلت لـ «مستني رد العميل»." : "تم الاعتماد."];
 }
 // صندوق التعديل: لما النوع يتغير لمرضي تظهر خانات السبب والمستشفى (ولو اتغير لحاجة تانية تستخبى)
 $("list").onchange = e => {

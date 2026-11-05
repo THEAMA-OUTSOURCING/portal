@@ -148,7 +148,7 @@ th{background:#1d2024;}
           <button class="btn sec" id="r-print" disabled><i class="ti ti-printer"></i> طباعة</button>
           <button class="btn sec office-only hidden" id="r-xlsx" disabled><i class="ti ti-file-spreadsheet"></i> إكسيل</button>
         </div>
-        <p class="muted" style="margin-top:6px;">1 = حاضر، غ = غايب، فاضي = مفيش حضور متأكد لليوم ده. في المواقع المرفوعة إكسيل الرمز بيظهر زي ما هو: ج إجازة، م/ض مرضي، ر راحة، ق توقف، ن نص يوم، ورقم = ساعات (إضافي). في الشرقية: الإجازات والمرضي المعتمدين من الـ HR بيظهروا ج / م، والمستقيل «س» من يوم تسجيل الاستقالة، والخانة اللي عليها إطار برتقالي = تعارض (حالة معتمدة والشيت بيقول حاضر). الجمعة والعطلات متلوّنة، واللي اشتغل فيها بيتحسب إضافي. الخانات الصفرا = متأكدة من المشرف ولسه مااتعتمدتش.</p>
+        <p class="muted" style="margin-top:6px;">1 = حاضر، غ = غايب، فاضي = مفيش حضور متأكد لليوم ده. في المواقع المرفوعة إكسيل الرمز بيظهر زي ما هو: ج إجازة، م/ض مرضي، ر راحة، ق توقف، ن نص يوم، ورقم = ساعات (إضافي). في الشرقية: الإجازات والمرضي المعتمدين من الـ HR بيظهروا ج / م، والمستقيل «س» من يوم تسجيل الاستقالة، والخانة اللي عليها إطار برتقالي = تعارض (حالة معتمدة والشيت بيقول حاضر). الجمعة والعطلات متلوّنة، واللي اشتغل فيها بيتحسب إضافي. الخانات الصفرا = متأكدة من المشرف ولسه ماتمش اعتمادها.</p>
         <div class="msg" id="r-msg"></div>
       </div>
       <div class="card hidden" id="r-out">
@@ -312,7 +312,7 @@ $("fp-go").onclick = async () => {
     const sites = FP_SITES[co];
     const all = (await fetchDays(from, to, "*")).filter(d => sites.includes(d.site));
     const days = all.filter(d => d.status === "approved"), notApp = all.filter(d => d.status !== "approved");
-    if (!days.length) return show($("fp-msg"), "warn", "مفيش أيام معتمدة في الفترة دي." + (notApp.length ? ` (فيه ${notApp.length} يوم لسه مااتعتمدش)` : ""));
+    if (!days.length) return show($("fp-msg"), "warn", "مفيش أيام معتمدة في الفترة دي." + (notApp.length ? ` (فيه ${notApp.length} يوم لسه ماتمش اعتماده)` : ""));
     let jc = []; try { const d = await getDoc(doc(db, ...JC_DOC)); jc = d.exists() ? d.data().rows || [] : []; } catch (e) {}
     const cmap = codeMap(jc), secs = {};
     for (const s of sites) { try { const o = await getDoc(doc(db, "sheet_order", s)); secs[s] = o.exists() ? o.data().sections || {} : {}; } catch (e) { secs[s] = {}; } }
@@ -347,7 +347,7 @@ $("fp-go").onclick = async () => {
     XLSX.utils.book_append_sheet(wb, ws, co === "pepsi" ? "حضور بيبسي" : "حضور شيبسي");
     XLSX.writeFile(wb, `${co === "pepsi" ? "حضور بيبسي" : "حضور شيبسي"} للبصمة ${from} - ${to}.xlsx`, { cellDates: true });
     const warn = [];
-    if (notApp.length) warn.push(`${notApp.length} يوم لسه مااتعتمدش ومش في الملف: ` + [...new Set(notApp.map(d => d.site + " " + d.date.slice(5)))].slice(0, 12).join("، "));
+    if (notApp.length) warn.push(`${notApp.length} يوم لسه ماتمش اعتماده ومش في الملف: ` + [...new Set(notApp.map(d => d.site + " " + d.date.slice(5)))].slice(0, 12).join("، "));
     if (noCode.size) warn.push(`وظايف مالهاش كود إنجليزي (خانة CODE فاضية — زودها في جدول الأكواد): ` + [...noCode].join("، "));
     if (noNid.length) warn.push(`${noNid.length} عامل من غير رقم قومى صحيح: ` + noNid.slice(0, 10).join("، "));
     show($("fp-msg"), warn.length ? "warn" : "ok", `اتصدّر ${list.length} عامل × ${dates.length} يوم.` + (warn.length ? "\n" + warn.join("\n") : ""));
@@ -508,7 +508,7 @@ async function leaveReport(from, to, sel, jobF, kind) {
     for (const e of evs) {
       const ok = kind === "sick" ? e.type === "sick" : (e.type === "leave" && e.kind !== "unpaid");
       if (!ok || !e.from) continue;
-      // المرضي: الأيام اللي العميل اعتمدها بس (أول N يوم شغل)، واللي اتعتمد 0 مش بيظهر
+      // المرضي: الأيام اللي العميل اعتمدها بس (أول N يوم شغل)، واللي تم اعتماده 0 مش بيظهر
       const nOk = kind === "sick" && e.approved_days != null && e.approved_days !== "" ? +e.approved_days : Infinity;
       if (nOk === 0) continue;
       let eTo = e.to || e.from;
@@ -643,7 +643,7 @@ $("r-go").onclick = async () => {
     $("r-table").innerHTML = h;
     const sTitle = multi ? "كل المواقع" : sel;
     $("print-head").innerHTML = `<b>تقرير حضور ${esc(sTitle)}${jobF ? " — " + esc(jobF) : ""}</b> — من ${from} لحد ${to}`;
-    $("r-sum").textContent = `${list.length} عامل · ${days.length} يوم حضور متأكد · ${unapp} لسه مااتعتمدش · رفع متأخر: ${late} مرة` + (timed && nBad ? ` · ${nBad} يوم وقته محتاج مراجعة (برتقالي) ومش محسوب في الإضافي` : "") + (Object.keys(hol).length ? ` · العطلات: ${Object.entries(hol).filter(([d]) => d >= from && d <= to).map(([d, n]) => d.slice(8) + " " + n).join("، ")}` : "");
+    $("r-sum").textContent = `${list.length} عامل · ${days.length} يوم حضور متأكد · ${unapp} لسه ماتمش اعتماده · رفع متأخر: ${late} مرة` + (timed && nBad ? ` · ${nBad} يوم وقته محتاج مراجعة (برتقالي) ومش محسوب في الإضافي` : "") + (Object.keys(hol).length ? ` · العطلات: ${Object.entries(hol).filter(([d]) => d >= from && d <= to).map(([d, n]) => d.slice(8) + " " + n).join("، ")}` : "");
     $("r-out").classList.remove("hidden"); hide($("r-msg")); filterRows();
     $("r-print").disabled = false; $("r-xlsx").disabled = false;
   } catch (e) { show($("r-msg"), "err", "حصل خطأ: " + e.message); }
@@ -756,7 +756,7 @@ function buildReportWorkbook(ExcelJS, R) {
   const legend = [["غ", "غايب", C.abs], ["ج", "إجازة", C.lvg], ["خ", "إجازة بدون أجر", C.lv], ["م", "مرضي", C.lv], ["س", "استقالة", C.lv], ["م؟", "مرضي في انتظار اعتماد العميل", C.wtTxt]];
   legend.forEach(([k, v, color]) => { const row = ws.addRow([k, v]); row.getCell(1).font = { name: "Arial", bold: true, color: { argb: color } }; row.getCell(2).font = { name: "Arial", size: 9 }; });
   const l3 = ws.addRow(["", "جمعة أو عطلة رسمية"]); l3.getCell(1).fill = fill(C.off); l3.getCell(2).font = { name: "Arial", size: 9 };
-  const l4 = ws.addRow(["", "يوم لسه مااتعتمدش من المحاسب"]); l4.getCell(1).fill = fill(C.unapp); l4.getCell(2).font = { name: "Arial", size: 9 };
+  const l4 = ws.addRow(["", "يوم لسه ماتمش اعتماده من المحاسب"]); l4.getCell(1).fill = fill(C.unapp); l4.getCell(2).font = { name: "Arial", size: 9 };
   if (R.timed) { const l5 = ws.addRow(["", TB_TIP]); l5.getCell(1).fill = fill(C.tb); l5.getCell(2).font = { name: "Arial", size: 9 }; }
   // عرض الأعمدة
   fixed.forEach((h, i) => ws.getColumn(i + 1).width = h === "م" ? 5 : h === "الاسم" ? 30 : h === "الرقم القومي" ? 16 : h === "الوظيفة" ? 18 : h === "المكان" ? 14 : h === "الموقع" ? 14 : 7);
@@ -1121,13 +1121,13 @@ $("a-esave").onclick = async () => {
   try {
     await updateDoc(doc(db, "att_days", d.id), { entries, counts: { ...(d.counts || {}), present: v.filter(e => e.s === "P").length, absent: v.filter(e => e.s === "A").length },
       status: "approved", approved_by: u.uid, approved_email: actorEmail(u), approved_at: serverTimestamp(), edited_by: u.email || "", edited_n: n });
-    show($("a-msg"), "ok", "اتعدل واتعتمد."); $("a-detail").classList.add("hidden"); $("a-go").click();
+    show($("a-msg"), "ok", "تم التعديل والاعتماد."); $("a-detail").classList.add("hidden"); $("a-go").click();
   } catch (er) { show($("a-msg"), "err", "ماتحفظش: " + (er.code === "permission-denied" ? "محتاج تحديث الـ Rules." : er.message)); }
 };
 $("a-all").onclick = async () => {
   const pend = A.filter(canAp);
   if (!await ask(`اعتماد ${pend.length} يوم؟`, { ok: "اعتمد" })) return;
-  try { for (const d of pend) await setStatus(d, true); show($("a-msg"), "ok", `اتعتمد ${pend.length} يوم.`); $("a-go").click(); }
+  try { for (const d of pend) await setStatus(d, true); show($("a-msg"), "ok", `تم اعتماد ${pend.length} يوم.`); $("a-go").click(); }
   catch (er) { show($("a-msg"), "err", er.message); }
 };
 </script>
