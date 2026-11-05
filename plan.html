@@ -84,6 +84,8 @@ td.n,th.n{text-align:center;font-variant-numeric:tabular-nums;}
 .pill.s{background:#fcebeb;color:#b42318;} .pill.o{background:#e6eefa;color:#185fa5;} .pill.k{background:#eaf3de;color:#3b6d11;}
 .amd{font-size:11px;color:#185fa5;margin-inline-start:6px;}
 .was{color:#999;text-decoration:line-through;font-size:11px;margin-inline-start:4px;}
+tr.has-sec td{font-weight:600;} tr.sec-row td{font-size:13px;color:#555;border-top:none;padding-top:3px;padding-bottom:3px;}
+tr.sec-row td:nth-child(2){padding-inline-start:18px;} .sec-warn{color:#b42318;font-size:12px;}
 .chip{padding:4px 12px;border:1px solid #ddd;background:#fff;border-radius:999px;cursor:pointer;font-size:12px;}
 .chip[aria-pressed=true]{background:#222;color:#fff;border-color:#222;}
 .grid-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end;}
@@ -413,6 +415,8 @@ import { getFirestore, collection, getDocs, addDoc, doc, query, where, setDoc, g
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, ask, tell } from './shared.js?v=20261104e';
 import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261104e';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261104e';
+import { keyOf, splitJob } from './sheet.js?v=20261104e';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====
@@ -598,9 +602,10 @@ async function loadRosters() {
   if (S.rosters) return;
   const sites = [...new Set(SUP_SITES)];
   const read = async (col, s) => { try { const d = await getDoc(doc(db, col, s)); return d.exists() ? (d.data().workers || []) : null; } catch (e) { return null; } };
-  const res = await Promise.all(sites.map(async s => [s, await read("rosters", s), await read("pools", s)]));
+  const order = async s => { try { const d = await getDoc(doc(db, "sheet_order", s)); return d.exists() ? d.data() : null; } catch (e) { return null; } };
+  const res = await Promise.all(sites.map(async s => [s, await read("rosters", s), await read("pools", s), await order(s)]));
   S.rosters = {}; S.rosterMissing = [];
-  res.forEach(([s, w, p]) => { if (w === null) S.rosterMissing.push(s); S.rosters[norm(s)] = { workers: w || [], pool: p || [] }; });
+  res.forEach(([s, w, p, o]) => { if (w === null) S.rosterMissing.push(s); S.rosters[norm(s)] = { workers: w || [], pool: p || [], order: o }; });
 }
 
 // أسماء الكشف ممكن تختلف في الإملاء عن الإعدادات (العجمى/العجمي، أ/ا، ة/ه) — بنوحّد للمطابقة
@@ -608,17 +613,23 @@ const akey = s => norm(s).replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replac
 function actualMap(targets) {
   const act = new Map(), siteName = {}, jobName = {};
   (targets ? [...targets.values()] : []).forEach(t => { siteName[akey(t.site)] = t.site; jobName[akey(t.job)] = t.job; });
-  const put = (rsite, w, counted) => {
+  const put = (rsite, w, counted, sm) => {
     const site = siteName[akey(rsite)] || rsite;
     const job = jobName[akey(w.job)] || norm(w.job); if (!job || EXCLUDED_JOB.test(job)) return;
     const k = site + "|" + job;
-    const e = act.get(k) || { site, job, actual: 0, cover: 0 };
-    if (counted) e.actual++; else e.cover++;
+    const e = act.get(k) || { site, job, actual: 0, cover: 0, secs: {} };
+    if (counted) {
+      e.actual++;
+      // القسم من «ترتيب الكشف» (sheet_order/{موقع}.sections) — الأساسي بس
+      const sec = norm(sm[keyOf(w)] || (w.nid ? sm["N" + w.nid] : "") || "");
+      e.secs[sec] = (e.secs[sec] || 0) + 1;
+    } else e.cover++;
     act.set(k, e);
   };
   Object.entries(S.rosters || {}).forEach(([site, r]) => {
-    r.workers.forEach(w => put(site, w, COUNTED_TYPES.includes(norm(w.type))));
-    r.pool.forEach(w => put(site, w, false));
+    const sm = r.order?.sections || {};
+    r.workers.forEach(w => put(site, w, COUNTED_TYPES.includes(norm(w.type)), sm));
+    r.pool.forEach(w => put(site, w, false, sm));
   });
   return act;
 }
@@ -636,12 +647,20 @@ function renderDash() {
   const day = $("asof").value;
   const cmap = clientPlan(m, S.amends, day);
   const { targets, warnings, unmapped } = toInternal(cmap);
+  // شيبسي مالهاش شيت احتياج: المخطط الثابت (HC CFI) من xl-attendance.js
+  let chipsyTotal = 0;
+  Object.entries(CHIPSY_SITE_PLAN).forEach(([site, jobs]) => Object.entries(jobs).forEach(([job, n]) => {
+    const k = site + "|" + job; if (targets.has(k)) return;
+    targets.set(k, { site, job, plan: n, base: n, amended: false, fixed: true }); chipsyTotal += n;
+  }));
   const act = actualMap(targets);
   const sites = new Set([...targets.values()].map(t => t.site));
   const keys = new Set([...targets.keys(), ...[...act.keys()].filter(k => sites.has(k.split("|")[0]))]);
   DASH = [...keys].map(k => {
     const t = targets.get(k), a = act.get(k);
-    return { site: (t || a).site, job: (t || a).job, plan: t?.plan || 0, base: t?.base || 0, amended: !!t?.amended, actual: a?.actual || 0, cover: a?.cover || 0 };
+    const site = (t || a).site, job = (t || a).job;
+    return { site, job, plan: t?.plan || 0, base: t?.base || 0, amended: !!t?.amended, fixed: !!t?.fixed, actual: a?.actual || 0, cover: a?.cover || 0,
+      secs: secRows(site, job, a?.secs || {}) };
   });
   const msgs = [];
   if (!S.settings) msgs.push("الإعدادات (المطابقة) لسه متحفظتش. افتح تبويب الإعدادات ودوس \"تحميل الإعدادات المبدئية\" ثم \"حفظ\".");
@@ -654,12 +673,15 @@ function renderDash() {
 
   const planned = DASH.filter(r => r.plan > 0);
   const plan = planned.reduce((a, r) => a + r.plan, 0), acts = planned.reduce((a, r) => a + r.actual, 0);
-  const sh = planned.reduce((a, r) => a + Math.max(0, r.plan - r.actual), 0), ov = planned.reduce((a, r) => a + Math.max(0, r.actual - r.plan), 0);
+  // الوظيفة المتقسمة: الناقص والزيادة بالقسم (عشان نقص قسم ميتغطاش بزيادة قسم تاني)
+  const gaps = r => r.secs ? r.secs.map(x => x.actual - x.need) : [r.actual - r.plan];
+  const sh = planned.reduce((a, r) => a + gaps(r).reduce((b, d) => b + Math.max(0, -d), 0), 0);
+  const ov = planned.reduce((a, r) => a + gaps(r).reduce((b, d) => b + Math.max(0, d), 0), 0);
   const pm = prevMonthKey(m);
   const prevTotal = pm ? [...clientPlan(pm, S.prevAmends, monthEnd(pm)).values()].reduce((a, e) => a + e.value, 0) : null;
-  const curTotal = [...cmap.values()].reduce((a, e) => a + e.value, 0);
+  const curTotal = [...cmap.values()].reduce((a, e) => a + e.value, 0) + chipsyTotal;
   $("kpis").innerHTML = `
-    <div class="kpi"><div class="v">${fmt(curTotal)}</div><div class="l">المطلوب الساري (شيت العميل)</div></div>
+    <div class="kpi"><div class="v">${fmt(curTotal)}</div><div class="l">المطلوب الساري (شيت العميل${chipsyTotal ? " + مخطط شيبسي" : ""})</div></div>
     <div class="kpi"><div class="v">${fmt(acts)}</div><div class="l">الموجود في الوظايف المطلوبة</div></div>
     <div class="kpi s"><div class="v">${fmt(sh)}</div><div class="l">أماكن ناقصة</div></div>
     <div class="kpi o"><div class="v">${fmt(ov)}</div><div class="l">زيادة عن المطلوب</div></div>
@@ -694,14 +716,36 @@ function renderDash() {
     return `<tr><td>${esc(r.loc)}</td><td>${esc(r.pos)}</td><td class="n">${fmt(r.prev)}</td><td class="n">${fmt(r.cur)}</td><td class="n">${d ? `<span class="pill ${d < 0 ? "s" : "o"}">${sign(d)}</span>` : "—"}</td></tr>`; }).join("")
     : `<tr><td colspan="5" class="muted">${pm ? "مفيش تغيير." : "مفيش شهر سابق للمقارنة."}</td></tr>`;
 }
+// أقسام الوظيفة (لو الموقع متقسم في «ترتيب الكشف»): المطلوب من secNeed «القسم|الوظيفة»، والموجود بالقسم.
+// الأساسي اللي ملوش قسم في وظيفة متقسمة بيظهر في سطر «بدون قسم» (مطلوبه صفر) عشان يتحدد قسمه.
+function secRows(site, job, secs) {
+  const o = S.rosters?.[norm(site)]?.order; if (!o?.secNeed) return null;
+  const out = [];
+  Object.entries(o.secNeed).forEach(([k, n]) => { const x = splitJob(k); if (akey(x.job) === akey(job)) out.push({ sec: norm(x.sec), need: Number(n) || 0, actual: 0 }); });
+  if (!out.length) return null;
+  Object.entries(secs).forEach(([sec, c]) => {
+    const r = out.find(x => akey(x.sec) === akey(sec));
+    if (r) r.actual += c; else { const u = out.find(x => x.sec === (sec || "بدون قسم")) || (out.push({ sec: sec || "بدون قسم", need: 0, actual: 0, none: !sec }), out[out.length - 1]); u.actual += c; }
+  });
+  const ord = o.secOrder || [];
+  const at = s => { const i = ord.indexOf(s); return i < 0 ? 999 : i; };
+  return out.sort((a, b) => (!!a.none - !!b.none) || (at(a.sec) - at(b.sec)) || a.sec.localeCompare(b.sec, "ar"));
+}
 function renderDetail() {
   const site = $("site-sel").value;
   const rows = DASH.filter(r => r.plan > 0 && (!site || r.site === site) && (F === "all" || cls(r.actual - r.plan) === F))
     .sort((a, b) => (a.actual - a.plan) - (b.actual - b.plan));
   $("detail").innerHTML = rows.length ? rows.map(r => { const d = r.actual - r.plan;
-    return `<tr><td>${esc(r.site)}</td><td>${esc(r.job)}${r.amended ? `<span class="amd">معدّل</span>` : ""}</td>
+    const need = r.secs ? r.secs.reduce((a, x) => a + x.need, 0) : null;
+    const main = `<tr${r.secs ? ` class="has-sec"` : ""}><td>${esc(r.site)}</td><td>${esc(r.job)}${r.amended ? `<span class="amd">معدّل</span>` : ""}${r.fixed ? `<span class="amd">مخطط ثابت</span>` : ""}</td>
       <td class="n">${fmt(r.plan)}${r.plan !== r.base ? `<span class="was">${fmt(r.base)}</span>` : ""}</td><td class="n">${fmt(r.actual)}</td>
-      <td class="n"><span class="pill ${cls(d)}">${d === 0 ? "مطابق" : sign(d)}</span></td><td class="n">${r.cover ? fmt(r.cover) : "—"}</td></tr>`; }).join("")
+      <td class="n"><span class="pill ${cls(d)}">${d === 0 ? "مطابق" : sign(d)}</span></td><td class="n">${r.cover ? fmt(r.cover) : "—"}</td></tr>`;
+    if (!r.secs) return main;
+    const subs = r.secs.map(x => { const sd = x.actual - x.need;
+      return `<tr class="sec-row"><td></td><td>▸ ${esc(x.sec)}</td><td class="n">${x.none ? "—" : fmt(x.need)}</td><td class="n">${fmt(x.actual)}</td>
+        <td class="n"><span class="pill ${cls(sd)}">${sd === 0 ? "مطابق" : sign(sd)}</span></td><td></td></tr>`; }).join("");
+    const warn = need !== r.plan ? `<tr class="sec-row"><td></td><td colspan="5" class="sec-warn">مجموع الأقسام ${fmt(need)} والمطلوب ${fmt(r.plan)} — عدّل أعداد الأقسام من «ترتيب الكشف».</td></tr>` : "";
+    return main + subs + warn; }).join("")
     : `<tr><td colspan="6" class="muted">مفيش وظايف بالفلتر ده.</td></tr>`;
 }
 $("asof").addEventListener("change", renderDash);
