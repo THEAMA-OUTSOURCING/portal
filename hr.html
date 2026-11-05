@@ -55,6 +55,16 @@ details.why>p{margin-top:6px;}
 .ev .ft{padding:10px 12px;border-top:1px solid #f0efe9;display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
 .pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:600;}
 .t-hire{background:#eaf3de;color:#3b6d11;} .t-change{background:#f3eefb;color:#5b3aa5;} .s-error{background:#fcebeb;color:#a32d2d;} .s-done{background:#eaf3de;color:#3b6d11;}
+.tabs{display:flex;gap:2px;margin-bottom:14px;border-bottom:1px solid #e0ded6;overflow-x:auto;scrollbar-width:none;}
+.tabs::-webkit-scrollbar{display:none;}
+.tab{padding:9px 14px;cursor:pointer;background:none;border:none;border-bottom:3px solid transparent;color:#6a6e75;font-weight:500;min-height:0;white-space:nowrap;flex:0 0 auto;}
+.tab:hover{color:#1d2024;}
+.tab[aria-selected=true]{color:#a61b12;border-bottom-color:#a61b12;font-weight:600;}
+/* جوه التابة: عنوان القسم ثابت (مش بيتقفل) */
+[data-panel] details.fold.card>summary{pointer-events:none;} [data-panel] details.fold.card>summary::before{display:none;}
+[data-panel] details.fold.card>summary details,[data-panel] details.why>summary{pointer-events:auto;}
+.tab-n{display:inline-block;min-width:20px;padding:0 6px;border-radius:999px;background:#fff5de;color:#8a5a10;font-size:12px;font-weight:600;}
+.tab-n:empty{display:none;}
 .wq-row{display:block;width:100%;text-align:right;background:#fff;border:0;border-bottom:1px solid #eee;padding:10px 6px;cursor:pointer;font:inherit;color:inherit;}
 .wq-row:hover{background:#fbeceb;} .wq-row.on{background:#fbeceb;border-bottom-color:transparent;}
 .wq-row .nm{font-weight:600;font-size:15px;} .wq-row .muted{font-size:12px;}
@@ -122,10 +132,34 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
 
   <div id="app" class="hidden">
     <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px;">
-      <div><h1>اعتماد الحالات (إجازات / مرضي / استقالات / القوة)</h1><div class="muted" id="who"></div><div class="muted" id="scope-note"></div></div>
+      <div><h1>اعتماد الحالات</h1><div class="muted" id="who"></div><div class="muted" id="scope-note"></div></div>
       <div class="row"><button class="btn sec small" id="logout">خروج</button></div>
     </div>
     <nav id="pnav" class="pnav" aria-label="صفحات البوابة"></nav>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="cases" data-ty="sick" aria-selected="true">مرضي وإصابة عمل <span class="tab-n" id="tn-sick"></span></button>
+      <button class="tab" role="tab" data-tab="cases" data-ty="leave" aria-selected="false">إجازات <span class="tab-n" id="tn-leave"></span></button>
+      <button class="tab" role="tab" data-tab="cases" data-ty="resign" aria-selected="false">استقالات <span class="tab-n" id="tn-resign"></span></button>
+      <button class="tab" role="tab" data-tab="force" aria-selected="false">طلبات القوة <span class="tab-n" id="tn-force"></span></button>
+      <button class="tab no-view" role="tab" data-tab="client" aria-selected="false" id="tab-client">مرحلة العميل <span class="tab-n" id="tn-client"></span></button>
+      <button class="tab no-view" role="tab" data-tab="excel" aria-selected="false">رفع من إكسيل</button>
+      <button class="tab no-view" role="tab" data-tab="rejected" aria-selected="false">تصدير المرفوض</button>
+    </div>
+    <section data-panel="cases">
+    <div class="card">
+      <div class="row">
+        <label class="f">الحالة<select id="f-st"><option value="pending">مستني HR تيما / اتعدل</option><option value="client_wait">مستني رد العميل</option><option value="approved">معتمد</option><option value="rejected">مرفوض</option><option value="">الكل</option></select></label>
+        <label class="f">العميل<select id="f-gr"><option value="">الكل</option><option value="pepsi">بيبسي والإمداد</option><option value="chipsy">شيبسي</option><option value="sharqia">الشرقية</option></select></label>
+        <label class="f hidden" id="f-ty-wrap">النوع<select id="f-ty"><option value="">الكل</option><option value="sick">مرضي</option><option value="leave">إجازة</option><option value="resign">استقالة</option></select></label>
+        <label class="f">بحث<input id="f-q" placeholder="الاسم أو الكود أو الرقم القومي أو الموقع"></label>
+      </div>
+      <details class="why"><summary>الشرح</summary><p class="muted" style="margin-top:8px;">الحالات جاية من: طلبات المشرفين في صفحة الحضور، ورفع الإكسيل هنا، وتطبيق الشرقية على Drive (بيتحدث كل ساعة). الإجازات والاستقالات والشرقية بتتعتمد من HR تيما على طول؛ مرضي بيبسي والإمداد وشيبسي بس اللي بيستنى رد العميل بعد موافقة تيما، ولحد ما العميل يرد بيظهر في تقرير الحضور «في انتظار الاعتماد».</p></details>
+      <div class="muted" id="sync" style="font-size:12px;"></div>
+      <div class="msg" id="msg"></div>
+    </div>
+    <div class="grid" id="list"></div>
+    </section>
+    <section data-panel="force" class="hidden">
     <!-- ===== طلبات القوة (السجل الموحد): إضافة / خروج / تغيير ===== -->
     <details class="card fold" id="wq-card" open>
       <summary><h2>طلبات القوة (إضافة / خروج / تغيير) <span class="pill s-pending" id="wq-count"></span></h2></summary>
@@ -140,28 +174,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
       <div class="msg" id="wq-msg" style="white-space:pre-line;"></div>
       <div id="wq-list"></div>
     </details>
-    <details class="card fold no-view">
-      <summary><h2>رفع إجازات ومرضي من إكسيل (شيبسي / بيبسي / الإمداد / الشرقية)</h2></summary>
-      <details class="why"><summary>الشرح</summary><p class="muted" style="margin-bottom:8px;">نزّل الشكل، املاه (سطر لكل إجازة أو مرضي)، وارفعه. كل سطر بيدخل هنا «مستني HR تيما». بعد الاعتماد النهائي بيظهر في تقرير الحضور: ج إجازة، خ إجازة بدون أجر، م مرضي. الجمعة مش بتتحسب في عدد الأيام.</p></details>
-      <div class="row"><button class="btn sec" id="tpl">تنزيل الشكل (Excel)</button><input type="file" id="xf" accept=".xlsx,.xls" style="max-width:320px"><button class="btn" id="xsave" disabled>ارفع</button></div>
-      <div class="msg" id="xmsg"></div>
-    </details>
-    <details class="card fold no-view">
-      <summary><h2>تصحيح نوع الإجازة (ج / خ)</h2></summary>
-      <details class="why"><summary>الشرح</summary><p class="muted" style="margin-bottom:8px;">لحد ما يبقى فيه رصيد إجازات: أي إجازة بتتوافق بتتسجل ج. نزّل الإجازات في فترة، غيّر عمود «نوع الإجازة» لـ خ للي ملوش رصيد (أو العكس)، وارفع الشيت — اللي اتغيّر بس هو اللي بيتعدّل، والحضور بيتعدّل معاه.</p></details>
-      <div class="row"><label class="f">من<input type="date" id="lk-from"></label><label class="f">لحد<input type="date" id="lk-to"></label>
-        <button class="btn sec" id="lk-exp">تنزيل الإجازات</button><input type="file" id="lk-file" accept=".xlsx,.xls" style="max-width:300px"><button class="btn" id="lk-save" disabled>احفظ التصحيح</button></div>
-      <div class="msg" id="lk-msg" style="white-space:pre-line;"></div>
-    </details>
-    <details class="card fold no-view">
-      <summary><h2>تصدير المرفوض (مرضي / إجازة / استقالة)</h2></summary>
-      <details class="why"><summary>الشرح</summary><p class="muted" style="margin-bottom:8px;">إكسيل واحد بكل الحالات المرفوضة في الفترة — من HR تيما أو من العميل — وسبب الرفض قدام كل حالة. المرضي اللي العميل اعتمد منه جزء بيطلع كمان بعدد الأيام المرفوضة. الفترة بتتحسب على تاريخ الحالة (والاستقالة على يوم تسجيلها).</p></details>
-      <div class="row"><label class="f">من<input type="date" id="rj-from"></label><label class="f">لحد<input type="date" id="rj-to"></label>
-        <label class="f">النوع<select id="rj-ty"><option value="">الكل</option><option value="sick">مرضي</option><option value="leave">إجازة</option><option value="resign">استقالة</option></select></label>
-        <button class="btn sec" id="rj-exp">تصدير المرفوض (Excel)</button></div>
-      <div class="msg" id="rj-msg"></div>
-    </details>
-    <details class="card fold no-view" id="client-card">
+    </section>
+    <section data-panel="client" class="hidden">
+    <details class="card fold no-view" id="client-card" open>
       <summary><h2>مرحلة العميل — المرضي (بيبسي والإمداد / شيبسي)</h2></summary>
       <details class="why"><summary>الشرح</summary><p class="muted" style="margin-bottom:8px;">المرضي اللي HR تيما وافق عليه لعمال بيبسي والإمداد وشيبسي بيستنى هنا رد العميل. وتقدر كمان تسجّل قرار العميل يدوي على كل حالة تحت. الإجازات والاستقالات بتتعتمد من HR تيما على طول.</p><p class="muted" style="margin-bottom:6px;">1) صدّر شيت المرضي وابعته للعميل. 2) لما العميل يرد، نزّل «شيت الرد» وعدّل فيه «الأيام المعتمدة» للحالات اللي العميل غيّرها بس (والـ Limit لو باعته)، واكتب الإجمالي اللي في إيميله وارفعه.
         لو العامل ليه أكتر من فترة، اكتب الإجمالي في أول سطر وفضّي الباقي — بيتوزّع من الأقدم. الأيام المعتمدة = م، والباقي = خ.</p></details>
@@ -183,18 +198,32 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
         <div class="msg" id="cl-msg" style="white-space:pre-line;"></div>
       </div>
     </details>
-    <div class="card">
-      <div class="row">
-        <label class="f">الحالة<select id="f-st"><option value="pending">مستني HR تيما / اتعدل</option><option value="client_wait">مستني رد العميل</option><option value="approved">معتمد</option><option value="rejected">مرفوض</option><option value="">الكل</option></select></label>
-        <label class="f">العميل<select id="f-gr"><option value="">الكل</option><option value="pepsi">بيبسي والإمداد</option><option value="chipsy">شيبسي</option><option value="sharqia">الشرقية</option></select></label>
-        <label class="f">النوع<select id="f-ty"><option value="">الكل</option><option value="sick">مرضي</option><option value="leave">إجازة</option><option value="resign">استقالة</option></select></label>
-        <label class="f">بحث<input id="f-q" placeholder="الاسم أو الكود أو الرقم القومي أو الموقع"></label>
-      </div>
-      <details class="why"><summary>الشرح</summary><p class="muted" style="margin-top:8px;">الحالات جاية من: طلبات المشرفين في صفحة الحضور، ورفع الإكسيل هنا، وتطبيق الشرقية على Drive (بيتحدث كل ساعة). الإجازات والاستقالات والشرقية بتتعتمد من HR تيما على طول؛ مرضي بيبسي والإمداد وشيبسي بس اللي بيستنى رد العميل بعد موافقة تيما، ولحد ما العميل يرد بيظهر في تقرير الحضور «في انتظار الاعتماد».</p></details>
-      <div class="muted" id="sync" style="font-size:12px;"></div>
-      <div class="msg" id="msg"></div>
-    </div>
-    <div class="grid" id="list"></div>
+    </section>
+    <section data-panel="excel" class="hidden">
+    <details class="card fold no-view" open>
+      <summary><h2>رفع إجازات ومرضي من إكسيل (شيبسي / بيبسي / الإمداد / الشرقية)</h2></summary>
+      <details class="why"><summary>الشرح</summary><p class="muted" style="margin-bottom:8px;">نزّل الشكل، املاه (سطر لكل إجازة أو مرضي)، وارفعه. كل سطر بيدخل هنا «مستني HR تيما». بعد الاعتماد النهائي بيظهر في تقرير الحضور: ج إجازة، خ إجازة بدون أجر، م مرضي. الجمعة مش بتتحسب في عدد الأيام.</p></details>
+      <div class="row"><button class="btn sec" id="tpl">تنزيل الشكل (Excel)</button><input type="file" id="xf" accept=".xlsx,.xls" style="max-width:320px"><button class="btn" id="xsave" disabled>ارفع</button></div>
+      <div class="msg" id="xmsg"></div>
+    </details>
+    <details class="card fold no-view" open>
+      <summary><h2>تصحيح نوع الإجازة (ج / خ)</h2></summary>
+      <details class="why"><summary>الشرح</summary><p class="muted" style="margin-bottom:8px;">لحد ما يبقى فيه رصيد إجازات: أي إجازة بتتوافق بتتسجل ج. نزّل الإجازات في فترة، غيّر عمود «نوع الإجازة» لـ خ للي ملوش رصيد (أو العكس)، وارفع الشيت — اللي اتغيّر بس هو اللي بيتعدّل، والحضور بيتعدّل معاه.</p></details>
+      <div class="row"><label class="f">من<input type="date" id="lk-from"></label><label class="f">لحد<input type="date" id="lk-to"></label>
+        <button class="btn sec" id="lk-exp">تنزيل الإجازات</button><input type="file" id="lk-file" accept=".xlsx,.xls" style="max-width:300px"><button class="btn" id="lk-save" disabled>احفظ التصحيح</button></div>
+      <div class="msg" id="lk-msg" style="white-space:pre-line;"></div>
+    </details>
+    </section>
+    <section data-panel="rejected" class="hidden">
+    <details class="card fold no-view" open>
+      <summary><h2>تصدير المرفوض (مرضي / إجازة / استقالة)</h2></summary>
+      <details class="why"><summary>الشرح</summary><p class="muted" style="margin-bottom:8px;">إكسيل واحد بكل الحالات المرفوضة في الفترة — من HR تيما أو من العميل — وسبب الرفض قدام كل حالة. المرضي اللي العميل اعتمد منه جزء بيطلع كمان بعدد الأيام المرفوضة. الفترة بتتحسب على تاريخ الحالة (والاستقالة على يوم تسجيلها).</p></details>
+      <div class="row"><label class="f">من<input type="date" id="rj-from"></label><label class="f">لحد<input type="date" id="rj-to"></label>
+        <label class="f">النوع<select id="rj-ty"><option value="">الكل</option><option value="sick">مرضي</option><option value="leave">إجازة</option><option value="resign">استقالة</option></select></label>
+        <button class="btn sec" id="rj-exp">تصدير المرفوض (Excel)</button></div>
+      <div class="msg" id="rj-msg"></div>
+    </details>
+    </section>
   </div>
 </div>
 <div id="zoom" class="hidden"><img id="zoom-img" alt=""></div>
@@ -244,8 +273,10 @@ function rebuild() {
   ALL = [...m.values()];
   const oldLv = [...LIVE_W.values()].filter(e => e.type !== "sick");
   $("old-lv").classList.toggle("hidden", !oldLv.length);
-  if (oldLv.length) $("client-card").open = true;
   $("cl-count").textContent = oldLv.length ? `${oldLv.length} إجازة` : "";
+  const nTy = ty => [...LIVE_P.values()].filter(e => e.type === ty).length || "";
+  $("tn-sick").textContent = nTy("sick"); $("tn-leave").textContent = nTy("leave"); $("tn-resign").textContent = nTy("resign");
+  $("tn-client").textContent = LIVE_W.size || "";
   render();
 }
 async function loadDecided() {
@@ -647,12 +678,15 @@ onAuthStateChanged(auth, async user => {
   if (!["admin", "hr", "viewer"].includes(role)) return $("denied").classList.remove("hidden");
   SCOPED = role === "hr" && Array.isArray(claims.sites) && claims.sites.length ? claims.sites : null;
   $("client-card").classList.toggle("hidden", !!SCOPED);
+  $("tab-client").classList.toggle("hidden", !!SCOPED);
   if (SCOPED) $("scope-note").textContent = "حسابك ليه الفروع دي بس: " + SCOPED.join("، ") + ".";
   // المشاهد (viewer): يشوف الحالات وصورها بس — من غير رفع ولا اعتماد ولا تصدير للعميل
   VIEW = role === "viewer";
-  if (VIEW) { document.querySelectorAll(".no-view").forEach(el => el.classList.add("hidden")); document.querySelector("#app h1").textContent = "الحالات (إجازات / مرضي / استقالات)"; }
+  if (VIEW) { document.querySelectorAll(".no-view").forEach(el => el.classList.add("hidden")); document.querySelector("#app h1").textContent = "الحالات"; }
   $("who").textContent = user.email; $("app").classList.remove("hidden");
   wqStart(role, user.uid);
+  let last = "cases:sick"; try { last = localStorage.getItem(TAB_KEY) || "cases:sick"; } catch (e) {}
+  showTab(last);
   const onErr = err => show($("msg"), "err", "مش قادر أقرا الحالات: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : err.message));
   const fill = (map, snap) => { map.clear(); snap.forEach(d => map.set(d.id, { id: d.id, ...d.data() })); };
   onSnapshot(evQ(where("status", "==", "pending")), snap => { fill(LIVE_P, snap); ALL_LOADED = true; rebuild(); }, onErr);
@@ -865,6 +899,19 @@ $("list").onclick = async e => {
 };
 $("zoom").onclick = () => $("zoom").classList.add("hidden");
 
+// ===================== التابات =====================
+const TAB_KEY = "hr_tab";
+// الحالات متقسمة 3 تابات بالنوع (مرضي وإصابة عمل / إجازات / استقالات) — نفس القايمة بفلتر النوع
+function showTab(key) {
+  let t = document.querySelector(`.tab[data-key="${key}"]`);
+  if (!t || t.classList.contains("hidden")) t = document.querySelector('.tab[data-key="cases:sick"]');
+  document.querySelectorAll(".tab").forEach(x => x.setAttribute("aria-selected", x === t));
+  document.querySelectorAll("[data-panel]").forEach(p => p.classList.toggle("hidden", p.dataset.panel !== t.dataset.tab));
+  if (t.dataset.ty) { $("f-ty").value = t.dataset.ty; render(); }
+  try { localStorage.setItem(TAB_KEY, t.dataset.key); } catch (e) {}
+}
+document.querySelectorAll(".tab").forEach(t => { t.dataset.key = t.dataset.tab + (t.dataset.ty ? ":" + t.dataset.ty : ""); t.addEventListener("click", () => showTab(t.dataset.key)); });
+
 // ===================== طلبات القوة (worker_events) =====================
 // الـ HR بيعتمد أو يرفض — السيرفر (record_events.py) هو اللي بيكتب في السجل ويطلّع الكود.
 const WQ = { open: new Map(), hist: [], view: "open", role: null, uid: "", sel: null };
@@ -969,6 +1016,7 @@ function wqRender() {
     .sort((a, b) => (a.status === "error" ? 0 : 1) - (b.status === "error" ? 0 : 1) || (a.created_at?.seconds || 0) - (b.created_at?.seconds || 0));
   const nOpen = [...WQ.open.values()].filter(e => e.status !== "approved").length;
   $("wq-count").textContent = nOpen ? nOpen + " مستني" : "";
+  $("tn-force").textContent = nOpen || "";
   // قايمة أسامى تحت بعض — دوس على الاسم يفتح الكارت تحته.
   // اللي اتكتب في الكارت المفتوح بيفضل لو القايمة اتحدّثت (طلب تاني اتغير)
   const keep = {};
