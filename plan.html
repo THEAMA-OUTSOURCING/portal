@@ -37,6 +37,8 @@ button:focus-visible{outline:2px solid #185fa5;outline-offset:2px;}
 .card{background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:1.1rem 1.25rem;margin-bottom:1rem;}
 .card h2{font-size:15px;font-weight:600;margin-bottom:10px;}
 details.fold>summary{list-style:none;cursor:pointer;user-select:none;}
+details.why>summary{cursor:pointer;color:#185fa5;font-size:13px;width:max-content;} details.why>p{margin-top:6px;}
+.mc-ok{color:#3b6d11;} .mc-warn{color:#8a5a00;} .mc-err{color:#b42318;}
 details.fold>summary::-webkit-details-marker{display:none;}
 details.fold>summary h2{display:flex;align-items:center;gap:6px;margin-bottom:0;}
 details.fold>summary h2::before{content:"";width:0;height:0;border-block:5px solid transparent;border-inline-end:7px solid currentColor;transition:transform .15s;}
@@ -275,6 +277,38 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
 
     <!-- بيانات العمال -->
     <section data-panel="workers" class="hidden">
+      <!-- ===== اتكوّدوا (السجل الموحد): العمال الجداد اللي الـ HR اعتمدهم وطلع لهم كود ===== -->
+      <div class="card" id="cd-card">
+        <details class="fold" data-fold="cd" open><summary><h2>اتكوّدوا <span class="fold-n" id="cd-n"></span></h2></summary>
+        <details class="why" style="margin:8px 0;"><summary>الشرح</summary><p class="muted">العمال الجداد اللي الـ HR اعتمدهم وطلع لهم كود (أو رجعوا بكودهم القديم).
+          «تصدير» بيطلّع اللي في القايمة قدامك في إكسيل، وبعدها بيتعلّموا «اتصدّر» عشان التصدير الجاي يجيب الجداد بس.
+          شيل علامة «اللي ما اتصدروش بس» لو عايز تعيد تصدير حد.</p></details>
+        <div class="row" style="align-items:flex-end;">
+          <label class="f">اتكوّدوا من<input type="date" id="cd-from"></label>
+          <label class="f">لحد<input type="date" id="cd-to"></label>
+          <label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" id="cd-new" checked> اللي ما اتصدروش بس</label>
+          <button class="btn no-view" id="cd-exp" type="button">تصدير إكسيل</button>
+        </div>
+        <div class="msg" id="cd-msg"></div>
+        <div class="tbl" style="margin-top:8px;"><table><thead><tr><th>الكود</th><th>الاسم</th><th>الرقم القومي</th><th>التليفون</th><th>الموقع</th><th>الوظيفة</th><th>النوع</th><th>أول يوم</th><th>اتكوّد</th><th>اتصدّر</th></tr></thead><tbody id="cd-list"></tbody></table></div>
+        </details>
+      </div>
+      <div class="card hidden" id="mc-card">
+        <details class="fold" data-fold="mc"><summary><h2>رفع الكارنيهات الطبية (MetLife)</h2></summary>
+        <details class="why" style="margin:8px 0;"><summary>الشرح</summary><p class="muted">1) اختار ملف الربط: mapping.xlsx أو شيت الإضافة (addition request) — فيه رقم الشهادة والكود والاسم والرقم القومي.
+          2) اختار ملفات الـ PDF كلها مرة واحدة (اسم الملف فيه رقم الشهادة: 5122500013_<b>13246</b>_01.pdf). 3) راجع القايمة ودوس «ارفع».
+          بعد الرفع، السيرفر بيبعت إشعار لمشرف كل عامل (والإقليمي) إن الكارنيه بتاعه اترفع.</p></details>
+        <div class="row" style="align-items:flex-end;">
+          <label class="f">ملف الربط (Excel)<input type="file" id="mc-map" accept=".xlsx,.xls"></label>
+          <label class="f">الكارنيهات (PDF)<input type="file" id="mc-pdf" accept=".pdf" multiple></label>
+        </div>
+        <div class="msg" id="mc-msg" style="white-space:pre-line;"></div>
+        <div class="hidden" id="mc-prev">
+          <div class="tbl" style="margin-top:10px;"><table><thead><tr><th>الملف</th><th>رقم الشهادة</th><th>الكود</th><th>الاسم</th><th>الحالة</th></tr></thead><tbody id="mc-list"></tbody></table></div>
+          <label class="row" style="flex-direction:row;gap:6px;margin-top:8px;"><input type="checkbox" id="mc-over"> استبدل الكارنيهات القديمة (الأصفر)</label>
+          <div class="row" style="margin-top:10px;"><button class="btn" id="mc-go">ارفع</button><button class="btn sec" id="mc-cancel">إلغاء</button></div>
+        </div></details>
+      </div>
       <div class="card">
         <details class="fold" data-fold="bl-list"><summary><h2>البلاك ليست (ممنوع تشغيلهم تاني) <span class="fold-n" data-n="bl-list"></span></h2></summary>
         <p class="muted" style="margin-bottom:8px;">أي رقم قومي هنا، المشرف مش هيقدر يضيفه للكشف ولا كبديل، وبيوصل تنبيه للإدارة. السبب مبيظهرش للمشرفين.</p>
@@ -290,7 +324,8 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
       </div>
       <div class="card no-view">
         <h2>رفع تعديلات كتير من إكسيل</h2>
-        <p class="muted" style="margin-bottom:8px;">شيت فيه عمود <b>الكود</b>، ومعاه عمود أو أكتر من: <b>النوع</b> (أساسي / يومية / مشي)، <b>الوظيفة</b>، <b>الموقع</b>، <b>ساري من</b>، <b>ملاحظة</b>. ولعامل جديد مالوش كود: سيب الكود فاضي واكتب <b>الاسم</b> و<b>الرقم القومي</b> و<b>الموقع</b> و<b>النوع</b> و<b>الوظيفة</b> (هيتضاف من غير بطاقة، والمشرف يرفعها بعدين). هتشوف المقارنة قبل الحفظ.</p>
+        <p class="muted" style="margin-bottom:8px;">شيت فيه عمود <b>الكود</b>، ومعاه عمود أو أكتر من: <b>النوع</b> (أساسي / يومية / مشي)، <b>الوظيفة</b>، <b>الموقع</b>، <b>ساري من</b>، <b>ملاحظة</b>. ولعامل جديد مالوش كود: سيب الكود فاضي واكتب <b>الاسم</b> رباعي و<b>الرقم القومي</b> و<b>التليفون</b> و<b>الموقع</b> و<b>النوع</b> و<b>الوظيفة</b> (من غير بطاقة، والمشرف يرفعها بعدين). هتشوف المقارنة قبل الحفظ.
+          كل سطر بيروح طلب للـ HR (والأدمن / HR الفرع بيتعتمد على طول).</p>
         <input type="file" id="w-file" accept=".xlsx,.xls">
         <div class="msg" id="w-up-msg"></div>
         <div class="hidden" id="w-preview">
@@ -315,7 +350,8 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
       </div>
       <div class="card">
         <details class="fold" data-fold="w-list"><summary><h2>بيانات العمال في مواقع الحضور <span class="fold-n" data-n="w-list"></span></h2></summary>
-        <p class="muted" style="margin-bottom:10px;">أي تعديل هنا بيسري على كشف الموقع خلال ثواني، من غير ما تستنى شيت الرواتب. ولما شيت الرواتب الجديد يبقى فيه نفس التعديل، التعديل اليدوي بيتشال لوحده.</p>
+        <p class="muted" style="margin-bottom:10px;">البيانات من السجل الموحد. أي تعديل (النوع / الوظيفة / الموقع / مشي) بيروح طلب في «اعتماد الحالات ← طلبات القوة»:
+          لو إنت أدمن أو HR الفرع ده بيتعتمد على طول، والمحاسب بيستنى الـ HR. بعد الاعتماد السجل والكشف بيتحدّثوا خلال ثواني.</p>
         <div class="row">
           <input type="text" id="w-q" placeholder="ابحث بالاسم أو الكود أو الرقم القومي" style="flex:1 1 260px;">
           <select id="w-site"><option value="">كل المواقع</option></select>
@@ -331,8 +367,9 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
           <label>الوظيفة<input type="text" id="w-job" list="w-jobs"></label>
           <label>الموقع<select id="w-site2"></select></label>
           <label>ساري من<input type="date" id="w-from"></label>
+          <label id="w-reason-wrap" class="hidden">سبب الخروج<select id="w-reason"><option>استقالة</option><option>انقطاع</option><option>نقل لموقع تاني</option><option>فصل</option><option>أخرى</option></select></label>
           <label class="wide">ملاحظة (اختياري)<input type="text" id="w-note"></label>
-          <div class="row"><button class="btn" id="w-save">حفظ التعديل</button><button class="btn sec" id="w-cancel">إلغاء</button></div>
+          <div class="row"><button class="btn" id="w-save">ابعت التعديل</button><button class="btn sec" id="w-cancel">إلغاء</button></div>
         </div>
         <datalist id="w-jobs"></datalist>
         <div class="msg" id="w-msg"></div>
@@ -413,7 +450,7 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
 <script type="module">
 import { getFirestore, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, ask, tell } from './shared.js?v=20261104e';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, ask, askText, tell } from './shared.js?v=20261104e';
 import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261104e';
 import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261104e';
 import { keyOf, splitJob } from './sheet.js?v=20261104e';
@@ -496,7 +533,9 @@ onAuthStateChanged(auth, async user => {
   await loadAll();
   if (role === "admin") { await loadAdminConfig(); initAccounts(); loadJobCodes(); }
   initWorkers();
+  initCoded();
   initBlacklist();
+  initCards();
 });
 
 // ===== التبويبات =====
@@ -1168,6 +1207,103 @@ document.querySelectorAll("[data-n]").forEach(n => {
   new MutationObserver(upd).observe(tb, { childList: true }); upd();
 });
 ["w-q", "w-site"].forEach(id => document.getElementById(id)?.addEventListener("input", () => { document.querySelector('[data-fold="w-list"]').open = true; }));
+// ===== اتكوّدوا (worker_events: إضافة اتنفذت) — الأدمن، والـ HR والمحاسب لفروعهم =====
+const CD = { rows: [], unsub: null };
+const cdDay = t => { const d = t?.toDate?.(); return d ? d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") : ""; };
+function initCoded() {
+  const c = collection(db, "worker_events");
+  const q = S.scoped ? query(c, where("status", "==", "done"), where("branch", "in", S.scoped)) : query(c, where("status", "==", "done"));
+  CD.unsub?.();
+  CD.unsub = onSnapshot(q, snap => {
+    CD.rows = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(e => e.kind === "hire")
+      .sort((a, b) => (b.applied_at?.seconds || 0) - (a.applied_at?.seconds || 0));
+    renderCoded();
+  }, err => show($("cd-msg"), "err", "مش قادر أقرا «اتكوّدوا»: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (worker_events)." : err.message)));
+}
+function codedShown() {
+  const f = $("cd-from").value, t = $("cd-to").value, onlyNew = $("cd-new").checked;
+  return CD.rows.filter(e => { const d = cdDay(e.applied_at); return (!f || d >= f) && (!t || d <= t) && (!onlyNew || !e.exported); });
+}
+function renderCoded() {
+  const rows = codedShown(), nNew = CD.rows.filter(e => !e.exported).length;
+  $("cd-n").textContent = nNew ? nNew + " ما اتصدروش" : "";
+  $("cd-list").innerHTML = rows.length ? rows.slice(0, 300).map(e => `<tr><td><b>${esc(e.code)}</b>${e.rehire ? `<div class="c-s" style="font-size:12px;">رجع بكوده</div>` : ""}</td>
+    <td>${esc(e.name)}</td><td style="direction:ltr;text-align:right">${esc(e.nid)}</td><td style="direction:ltr;text-align:right">${esc(e.phone || "")}</td>
+    <td>${esc(e.site)}</td><td>${esc(e.job)}</td><td>${esc(typeLabel(e.type))}</td><td style="direction:ltr;text-align:right">${esc(e.first_day || "")}</td>
+    <td style="direction:ltr;text-align:right">${cdDay(e.applied_at)}</td><td>${e.exported ? "✓ " + cdDay(e.exported_at) : "—"}</td></tr>`).join("")
+    : `<tr><td colspan="10" class="muted">مفيش.</td></tr>`;
+}
+["cd-from", "cd-to", "cd-new"].forEach(id => $(id).addEventListener("change", renderCoded));
+$("cd-exp").addEventListener("click", async () => {
+  const rows = codedShown();
+  if (!rows.length) return show($("cd-msg"), "info", "مفيش حد في القايمة يتصدّر.");
+  const head = ["الكود", "الرقم القومي", "الاسم", "التليفون", "الشركة", "الموقع", "الوظيفة", "النوع", "أول يوم شغل", "كود البوابة",
+    "تاريخ الاعتماد", "اعتمده", "رجع بكوده", "المؤهل", "الأجر الأساسي", "الأجر التأميني"];
+  const data = [head, ...rows.map(e => [e.code, e.nid, e.name, e.phone || "", e.company || "", e.site, e.job, typeLabel(e.type), e.first_day || "",
+    e.portal_code || "", cdDay(e.applied_at), e.decided_email || "", e.rehire ? "أيوه" : "", "", "", ""])];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws["!cols"] = [10, 16, 30, 13, 10, 18, 18, 11, 12, 11, 12, 24, 9, 12, 12, 12].map(w => ({ wch: w }));
+  ws["!views"] = [{ RTL: true }];
+  // الأرقام القومية والتليفونات نص (عشان الإكسيل مايبوظهاش)
+  for (let r = 1; r < data.length; r++) for (const c of [1, 3]) { const a = XLSX.utils.encode_cell({ r, c }); if (ws[a]) { ws[a].t = "s"; ws[a].z = "@"; } }
+  const wb = XLSX.utils.book_new(); wb.Workbook = { Views: [{ RTL: true }] };
+  XLSX.utils.book_append_sheet(wb, ws, "اتكوّدوا");
+  XLSX.writeFile(wb, `اتكوّدوا ${today()}.xlsx`);
+  // علامة «اتصدّر» (الـ Rules: للعامل اللي اتكوّد بس، وباسم اللي صدّر)
+  const u = auth.currentUser, todo = rows.filter(e => !e.exported);
+  let n = 0;
+  try {
+    for (let i = 0; i < todo.length; i += 400) {
+      const b = writeBatch(db);
+      todo.slice(i, i + 400).forEach(e => b.update(doc(db, "worker_events", e.id), { exported: true, exported_by: u.uid, exported_email: actorEmail(u), exported_at: serverTimestamp() }));
+      await b.commit(); n += Math.min(400, todo.length - i);
+    }
+    show($("cd-msg"), "ok", `نزل ${rows.length} عامل` + (todo.length ? `، و${n} اتعلّموا «اتصدّر».` : "."));
+  } catch (err) { show($("cd-msg"), "err", `نزل الملف، بس علامة «اتصدّر» وقفت بعد ${n}: ` + (err.code === "permission-denied" ? "مش مسموح لحسابك." : err.message)); }
+});
+
+// ===== طلبات القوة من «بيانات العمال» =====
+// كل تعديل بيروح worker_events (مستني). الأدمن و HR الفرع بيعتمدوه في نفس الخطوة (نفس الـ Rules بتاعة «اعتماد الحالات»).
+const canDecideSite = site => S.role === "admin" || (S.role === "hr" && (!S.scoped || S.scoped.includes(site)));
+const recCode = w => w.tcode || (/^T\d+$/.test(String(w.code)) ? String(w.code) : "");
+function forceEv(kind, w, extra) {
+  const u = auth.currentUser;
+  return { kind, status: "pending", source: "page", branch: w.site, site: w.site, name: w.name || "", ...extra,
+    by: u.uid, by_email: actorEmail(u), created_at: serverTimestamp() };
+}
+// evs = [[ref, data]] — بيتكتبوا مع بعض، وبعدين الاعتماد (لو الحساب ده يعتمد) — بيرجّع عدد اللي اتعتمد
+async function sendForce(evs) {
+  const u = auth.currentUser;
+  for (let i = 0; i < evs.length; i += 400) { const b = writeBatch(db); evs.slice(i, i + 400).forEach(([r, d]) => b.set(r, d)); await b.commit(); }
+  const mine = evs.filter(([, d]) => canDecideSite(d.branch));
+  for (let i = 0; i < mine.length; i += 400) {
+    const b = writeBatch(db);
+    mine.slice(i, i + 400).forEach(([r]) => b.update(r, { status: "approved", decided_by: u.uid, decided_email: actorEmail(u), decided_at: serverTimestamp() }));
+    await b.commit();
+  }
+  return mine.length;
+}
+function changeEv(w, type, job, site, from, note, reason) {
+  const code = recCode(w);
+  if (!code) throw new Error(`${w.name}: لسه مالوش كود في السجل (عامل جديد مستني الـ HR).`);
+  if (type === "مشي") return forceEv("leave", w, { code, roster_code: String(w.code), nid: String(w.nid || ""), job: w.job || "", type: w.type || "",
+    left_date: from || today(), reason: reason || "أخرى", ...(note ? { note: note.slice(0, 300) } : {}) });
+  const to = {};
+  if (type && type !== w.type) to.type = type;
+  if (job && job !== w.job) to.job = job;
+  if (site && site !== w.site) to.site = site;
+  return forceEv("change", w, { code, to, effective: from || today(), ...(note ? { note: note.slice(0, 300) } : {}) });
+}
+// رفض عامل جديد لسه بكود مؤقت: بيترفض طلب إضافته (الـ HR بس) — السيرفر بيشيله من الكشف ويبلّغ المشرف
+async function rejectNew(nw, why) {
+  if (!canDecideSite(nw.site)) throw new Error("الرفض للـ HR بس — من «اعتماد الحالات ← طلبات القوة».");
+  const snap = await getDocs(query(collection(db, "worker_events"), where("branch", "==", nw.site), where("nid", "==", nw.nid || nw.id)));
+  const ev = snap.docs.find(d => d.data().kind === "hire" && ["pending", "error"].includes(d.data().status));
+  const u = auth.currentUser;
+  if (!ev) throw new Error("مالقيتش طلب إضافة مستني للعامل ده.");
+  await updateDoc(ev.ref, { status: "rejected", decision_note: why.slice(0, 300), decided_by: u.uid, decided_email: actorEmail(u), decided_at: serverTimestamp() });
+}
+
 // ===== بيانات العمال (الأدمن وHR والمحاسب) =====
 // الشرقية للدخان: للمكتب اللي على كل الفروع بس، وتسجيل «مشي» بس (التعديلات التانية من شيت الرواتب)
 const SHARQIA_SITE = "الشرقية للدخان";
@@ -1193,12 +1329,12 @@ async function initWorkers() {
   renderWorkers();
   onSnapshot(bySites("new_workers"), snap => {
     WS.newAll = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    const rows = WS.newAll.filter(x => x.status !== "rejected")
+    const rows = WS.newAll.filter(x => !["rejected", "cancelled"].includes(x.status) && !(x.status === "coded" && (x.decided_at?.seconds || 0) < Date.now() / 1000 - 30 * 86400))
       .sort((a, b) => (b.at?.seconds || 0) - (a.at?.seconds || 0));
     $("w-new").innerHTML = rows.length ? rows.map(x => `<tr><td>${esc(x.name)}</td><td style="direction:ltr;text-align:right">${esc(x.nid)}</td><td>${esc(x.site)}</td><td>${esc(x.job)}</td>
       <td>${x.role === "roster" ? "عامل في الكشف" : "بديل"}${x.no_card ? `<div class="c-s" style="font-size:12px;">من غير بطاقة</div>` : ""}</td><td style="direction:ltr;text-align:right">${esc(x.first_day || "")}</td><td>${ficheCell(x)}</td>
-      <td><span class="vo-txt">${x.type ? typeLabel(x.type) : (x.role === "roster" ? "جديد (مستني)" : "بديل جديد")}</span><select data-ntype="${esc(x.id)}"><option value="">${x.role === "roster" ? "جديد (مستني)" : "بديل جديد"}</option>${["اساسي", "بديل راحات", "يومية"].map(t => `<option value="${t}" ${x.type === t ? "selected" : ""}>${typeLabel(t)}</option>`).join("")}</select></td>
-      <td class="row" style="gap:4px;"><button class="btn sec small" data-nsave="${esc(x.id)}">حفظ</button><button class="btn danger small" data-nrej="${esc(x.id)}">رفض</button></td></tr>`).join("")
+      <td>${x.status === "coded" ? `<b>${esc(x.code || "")}</b>` : esc(typeLabel(x.type))}<div class="c-s" style="font-size:12px;">${x.status === "coded" ? "اتكوّد" : "مستني الـ HR"}</div></td>
+      <td class="row" style="gap:4px;">${x.status !== "coded" && canDecideSite(x.site) ? `<button class="btn danger small" data-nrej="${esc(x.id)}">رفض</button>` : ""}</td></tr>`).join("")
       : `<tr><td colspan="9" class="muted">مفيش.</td></tr>`;
     renderRem();
   }, () => {});
@@ -1249,6 +1385,113 @@ $("jc-save")?.addEventListener("click", async () => {
 });
 
 // ===== البلاك ليست =====
+// ===== رفع الكارنيهات الطبية (الأدمن + HR كل الفروع) =====
+// الكارنيه = medical_cards/{كود العامل} بنفس شكل الرفع القديم (+ الرقم القومي). كل رفعة بتتسجل في card_uploads،
+// والسيرفر (auto_notify.py) بيبعت منها إشعار لمشرف كل عامل ويعلّم عليها notified.
+const MC_POLICY = "5122500013", MC_MAX = 760000;   // حد الـ base64 (المستند لازم أقل من 1MB)
+const MC = { map: null, files: [], rows: [] };
+const mcNorm = s => String(s ?? "").replace(/\s+/g, " ").trim();
+function initCards() {
+  const can = S.role === "admin" || (S.role === "hr" && !S.scoped);
+  $("mc-card").classList.toggle("hidden", !can);
+  if (!can || $("mc-card").dataset.on) return;
+  $("mc-card").dataset.on = "1";
+  $("mc-map").addEventListener("change", mcReadMap);
+  $("mc-pdf").addEventListener("change", e => { MC.files = [...e.target.files]; mcPreview(); });
+  $("mc-over").addEventListener("change", mcDraw);
+  $("mc-cancel").addEventListener("click", mcReset);
+  $("mc-go").addEventListener("click", mcUpload);
+}
+function mcReset() {
+  Object.assign(MC, { map: null, files: [], rows: [] }); $("mc-map").value = ""; $("mc-pdf").value = "";
+  $("mc-prev").classList.add("hidden"); hide($("mc-msg"));
+}
+// ملف الربط: أول صف فيه عمود كود + عمود رقم الشهادة (mapping.xlsx أو addition request)
+async function mcReadMap(e) {
+  const f = e.target.files[0]; MC.map = null; if (!f) return;
+  try {
+    const wb = XLSX.read(new Uint8Array(await f.arrayBuffer()), { type: "array" });
+    const map = new Map();
+    wb.SheetNames.forEach(n => {
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: "", raw: false });
+      const hi = rows.slice(0, 8).findIndex(r => r.some(v => /كود/.test(v)) && r.some(v => /الشهادة|الرقم الوظيفي|cert/i.test(v)));
+      if (hi < 0) return;
+      const H = rows[hi].map(mcNorm), at = re => H.findIndex(h => re.test(h));
+      // في شيت الإضافة الرقم القومي عنوانه في الصف اللي فوق
+      const up = (rows[hi - 1] || []).map(mcNorm);
+      const iCert = at(/الشهادة|الرقم الوظيفي|cert/i), iCode = at(/كود/), iName = at(/الاسم/);
+      let iNid = at(/national id|الرقم القوم|البطاقة/i); if (iNid < 0) iNid = up.findIndex(h => /national id|الرقم القوم/i.test(h));
+      rows.slice(hi + 1).forEach(r => {
+        const cert = enDigits(mcNorm(r[iCert])).replace(/\.0$/, ""), code = enDigits(mcNorm(r[iCode])).toUpperCase().replace(/\.0$/, "");
+        if (!/^\d+$/.test(cert) || !/^(T\d+|\d+)$/.test(code)) return;
+        const nid = iNid >= 0 ? enDigits(mcNorm(r[iNid])).replace(/\D/g, "") : "";
+        map.set(cert, { code, name: iName >= 0 ? mcNorm(r[iName]) : "", nid: nid.length === 14 ? nid : "" });
+      });
+    });
+    if (!map.size) return show($("mc-msg"), "err", "مش لاقي في الملف ده أعمدة الكود ورقم الشهادة.");
+    MC.map = map; mcPreview();
+  } catch (err) { show($("mc-msg"), "err", "مش قادر أقرا الملف: " + err.message); }
+}
+async function mcPreview() {
+  if (!MC.map) return show($("mc-msg"), "info", MC.files.length ? "اختار ملف الربط كمان." : "اختار ملف الربط والكارنيهات.");
+  if (!MC.files.length) return show($("mc-msg"), "info", `ملف الربط فيه ${MC.map.size} عامل. اختار الكارنيهات (PDF).`);
+  show($("mc-msg"), "info", "بشوف مين ليه كارنيه قبل كده...");
+  const seen = new Set();
+  MC.rows = await Promise.all(MC.files.map(async f => {
+    const m = f.name.match(/_(\d+)_\d+\.pdf$/i) || f.name.match(/(\d+)/);
+    const cert = m ? m[1] : "", w = MC.map.get(cert);
+    const r = { f, cert, code: w?.code || "", name: w?.name || "", nid: w?.nid || "", st: "ok" };
+    if (!w) r.st = "nomap";
+    else if (seen.has(w.code)) r.st = "dup";
+    else {
+      seen.add(w.code);
+      try { const d = await getDoc(doc(db, "medical_cards", w.code)); if (d.exists()) { r.st = "old"; r.oldCert = d.data().certificate || ""; } }
+      catch (e) { r.st = "err"; r.err = e.code === "permission-denied" ? "مش مسموح (الـ Rules)" : e.message; }
+    }
+    return r;
+  }));
+  MC.rows.sort((a, b) => ["nomap", "dup", "err", "old", "ok"].indexOf(a.st) - ["nomap", "dup", "err", "old", "ok"].indexOf(b.st));
+  mcDraw();
+}
+function mcDraw() {
+  const over = $("mc-over").checked;
+  const txt = r => r.st === "nomap" ? `<span class="mc-err">رقم الشهادة مش في ملف الربط</span>`
+    : r.st === "dup" ? `<span class="mc-err">نفس العامل في ملف تاني</span>`
+    : r.st === "err" ? `<span class="mc-err">${esc(r.err)}</span>`
+    : r.st === "old" ? `<span class="mc-warn">عنده كارنيه قبل كده${r.oldCert ? ` (شهادة ${esc(r.oldCert)})` : ""} — ${over ? "هيتستبدل" : "هيتساب"}</span>`
+    : `<span class="mc-ok">جديد</span>`;
+  $("mc-list").innerHTML = MC.rows.map(r => `<tr><td dir="ltr" style="text-align:right">${esc(r.f.name)}</td><td>${esc(r.cert)}</td><td>${esc(r.code)}</td><td>${esc(r.name)}</td><td>${txt(r)}</td></tr>`).join("");
+  const go = MC.rows.filter(r => r.st === "ok" || (r.st === "old" && over)).length;
+  const bad = MC.rows.filter(r => ["nomap", "dup", "err"].includes(r.st)).length;
+  show($("mc-msg"), bad ? "warn" : "info", `${MC.rows.length} ملف: هيترفع ${go}` + (bad ? ` — ${bad} مش هيترفعوا (الأحمر)` : ""));
+  $("mc-go").disabled = !go; $("mc-prev").classList.remove("hidden");
+}
+async function mcUpload() {
+  const over = $("mc-over").checked, list = MC.rows.filter(r => r.st === "ok" || (r.st === "old" && over));
+  if (!list.length) return;
+  $("mc-go").disabled = true;
+  const u = auth.currentUser, done = [], fail = [];
+  for (const r of list) {
+    show($("mc-msg"), "info", `بيترفع ${done.length + fail.length + 1} من ${list.length}...`);
+    try {
+      const buf = new Uint8Array(await r.f.arrayBuffer());
+      let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+      if (!bin.startsWith("%PDF")) throw new Error("الملف مش PDF");
+      const data = btoa(bin); if (data.length > MC_MAX) throw new Error(`الملف كبير (${Math.round(buf.length / 1024)} KB)`);
+      await setDoc(doc(db, "medical_cards", r.code), { certificate: r.cert, contentType: "application/pdf", data, employeeCode: r.code,
+        fileName: r.code + ".pdf", name: r.name, nationalId: r.nid, policy: MC_POLICY, sizeKB: Math.round(buf.length / 1024),
+        sourceFile: r.f.name, uploaded_by: u.uid, updatedAt: serverTimestamp() });
+      done.push({ code: r.code, name: r.name });
+    } catch (e) { fail.push(`${r.f.name}: ${e.code === "permission-denied" ? "مش مسموح (الـ Rules)" : e.message}`); if (e.code === "permission-denied") break; }
+  }
+  // سجل الرفعة — السيرفر بيبعت منه إشعارات المشرفين
+  if (done.length) {
+    try { await addDoc(collection(db, "card_uploads"), { items: done, by_uid: u.uid, by_label: S.role === "admin" ? "ادمن" : "HR", at: serverTimestamp(), notified: false }); }
+    catch (e) { fail.push("الكارنيهات اترفعت بس إشعار المشرفين ماتسجلش: " + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules (card_uploads)" : e.message)); }
+  }
+  show($("mc-msg"), fail.length ? "warn" : "ok", `اترفع ${done.length} من ${list.length}.` + (done.length ? " إشعارات المشرفين هتتبعت من السيرفر خلال دقايق." : "") + (fail.length ? "\n" + fail.join("\n") : ""));
+  $("mc-prev").classList.add("hidden"); $("mc-pdf").value = ""; MC.files = []; $("mc-go").disabled = false;
+}
 function initBlacklist() {
   // الإضافة والشيل للأدمن وHR اللي ليه كل الفروع بس (زي الـ Rules)، والباقي بيشوف القايمة بس
   const canBL = S.role === "admin" || (S.role === "hr" && !S.scoped);
@@ -1329,15 +1572,13 @@ $("w-new")?.addEventListener("click", async e => {
     catch (err) { tell("ماتحفظش: " + err.message); }
     return;
   }
-  const id = e.target.dataset.nsave || e.target.dataset.nrej; if (!id) return;
+  const id = e.target.dataset.nrej; if (!id) return;
   try {
-    if (e.target.dataset.nrej) {
-      if (!await ask("ترفض العامل ده؟ هيتشال من الكشف وقايمة البدلاء.", { ok: "ارفضه", danger: true })) return;
-      await updateDoc(doc(db, "new_workers", id), { status: "rejected" });
-    } else {
-      const t = document.querySelector(`[data-ntype="${id}"]`).value;
-      await updateDoc(doc(db, "new_workers", id), { type: t || null });
-    }
+    // السبب إجباري — السيرفر بيبعته للمشرف في إشعار الرفض
+    const why = (await askText("ترفض العامل ده؟ هيتشال من الكشف وقايمة البدلاء.\nاكتب السبب (بيوصل للمشرف):", { ok: "ارفضه", danger: true, required: true }) || "").trim();
+    if (!why) return;
+    await rejectNew(WS.newAll.find(x => x.id === id), why);
+    tell("اترفض — هيتشال من الكشف خلال ثواني، والمشرف هيوصله السبب.");
   } catch (err) { tell("ماتحفظش: " + err.message); }
 });
 // عامل اتضاف من المشرف (new_workers) ومش في الرواتب: نلاقيه بالكود/الرقم القومي أو بالاسم والموقع
@@ -1352,14 +1593,16 @@ $("w-rem")?.addEventListener("click", async e => {
   if (!w) {
     const nw = newOf({ code, site: e.target.dataset.rsite, name: e.target.dataset.rname });
     if (!nw) return tell("العامل ده مش في بيانات الرواتب ولا في العمال الجداد.");
-    if (!await ask(`${nw.name} اتضاف من المشرف ومش في الرواتب.\nترفضه؟ هيتشال من الكشف وقايمة البدلاء.`, { ok: "ارفضه", danger: true })) return;
-    try { await updateDoc(doc(db, "new_workers", nw.id), { status: "rejected" }); }
-    catch (err) { tell("ماتسجلش: " + err.message); }
+    const why = (await askText(`${nw.name} عامل جديد لسه مستني الـ HR.\nترفضه؟ هيتشال من الكشف وقايمة البدلاء. اكتب السبب:`, { ok: "ارفضه", danger: true, required: true }) || "").trim();
+    if (!why) return;
+    try { await rejectNew(nw, why); tell("اترفض."); } catch (err) { tell("ماتسجلش: " + err.message); }
     return;
   }
-  if (!await ask(`تسجل ${w.name} إنه مشي؟`, { ok: "مشي", danger: true })) return;
-  try { await setDoc(doc(db, "roster_overrides", code), ovrDoc(w, "مشي", w.job, w.site, today(), "اتشال من الكشف")); }
-  catch (err) { tell("ماتسجلش: " + err.message); }
+  if (!await ask(`تسجل ${w.name} إنه مشي؟ (طلب خروج — السبب: اتشال من الكشف)`, { ok: "مشي", danger: true })) return;
+  try {
+    const n = await sendForce([[doc(collection(db, "worker_events")), changeEv(w, "مشي", w.job, w.site, today(), "اتشال من الكشف", "أخرى")]]);
+    tell(n ? "اتسجل — السجل هيتحدّث خلال ثواني." : "طلب الخروج راح للـ HR يعتمده.");
+  } catch (err) { tell("ماتسجلش: " + err.message); }
 });
 function current(w) { const o = WS.ovr[w.code]; return o ? { ...w, site: o.site || w.site, job: o.job || w.job, type: o.type || w.type, edited: true } : w; }
 function renderWorkers() {
@@ -1386,7 +1629,7 @@ function renderOverrides() {
     }
     return `<tr><td>${esc(o.name || b.name || "")}</td><td>${esc(code)}</td><td>${esc(ch.join("، ") || "بدون فرق عن الرواتب")}${o.note ? `<div class="muted">${esc(o.note)}</div>` : ""}</td>
       <td style="direction:ltr;text-align:right">${esc(o.from || "")}</td><td class="muted">${esc(o.by_email || "")}</td>
-      <td><button class="btn sec small" data-undo="${esc(code)}">إلغاء التعديل</button></td></tr>`;
+      <td class="muted" style="font-size:12px;">مستني الـ HR</td></tr>`;
   }).join("") : `<tr><td colspan="6" class="muted">مفيش تعديلات.</td></tr>`;
 }
 // تصدير القايمة اللي ظاهرة (بالبحث والموقع المختارين) — كل العمال مش أول 100 بس
@@ -1420,10 +1663,12 @@ $("w-list")?.addEventListener("click", e => {
   $("w-title").textContent = `${w.name} — ${w.code}`;
   $("w-type").value = ["اساسي", "بديل راحات", "يومية", "مشي"].includes(w.type) ? w.type : "يومية";
   $("w-job").value = w.job || ""; $("w-site2").value = w.site; $("w-note").value = WS.ovr[code]?.note || "";
-  $("w-from").value = WS.ovr[code]?.from || today();
+  $("w-from").value = today();
+  $("w-reason-wrap").classList.toggle("hidden", $("w-type").value !== "مشي");
   hide($("w-msg")); $("w-form").classList.remove("hidden"); $("w-form").scrollIntoView({ behavior: "smooth", block: "center" });
 });
 $("w-cancel")?.addEventListener("click", () => $("w-form").classList.add("hidden"));
+$("w-type")?.addEventListener("change", () => $("w-reason-wrap").classList.toggle("hidden", $("w-type").value !== "مشي"));
 function ovrDoc(w, type, job, site, from, note) {
   const u = auth.currentUser;
   return { code: w.code, name: w.name || "", nid: w.nid || "", site: type === "مشي" ? (w.site || "") : site, job: job || w.job || "", type,
@@ -1434,16 +1679,13 @@ $("w-save")?.addEventListener("click", async () => {
   const type = $("w-type").value, job = $("w-job").value.trim(), site = $("w-site2").value;
   if (!job && type !== "مشي") return show($("w-msg"), "err", "اكتب الوظيفة.");
   if (type !== "مشي" && (leaveOnly(w.site) || leaveOnly(site))) return show($("w-msg"), "err", "الشرقية للدخان: تقدر تسجّل «مشي» بس — النوع والوظيفة بيتعدلوا من شيت الرواتب.");
+  if (type === w.type && job === w.job && site === w.site) return show($("w-msg"), "info", "مفيش تغيير.");
+  if (!$("w-from").value) return show($("w-msg"), "err", "اختار التاريخ.");
   $("w-save").disabled = true;
   try {
-    if (type === w.type && job === w.job && site === w.site) {
-      if (WS.ovr[w.code]) await deleteDoc(doc(db, "roster_overrides", w.code));
-      show($("w-msg"), "ok", "البيانات رجعت زي شيت الرواتب.");
-    } else {
-      await setDoc(doc(db, "roster_overrides", w.code), ovrDoc(w, type, job, site, $("w-from").value, $("w-note").value.trim()));
-      show($("w-msg"), "ok", "اتحفظ. كشف الموقع هيتحدّث خلال ثواني.");
-    }
-    setTimeout(() => $("w-form").classList.add("hidden"), 1200);
+    const n = await sendForce([[doc(collection(db, "worker_events")), changeEv(w, type, job, site, $("w-from").value, $("w-note").value.trim(), $("w-reason").value)]]);
+    show($("w-msg"), "ok", n ? "اتعتمد — السجل والكشف هيتحدّثوا خلال ثواني." : "اتبعت للـ HR يعتمده (في «اعتماد الحالات ← طلبات القوة»).");
+    setTimeout(() => $("w-form").classList.add("hidden"), 1500);
   } catch (err) { show($("w-msg"), "err", "ماتحفظش: " + (err.code === "permission-denied" ? "مش مسموح للحساب ده." : err.message)); }
   $("w-save").disabled = false;
 });
@@ -1479,15 +1721,17 @@ $("w-file")?.addEventListener("change", async e => {
       const known = nidIn ? WS.base.find(w => String(w.nid) === nidIn) : null;
       if (known) code = String(known.code).toUpperCase();
       if (!code) {
-        const nid = nidIn, name = col(r, "الاسم");
+        const nid = nidIn, name = col(r, "الاسم").replace(/\s+/g, " ");
         if (!nid && !name) return;
         const bad = nidCheck(nid); if (bad) { problems.push(`سطر ${i + 2}: ${name || nid} — ${bad}`); return; }
-        if (!name) { problems.push(`سطر ${i + 2}: الاسم ناقص`); return; }
+        if (name.split(" ").length < 4) { problems.push(`سطر ${i + 2}: الاسم لازم رباعي`); return; }
+        let phone = enDigits(col(r, "التليفون", "الموبايل", "رقم التليفون")).replace(/\D/g, ""); if (phone.length === 10 && phone[0] === "1") phone = "0" + phone;
+        if (!/^01[0125][0-9]{8}$/.test(phone)) { problems.push(`سطر ${i + 2}: ${name} — التليفون ناقص أو غلط`); return; }
         const tIn = col(r, "النوع", "نوع الوظيفة"), nt = TYPE_IN[arNorm(tIn)] || TYPE_IN[tIn], site = col(r, "الموقع"), job = col(r, "الوظيفة");
         if (!["اساسي", "يومية"].includes(nt)) { problems.push(`سطر ${i + 2}: النوع لازم أساسي أو يومية`); return; }
         if (!W_SITES.includes(site) || leaveOnly(site)) { problems.push(`سطر ${i + 2}: الموقع "${site}" مش من مواقع الحضور`); return; }
         if (!job) { problems.push(`سطر ${i + 2}: الوظيفة ناقصة`); return; }
-        WS.pendingNew.push({ nid, name, site, job, type: nt });
+        WS.pendingNew.push({ nid, name, site, job, type: nt, phone });
         return;
       }
       const w = byCode[code]; if (!w) { problems.push(`سطر ${i + 2}: الكود ${code} مش في مواقع الحضور`); return; }
@@ -1520,15 +1764,18 @@ $("w-apply")?.addEventListener("click", async () => {
   $("w-apply").disabled = true;
   try {
     const u = auth.currentUser;
-    for (const n of WS.pendingNew)
-      await setDoc(doc(db, "new_workers", n.nid), { nid: n.nid, name: n.name, site: n.site, job: n.job, type: n.type, role: "roster",
-        no_card: true, first_day: today(), added_by: u.uid, added_email: actorEmail(u), at: serverTimestamp() });
-    for (let i = 0; i < WS.pending.length; i += 400) {
-      const b = writeBatch(db);
-      WS.pending.slice(i, i + 400).forEach(p => b.set(doc(db, "roster_overrides", p.w.code), ovrDoc(p.w, p.type, p.job, p.site, p.from, p.note)));
+    // الجداد: عامل مؤقت (new_workers من غير بطاقة) + طلب إضافة للـ HR
+    for (const n of WS.pendingNew) {
+      const b = writeBatch(db), evRef = doc(collection(db, "worker_events"));
+      b.set(doc(db, "new_workers", n.nid), { nid: n.nid, name: n.name, site: n.site, job: n.job, type: n.type, role: n.type === "اساسي" ? "roster" : "replacement",
+        no_card: true, first_day: today(), event_id: evRef.id, added_by: u.uid, added_email: actorEmail(u), at: serverTimestamp() });
+      b.set(evRef, forceEv("hire", { site: n.site, name: n.name }, { nid: n.nid, phone: n.phone, job: n.job, type: n.type, first_day: today() }));
       await b.commit();
     }
-    show($("w-up-msg"), "ok", `اتحفظ ${fmt(WS.pending.length)} تعديل و${fmt(WS.pendingNew.length)} عامل جديد. الكشوف هتتحدّث خلال ثواني.`);
+    const evs = WS.pending.map(p => [doc(collection(db, "worker_events")), changeEv(p.cur, p.type, p.job, p.site, p.from, p.note, "أخرى")]);
+    const nOk = await sendForce(evs);
+    show($("w-up-msg"), "ok", `اتبعت ${fmt(WS.pending.length)} تعديل و${fmt(WS.pendingNew.length)} عامل جديد للـ HR` + (nOk ? ` — منهم ${fmt(nOk)} تعديل اتعتمد على طول.` : ".")
+      + " الجداد بيظهروا في «اعتماد الحالات ← طلبات القوة».");
     WS.pending = []; WS.pendingNew = []; $("w-preview").classList.add("hidden"); $("w-file").value = "";
   } catch (err) { show($("w-up-msg"), "err", "ماتحفظش: " + err.message); }
   $("w-apply").disabled = false;
