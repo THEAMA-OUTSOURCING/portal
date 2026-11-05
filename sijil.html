@@ -128,7 +128,7 @@ tbody tr{cursor:pointer;} tbody tr:hover{background:#fbeceb;}
     </div>
     <div class="msg err" id="l-err"></div>
   </div>
-  <div id="denied" class="card center hidden"><h2>الصفحة دي للإدارة والـ HR والمحاسبين بس</h2><button class="btn sec" id="d-out" style="margin-top:10px;">خروج</button></div>
+  <div id="denied" class="card center hidden"><h2>الصفحة دي لسه تحت المراجعة — مش متاحة لحسابك دلوقتي</h2><button class="btn sec" id="d-out" style="margin-top:10px;">خروج</button></div>
 
   <div id="app" class="hidden">
     <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px;">
@@ -507,7 +507,8 @@ onAuthStateChanged(auth, async user => {
   if (!user) return $("login").classList.remove("hidden");
   let claims = {}; try { claims = (await user.getIdTokenResult()).claims || {}; } catch (e) {}
   S.role = claims.role || null;
-  if (!["admin", "hr", "accountant", "viewer"].includes(S.role)) return $("denied").classList.remove("hidden");
+  // مؤقتاً: لمحمود بس (لحد ما يتراجع ويتفتح للإدارة والـ HR والمحاسبين)
+  if (!(S.role === "admin" && claims.email === "myehia200@gmail.com")) return $("denied").classList.remove("hidden");
   S.scoped = ["hr", "accountant"].includes(S.role) && Array.isArray(claims.sites) && claims.sites.length ? claims.sites : null;
   if (S.scoped) $("scope-note").textContent = "حسابك ليه الفروع دي بس: " + S.scoped.join("، ") + ".";
   $("who").textContent = user.email; $("app").classList.remove("hidden");

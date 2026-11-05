@@ -59,7 +59,8 @@ export const NAV_PAGES = [
   { href: "report.html",     label: "تقارير الحضور",        icon: "chart",  can: c => OFFICE.includes(c.role) || (c.role === "supervisor" && hasSites(c)) },
   { href: "plan.html",       label: "الاحتياج والأعداد",     icon: "list",   can: c => OFFICE.includes(c.role) },
   { href: "hr.html",         label: "اعتماد الحالات",        icon: "check",  can: c => ["admin", "hr", "viewer"].includes(c.role) },
-  { href: "sijil.html",      label: "السجل",                 icon: "id",     can: c => OFFICE.includes(c.role) },
+  // السجل: لمحمود بس مؤقتاً (لحد ما يتراجع) — نفس الشرط في sijil.html والـ Rules
+  { href: "sijil.html",      label: "السجل",                 icon: "id",     can: c => c.role === "admin" && c.email === "myehia200@gmail.com" },
   { href: "upload.html",     label: "رفع حضور إكسيل",       icon: "upload", can: c => c.role === "admin" },
   // العُهد: المشرف (ومشرف الشرقية للدخان) يعلّم، والإقليمي والمكتب يشوفوا
   { href: "custody.html",    label: "العُهد",                icon: "shirt",  can: c => OFFICE.includes(c.role) || c.role === "supervisor" },
