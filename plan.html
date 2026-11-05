@@ -1329,7 +1329,10 @@ async function initWorkers() {
   renderWorkers();
   onSnapshot(bySites("new_workers"), snap => {
     WS.newAll = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    const rows = WS.newAll.filter(x => !["rejected", "cancelled"].includes(x.status) && !(x.status === "coded" && (x.decided_at?.seconds || 0) < Date.now() / 1000 - 30 * 86400))
+    // اللي اتكوّد قبل السجل الموحد (رقمه القومي بقى في السجل بكود T) مش بيظهر هنا
+    const inRecord = new Set(WS.base.filter(w => /^T\d+$/.test(String(w.tcode || w.code))).map(w => String(w.nid)));
+    const rows = WS.newAll.filter(x => !["rejected", "cancelled"].includes(x.status) && !(x.status !== "coded" && inRecord.has(String(x.nid || x.id)))
+      && !(x.status === "coded" && (x.decided_at?.seconds || 0) < Date.now() / 1000 - 30 * 86400))
       .sort((a, b) => (b.at?.seconds || 0) - (a.at?.seconds || 0));
     $("w-new").innerHTML = rows.length ? rows.map(x => `<tr><td>${esc(x.name)}</td><td style="direction:ltr;text-align:right">${esc(x.nid)}</td><td>${esc(x.site)}</td><td>${esc(x.job)}</td>
       <td>${x.role === "roster" ? "عامل في الكشف" : "بديل"}${x.no_card ? `<div class="c-s" style="font-size:12px;">من غير بطاقة</div>` : ""}</td><td style="direction:ltr;text-align:right">${esc(x.first_day || "")}</td><td>${ficheCell(x)}</td>
