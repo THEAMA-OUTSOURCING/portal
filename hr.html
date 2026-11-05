@@ -36,6 +36,13 @@ label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#777;}
 .msg{padding:9px 12px;border-radius:9px;font-size:13px;margin-top:10px;display:none;}
 .msg.show{display:block;} .msg.ok{background:#eaf3de;color:#3b6d11;} .msg.err{background:#fcebeb;color:#a32d2d;} .msg.info{background:#eef4fb;color:#185fa5;}
 .hidden{display:none !important;}
+details.fold>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;}
+details.fold>summary::-webkit-details-marker{display:none;}
+details.fold>summary::before{content:"◂";font-size:12px;color:#888;transition:transform .15s;}
+details.fold[open]>summary::before{transform:rotate(-90deg);}
+details.fold>summary h2{margin:0;} details.fold[open]>summary{margin-bottom:10px;}
+details.why{margin-bottom:8px;} details.why>summary{cursor:pointer;color:#185fa5;font-size:13px;width:max-content;}
+details.why>p{margin-top:6px;}
 .center{max-width:380px;margin:50px auto;}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;}
 .ev{background:#fff;border:1px solid #e5e5e5;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;}
@@ -112,32 +119,31 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
       <div class="row"><button class="btn sec small" id="logout">خروج</button></div>
     </div>
     <nav id="pnav" class="pnav" aria-label="صفحات البوابة"></nav>
-    <div class="card no-view">
-      <h2>رفع إجازات ومرضي من إكسيل (شيبسي / بيبسي / الإمداد / الشرقية)</h2>
-      <p class="muted" style="margin-bottom:8px;">نزّل الشكل، املاه (سطر لكل إجازة أو مرضي)، وارفعه. كل سطر بيدخل هنا «مستني HR تيما». بعد الاعتماد النهائي بيظهر في تقرير الحضور: ج إجازة، خ إجازة بدون أجر، م مرضي. الجمعة مش بتتحسب في عدد الأيام.</p>
+    <details class="card fold no-view">
+      <summary><h2>رفع إجازات ومرضي من إكسيل (شيبسي / بيبسي / الإمداد / الشرقية)</h2></summary>
+      <details class="why"><summary>الشرح</summary><p class="muted" style="margin-bottom:8px;">نزّل الشكل، املاه (سطر لكل إجازة أو مرضي)، وارفعه. كل سطر بيدخل هنا «مستني HR تيما». بعد الاعتماد النهائي بيظهر في تقرير الحضور: ج إجازة، خ إجازة بدون أجر، م مرضي. الجمعة مش بتتحسب في عدد الأيام.</p></details>
       <div class="row"><button class="btn sec" id="tpl">تنزيل الشكل (Excel)</button><input type="file" id="xf" accept=".xlsx,.xls" style="max-width:320px"><button class="btn" id="xsave" disabled>ارفع</button></div>
       <div class="msg" id="xmsg"></div>
-    </div>
-    <div class="card no-view">
-      <h2>تصحيح نوع الإجازة (ج / خ)</h2>
-      <p class="muted" style="margin-bottom:8px;">لحد ما يبقى فيه رصيد إجازات: أي إجازة بتتوافق بتتسجل ج. نزّل الإجازات في فترة، غيّر عمود «نوع الإجازة» لـ خ للي ملوش رصيد (أو العكس)، وارفع الشيت — اللي اتغيّر بس هو اللي بيتعدّل، والحضور بيتعدّل معاه.</p>
+    </details>
+    <details class="card fold no-view">
+      <summary><h2>تصحيح نوع الإجازة (ج / خ)</h2></summary>
+      <details class="why"><summary>الشرح</summary><p class="muted" style="margin-bottom:8px;">لحد ما يبقى فيه رصيد إجازات: أي إجازة بتتوافق بتتسجل ج. نزّل الإجازات في فترة، غيّر عمود «نوع الإجازة» لـ خ للي ملوش رصيد (أو العكس)، وارفع الشيت — اللي اتغيّر بس هو اللي بيتعدّل، والحضور بيتعدّل معاه.</p></details>
       <div class="row"><label class="f">من<input type="date" id="lk-from"></label><label class="f">لحد<input type="date" id="lk-to"></label>
         <button class="btn sec" id="lk-exp">تنزيل الإجازات</button><input type="file" id="lk-file" accept=".xlsx,.xls" style="max-width:300px"><button class="btn" id="lk-save" disabled>احفظ التصحيح</button></div>
       <div class="msg" id="lk-msg" style="white-space:pre-line;"></div>
-    </div>
-    <div class="card no-view">
-      <h2>تصدير المرفوض (مرضي / إجازة / استقالة)</h2>
-      <p class="muted" style="margin-bottom:8px;">إكسيل واحد بكل الحالات المرفوضة في الفترة — من HR تيما أو من العميل — وسبب الرفض قدام كل حالة. المرضي اللي العميل اعتمد منه جزء بيطلع كمان بعدد الأيام المرفوضة. الفترة بتتحسب على تاريخ الحالة (والاستقالة على يوم تسجيلها).</p>
+    </details>
+    <details class="card fold no-view">
+      <summary><h2>تصدير المرفوض (مرضي / إجازة / استقالة)</h2></summary>
+      <details class="why"><summary>الشرح</summary><p class="muted" style="margin-bottom:8px;">إكسيل واحد بكل الحالات المرفوضة في الفترة — من HR تيما أو من العميل — وسبب الرفض قدام كل حالة. المرضي اللي العميل اعتمد منه جزء بيطلع كمان بعدد الأيام المرفوضة. الفترة بتتحسب على تاريخ الحالة (والاستقالة على يوم تسجيلها).</p></details>
       <div class="row"><label class="f">من<input type="date" id="rj-from"></label><label class="f">لحد<input type="date" id="rj-to"></label>
         <label class="f">النوع<select id="rj-ty"><option value="">الكل</option><option value="sick">مرضي</option><option value="leave">إجازة</option><option value="resign">استقالة</option></select></label>
         <button class="btn sec" id="rj-exp">تصدير المرفوض (Excel)</button></div>
       <div class="msg" id="rj-msg"></div>
-    </div>
-    <div class="card no-view" id="client-card">
-      <h2>مرحلة العميل — المرضي (بيبسي والإمداد / شيبسي)</h2>
-      <p class="muted" style="margin-bottom:8px;">المرضي اللي HR تيما وافق عليه لعمال بيبسي والإمداد وشيبسي بيستنى هنا رد العميل. وتقدر كمان تسجّل قرار العميل يدوي على كل حالة تحت. الإجازات والاستقالات بتتعتمد من HR تيما على طول.</p>
-      <p class="muted" style="margin-bottom:6px;">1) صدّر شيت المرضي وابعته للعميل. 2) لما العميل يرد، نزّل «شيت الرد» وعدّل فيه «الأيام المعتمدة» للحالات اللي العميل غيّرها بس (والـ Limit لو باعته)، واكتب الإجمالي اللي في إيميله وارفعه.
-        لو العامل ليه أكتر من فترة، اكتب الإجمالي في أول سطر وفضّي الباقي — بيتوزّع من الأقدم. الأيام المعتمدة = م، والباقي = خ.</p>
+    </details>
+    <details class="card fold no-view" id="client-card">
+      <summary><h2>مرحلة العميل — المرضي (بيبسي والإمداد / شيبسي)</h2></summary>
+      <details class="why"><summary>الشرح</summary><p class="muted" style="margin-bottom:8px;">المرضي اللي HR تيما وافق عليه لعمال بيبسي والإمداد وشيبسي بيستنى هنا رد العميل. وتقدر كمان تسجّل قرار العميل يدوي على كل حالة تحت. الإجازات والاستقالات بتتعتمد من HR تيما على طول.</p><p class="muted" style="margin-bottom:6px;">1) صدّر شيت المرضي وابعته للعميل. 2) لما العميل يرد، نزّل «شيت الرد» وعدّل فيه «الأيام المعتمدة» للحالات اللي العميل غيّرها بس (والـ Limit لو باعته)، واكتب الإجمالي اللي في إيميله وارفعه.
+        لو العامل ليه أكتر من فترة، اكتب الإجمالي في أول سطر وفضّي الباقي — بيتوزّع من الأقدم. الأيام المعتمدة = م، والباقي = خ.</p></details>
       <div class="row" style="margin-bottom:6px;align-items:flex-end;">
         <label class="f">الفترة من<input type="date" id="sk-from"></label>
         <label class="f">لحد<input type="date" id="sk-to"></label>
@@ -151,11 +157,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
       <div class="msg" id="sk-msg" style="white-space:pre-line;"></div>
       <div id="old-lv" class="hidden" style="margin-top:14px;">
         <h2>إجازات قديمة كانت مستنية العميل</h2>
-        <p class="muted" style="margin-bottom:6px;">الإجازة مابقتش بتستنى رد العميل. الإجازات دي اتوافق عليها من HR تيما قبل التعديل — اعتمدها مرة واحدة.</p>
+        <details class="why"><summary>الشرح</summary><p class="muted" style="margin-bottom:6px;">الإجازة مابقتش بتستنى رد العميل. الإجازات دي اتوافق عليها من HR تيما قبل التعديل — اعتمدها مرة واحدة.</p></details>
         <div class="row"><button class="btn ok" id="old-lv-ok">اعتمد الإجازات دي</button><span class="muted" id="cl-count"></span></div>
         <div class="msg" id="cl-msg" style="white-space:pre-line;"></div>
       </div>
-    </div>
+    </details>
     <div class="card">
       <div class="row">
         <label class="f">الحالة<select id="f-st"><option value="pending">مستني HR تيما / اتعدل</option><option value="client_wait">مستني رد العميل</option><option value="approved">معتمد</option><option value="rejected">مرفوض</option><option value="">الكل</option></select></label>
@@ -163,7 +169,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
         <label class="f">النوع<select id="f-ty"><option value="">الكل</option><option value="sick">مرضي</option><option value="leave">إجازة</option><option value="resign">استقالة</option></select></label>
         <label class="f">بحث<input id="f-q" placeholder="الاسم أو الكود أو الرقم القومي أو الموقع"></label>
       </div>
-      <p class="muted" style="margin-top:8px;">الحالات جاية من: طلبات المشرفين في صفحة الحضور، ورفع الإكسيل هنا، وتطبيق الشرقية على Drive (بيتحدث كل ساعة). الإجازات والاستقالات والشرقية بتتعتمد من HR تيما على طول؛ مرضي بيبسي والإمداد وشيبسي بس اللي بيستنى رد العميل بعد موافقة تيما، ولحد ما العميل يرد بيظهر في تقرير الحضور «في انتظار الاعتماد». <span id="sync"></span></p>
+      <details class="why"><summary>الشرح</summary><p class="muted" style="margin-top:8px;">الحالات جاية من: طلبات المشرفين في صفحة الحضور، ورفع الإكسيل هنا، وتطبيق الشرقية على Drive (بيتحدث كل ساعة). الإجازات والاستقالات والشرقية بتتعتمد من HR تيما على طول؛ مرضي بيبسي والإمداد وشيبسي بس اللي بيستنى رد العميل بعد موافقة تيما، ولحد ما العميل يرد بيظهر في تقرير الحضور «في انتظار الاعتماد».</p></details>
+      <div class="muted" id="sync" style="font-size:12px;"></div>
       <div class="msg" id="msg"></div>
     </div>
     <div class="grid" id="list"></div>
@@ -216,6 +223,7 @@ function rebuild() {
   ALL = [...m.values()];
   const oldLv = [...LIVE_W.values()].filter(e => e.type !== "sick");
   $("old-lv").classList.toggle("hidden", !oldLv.length);
+  if (oldLv.length) $("client-card").open = true;
   $("cl-count").textContent = oldLv.length ? `${oldLv.length} إجازة` : "";
   render();
 }
