@@ -1911,7 +1911,7 @@ const LV = { who: null, img: "", imgFile: null, pages: [], list: [], unsub: null
 const WE_TY = { hire: "إضافة", leave: "خروج", change: "تغيير" };
 function weItem(e) {
   const st = { pending: "pending", error: "pending", approved: "pending", done: "approved", rejected: "rejected" }[e.status];
-  if (!st) return null;   // اتلغى
+  if (!st || !WE_TY[e.kind]) return null;   // اتلغى، أو حركة تأمين (من صفحة السجل)
   const day = e.first_day || e.left_date || e.effective || "";
   const to = e.to ? Object.entries(e.to).map(([k, v]) => ({ type: "النوع", job: "الوظيفة", site: "الموقع" }[k] || k) + " ← " + v).join("، ") : "";
   return { id: "we_" + e.id, we: e.kind, name: e.name || e.code || "", status: st, from: day, to: day,

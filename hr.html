@@ -879,7 +879,7 @@ function wqStart(role, uid) {
   for (const st of ["pending", "error", "approved"]) {
     onSnapshot(wqQ(where("status", "==", st)), snap => {
       for (const [id, e] of WQ.open) if (e.status === st) WQ.open.delete(id);
-      snap.forEach(d => WQ.open.set(d.id, { id: d.id, ...d.data() }));
+      snap.forEach(d => { const e = d.data(); if (e.kind !== "insurance") WQ.open.set(d.id, { id: d.id, ...e }); });   // حركات التأمين: من صفحة السجل
       wqRender();
     }, onErr);
   }
@@ -889,7 +889,7 @@ async function wqLoadHist() {
   show($("wq-msg"), "info", "بيحمّل…");
   try {
     const snap = await getDocs(wqQ(where("status", "==", WQ.view)));
-    WQ.hist = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    WQ.hist = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(e => e.kind !== "insurance")
       .sort((a, b) => (b.applied_at?.seconds || b.decided_at?.seconds || 0) - (a.applied_at?.seconds || a.decided_at?.seconds || 0)).slice(0, 200);
     $("wq-msg").className = "msg";
   } catch (err) { show($("wq-msg"), "err", err.message); }
