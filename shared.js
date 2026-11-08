@@ -211,7 +211,13 @@ export function planBySite(base, date) {
 // المشرف بيكتب الوقت بإيده من غير صبح/مسا: البوابة بتخمّن من بدايات الورديات المعروفة (جدول Code&time PCE)
 // والمشرف بيصحح. الحساب بالدقيقة من غير تقريب.
 export const TIME_SITES = ["مصنع العامرية", "فرع العجمى", "طنطا مصنع"];
-const SHIFT_STARTS = [6, 7, 8, 9, 20, 22].map(h => h * 60);   // نهار 6/7/8/9، ليل 20/22
+const SHIFT_STARTS = [6, 7, 8, 9, 15, 20, 22].map(h => h * 60);   // نهار 6/7/8/9، عصر 15، ليل 20/22
+// الورديات المعروفة في المواقع الثلاثة (من محمود 8/11/2026):
+// المخازن والعمومية والتعبئة (عمال وونش) في مصنع العامرية وطنطا مصنع: 8→15، 15→22، 22→8
+// إنتاج وجودة مصنع العامرية: 8→20، 20→8 — العجمى: 8→15، 15→22 أو 15→24
+const SHIFT_PAIRS = [[8, 15], [15, 22], [22, 8], [8, 20], [20, 8], [15, 24]].map(([a, b]) => [a * 60, (b % 24) * 60]);
+const PAIR_MISS = 40;   // وقت مش على وردية معروفة: أقل احتمال (عشان «8 → 3» تبقى 8 → 15 مش 20 → 3)
+const onPair = (i, o) => i != null && o != null && SHIFT_PAIRS.some(([a, b]) => Math.abs(i - a) <= 30 && Math.min(Math.abs(o - b), 1440 - Math.abs(o - b)) <= 30);
 export const isHelperJob = job => /مساعد بيع/.test(String(job || ""));   // حضور بس: 8 ساعات ثابتة من غير إضافي
 export const toMin = s => { const m = /^(\d{1,2})(?::(\d{2}))?$/.exec(String(s || "").trim()); return m && +m[1] <= 24 && +(m[2] || 0) < 60 ? (+m[1] % 24) * 60 + +(m[2] || 0) : null; };
 export const hhmm = m => m == null ? "" : String(Math.floor(((m % 1440) + 1440) % 1440 / 60)).padStart(2, "0") + ":" + String(((m % 60) + 60) % 60).padStart(2, "0");
@@ -235,11 +241,32 @@ export function fixReversed(inHM, outHM) {
 // prevIn = وقت حضور نفس العامل في اليوم اللي قبله (لو متأكد): لو الصبح والمسا محتملين، بناخد الأقرب لامبارح
 // swapped = مفيش قراية منطقية (4–12 ساعة) غير لما الحضور والانصراف يتعكسوا — اتعكسوا والمحاسب يأكد
 export function guessTimes(tin, tout, dayOnly = false, prevIn = null) {
-  const g = guessTimes1(tin, tout, dayOnly, prevIn);
-  if (!g.bad || !tin || !tout) return g;
-  const s = guessTimes1(tout, tin, dayOnly, prevIn);
-  return s.bad ? g : { ...s, swapped: true };
+  let g = guessTimes1(tin, tout, dayOnly, prevIn);
+  if (g.bad && tin && tout) { const s = guessTimes1(tout, tin, dayOnly, prevIn); if (!s.bad) g = { ...s, swapped: true }; }
+  // ٢ و٣ بخط الإيد شبه بعض: لو الوقت مش على وردية معروفة، وتغيير ٢↔٣ في ساعة الحضور أو الانصراف بيخليه على وردية بالظبط
+  // (زي «2 → 10» وهي 3 → 10 = 15:00 → 22:00) — بناخد التصليح، والمحاسب بيتأكد من الورقة
+  if (dayOnly || !tin || !tout || onPair(toMin(g.in), toMin(g.out))) return g;
+  for (const [a, b] of [...swap23(tin).map(x => [x, tout]), ...swap23(tout).map(x => [tin, x])]) {
+    const f = guessTimes1(a, b, dayOnly, prevIn);
+    if (!f.bad && !f.unsure && onPair(toMin(f.in), toMin(f.out))) return { ...f, fixed23: true };
+  }
+  return g;
 }
+// الوقت نفسه بس ٢ مكان ٣ أو العكس في رقم واحد من الساعة (الدقايق لازم صفر): «2» → «3»، «23» → «22»/«33»،
+// و«14:00» (السيرفر حوّل «٢م») → «15:00». الأوقات اللي مش منطقية بتتشال في guessTimes1
+function swap23(v) {
+  const m = /^(0?)(\d{1,2})(?::00)?$/.exec(String(v || "").trim()); if (!m) return [];
+  const h = +m[2], out = new Set();
+  // الساعة زي ما هي («23» → «22»)، وبنظام 12 لو بعد الضهر («14» من «٢م» → «15»)
+  for (const pm of h > 12 ? [0, 12] : [0]) {
+    const txt = String(h - pm);
+    [...txt].forEach((c, i) => { if (c === "2" || c === "3") {
+      const n = +(txt.slice(0, i) + (c === "2" ? "3" : "2") + txt.slice(i + 1)) + pm;
+      if (n <= 24) out.add(m[1] + n + ":00"); } });
+  }
+  return [...out];
+}
+
 function guessTimes1(tin, tout, dayOnly, prevIn) {
   const best = [];
   // مساعد البيع شغله نهار بس
@@ -248,7 +275,7 @@ function guessTimes1(tin, tout, dayOnly, prevIn) {
     let score;
     if (i == null) score = 500;                              // من غير حضور: الانصراف لوحده مش كفاية
     else if (o == null) score = near(i);
-    else { const d = (o - i + 1440) % 1440; score = near(i) + (d >= 240 && d <= MAX_SHIFT_MIN ? 0 : 10000); }
+    else { const d = (o - i + 1440) % 1440; score = near(i) + (d >= 240 && d <= MAX_SHIFT_MIN ? 0 : 10000) + (onPair(i, o) ? 0 : PAIR_MISS); }
     best.push({ in: i, out: o, score });
   }
   if (!best.length) return { in: "", out: "", unsure: false };

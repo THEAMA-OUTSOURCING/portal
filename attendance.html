@@ -935,9 +935,9 @@ function timeEntry(r, job, prevIn) {
   if (specialOf(r) === "mission" && r?.s !== "P") { const m = calcHours(MISSION_SHIFT.in, MISSION_SHIFT.out, job);
     return { tin: r?.tin || "", tout: r?.tout || "", in: MISSION_SHIFT.in, out: helper ? "" : MISSION_SHIFT.out, mission: true, min: m.min, dmin: m.dmin, nmin: m.nmin, ot: m.ot, otd: m.otd, otn: m.otn }; }
   const t = guessTimes(r?.tin, r?.tout, helper, prevIn), h = calcHours(t.in, t.out, job);
-  const issue = !t.in ? "مفيش وقت حضور" : !helper && !t.out ? "مفيش وقت انصراف" : r?.tq ? "راجع الوقت مع الورقة" : h && h.min > MAX_SHIFT_MIN ? "أكتر من 12 ساعة — راجع الوقت مع الورقة" : t.swapped ? "الحضور والانصراف كانوا معكوسين واتعدلوا — اتأكد" : t.unsure ? "نهار ولا ليل؟" : "";
+  const issue = !t.in ? "مفيش وقت حضور" : !helper && !t.out ? "مفيش وقت انصراف" : r?.tq ? "راجع الوقت مع الورقة" : h && h.min > MAX_SHIFT_MIN ? "أكتر من 12 ساعة — راجع الوقت مع الورقة" : t.swapped ? "الحضور والانصراف كانوا معكوسين واتعدلوا — اتأكد" : t.fixed23 ? "اتقرا ٢ واتصلح ٣ (أو العكس) على ميعاد الوردية — اتأكد من الورقة" : t.unsure ? "نهار ولا ليل؟" : "";
   return { tin: r?.tin || "", tout: r?.tout || "", in: t.in, out: helper ? "" : t.out, ...(t.prev ? { t_prev: true } : {}),
-    ...(issue ? { t_issue: issue } : {}), ...(h && (!issue || t.swapped && h.min <= MAX_SHIFT_MIN) ? { min: h.min, dmin: h.dmin, nmin: h.nmin, ot: h.ot, otd: h.otd, otn: h.otn } : {}) };
+    ...(issue ? { t_issue: issue } : {}), ...(h && (!issue || (t.swapped || t.fixed23) && h.min <= MAX_SHIFT_MIN) ? { min: h.min, dmin: h.dmin, nmin: h.nmin, ot: h.ot, otd: h.otd, otn: h.otn } : {}) };
 }
 
 // الصفحات اللي بتتقري: اللي خلصت، ومن غير الصور اللي اتصورت تاني (السيرفر علّمها superseded_by بصورة أحدث لنفس الصفحة)
