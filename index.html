@@ -341,8 +341,8 @@ document.addEventListener("click", function (e) {
     <div class="card card-look" style="margin-top:0;">
       <p style="font-size:14px;font-weight:500;color:#222;margin-bottom:12px;"><i class="ti ti-heart-plus" style="font-size:16px;vertical-align:-2px;margin-left:6px;color:#185fa5;"></i>بحث عن كارنيه طبي</p>
       <div style="margin-bottom:12px;">
-        <label style="font-size:13px;color:#888;display:block;margin-bottom:6px;">كود الموظف</label>
-        <input type="text" id="search-card-code" placeholder="ادخل كود الموظف (مثال: T1234 أو 1234)" autocapitalize="characters" autocomplete="off"/>
+        <label style="font-size:13px;color:#888;display:block;margin-bottom:6px;">كود الموظف أو الرقم القومى</label>
+        <input type="text" id="search-card-code" placeholder="الكود (T1234 أو 1234) أو الرقم القومى (14 رقم)" inputmode="text" autocapitalize="characters" autocomplete="off"/>
       </div>
       <button class="btn-primary" onclick="searchMedicalCard()" id="search-card-btn"><i class="ti ti-search" style="font-size:15px;vertical-align:-2px;margin-left:4px;"></i>عرض الكارنيه</button>
       <div class="error-box" id="search-card-error"><i class="ti ti-alert-circle" style="font-size:14px;vertical-align:-2px;margin-left:4px;"></i><span id="search-card-error-msg"></span></div>
@@ -463,7 +463,7 @@ document.addEventListener("click", function (e) {
 <script type="module">
 import { getFirestore, collection, getDocs, addDoc, deleteDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ask, tell, askText } from './shared.js?v=20261104e';
+import { db, auth, actorEmail, ask, tell, askText, SUP_SITES } from './shared.js?v=20261104e';
 
 
 let loggedUser = null;
@@ -1705,19 +1705,55 @@ window.exportRequests = exportRequests;
 let adminCardUrl = null;
 let adminCardType = null;
 let adminCardCode = '';
+// الرقم القومى ← الكود: الأدمن من فهرس الأرقام القومية (employee_index/nids)،
+// والباقيين من كشوف المواقع اللي حسابهم يقدر يقراها (نفس الـ Rules — من غير أي تعديل فيها)
+const SHARQIA_ROSTER = 'الشرقية للدخان';
+let cardRosters = null;   // {رقم قومى: كود} — بيتحمّل مرة واحدة لكل دخول
+async function codeFromNid(nid){
+  const claims = (await auth.currentUser.getIdTokenResult()).claims || {};
+  const role = claims.role, sites = Array.isArray(claims.sites) && claims.sites.length ? claims.sites : null;
+  if(role === 'admin'){
+    try{ const s = await getDoc(doc(db,'employee_index','nids')); const c = s.exists() ? (s.data().map||{})[nid] : ''; if(c) return String(c); }
+    catch(e){ console.warn('nids index:', e); }
+  }
+  if(!cardRosters || cardRosters.uid !== auth.currentUser.uid){
+    let list;
+    if(role === 'supervisor') list = sites || [SHARQIA_ROSTER];          // مشرف بمواقع، أو حساب الشرقية المشترك
+    else list = sites || [...SUP_SITES, SHARQIA_ROSTER];                 // أدمن / HR / مشاهد
+    const map = {};
+    await Promise.all(list.map(async site=>{
+      try{ const r = await getDoc(doc(db,'rosters',site)); (r.exists() ? r.data().workers||[] : []).forEach(w=>{ if(w.nid && w.code) map[String(w.nid)] = String(w.code); }); }
+      catch(e){}   // موقع مش مسموح للحساب ده — نعدّيه
+    }));
+    cardRosters = { uid: auth.currentUser.uid, map };
+  }
+  return cardRosters.map[nid] || '';
+}
 async function searchMedicalCard(){
-  const codes = staffCodes(document.getElementById('search-card-code').value), code = codes[0];
+  const raw = staffCode(document.getElementById('search-card-code').value);
+  const isNid = /^[23]\d{13}$/.test(raw);
+  let codes = isNid ? [] : staffCodes(raw), code = codes[0];
   const errEl = document.getElementById('search-card-error');
   const loading = document.getElementById('search-card-loading');
   const result = document.getElementById('search-card-result');
   errEl.style.display = 'none';
   result.style.display = 'none';
-  if(!code){
-    document.getElementById('search-card-error-msg').textContent = 'ادخل كود الموظف';
+  if(!isNid && !code){
+    document.getElementById('search-card-error-msg').textContent = 'ادخل كود الموظف أو الرقم القومى';
     errEl.style.display = 'block';
     return;
   }
   loading.style.display = 'block';
+  if(isNid){
+    try{ code = await codeFromNid(raw); }catch(e){ code = ''; console.error('nid lookup:', e); }
+    if(!code){
+      loading.style.display = 'none';
+      document.getElementById('search-card-error-msg').textContent = 'الرقم القومى ده مش موجود في كشوف العمال المسموحلك بيهم — جرّب بالكود';
+      errEl.style.display = 'block';
+      return;
+    }
+    codes = [code];
+  }
   if(adminCardUrl){ URL.revokeObjectURL(adminCardUrl); adminCardUrl = null; }
   adminCardCode = '';
   try{
