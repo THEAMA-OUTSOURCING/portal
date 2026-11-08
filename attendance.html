@@ -266,6 +266,13 @@ details.plan #plan-box{background:#fff;border-radius:12px;padding:4px 6px;}
 
 
 
+    <div class="card hidden" id="ret-card" style="border:2px solid #185fa5;">
+      <h2>طلبات تم ردها — محتاجة تستكمل</h2>
+      <p class="muted" style="margin-bottom:8px;">الـ HR رد طلبات الإضافة دي علشان فيها حاجة ناقصة. العامل مش هيظهر في الكشف ولا هيتسجله حضور لحد ما تستكمل الناقص والـ HR يعتمد.</p>
+      <div id="ret-list"></div>
+      <div class="msg" id="ret-msg"></div>
+    </div>
+
     <div class="card hidden" id="fiche-card">
       <h2>عمال جداد: الفيش والبطاقة</h2>
       <p class="muted" style="margin-bottom:8px;">الفيش (صحيفة الحالة الجنائية) لازم يترفع خلال 5 أيام عمل من أول يوم حضور. بعد المهلة، حضور العامل بيتقفل لحد ما يترفع.</p>
@@ -584,7 +591,8 @@ async function openDay() {
   S.unsubPool = onSnapshot(doc(db, "pools", S.site), snap => { S.pool = snap.exists() ? (snap.data().workers || []) : []; render(); }, () => {});
   S.unsubNew?.();
   S.unsubNew = onSnapshot(query(collection(db, "new_workers"), where("site", "==", S.site)), snap => {
-    S.newWorkers = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(x => x.status !== "rejected");
+    // المرفوض والمردود للمشرف (لحد ما يستكمل والـ HR يعتمد) مش في الكشف
+    S.newWorkers = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(x => x.status !== "rejected" && x.status !== "returned");
     renderFiche(); render();
   }, () => {});
   S.unsubRem = onSnapshot(query(collection(db, "sheet_removals"), where("site", "==", S.site)), snap => {
@@ -1759,18 +1767,22 @@ function targetWorker(target) {
 function openId(purpose, target) {
   ID.purpose = purpose; ID.target = target || null; ID.check = null; ID.result = null; ID.unsub?.();
   const w = target ? targetWorker(target) : null;
-  $("idm-title").textContent = purpose === "roster" ? "إضافة عامل جديد للكشف" : "بديل جديد";
-  $("idm-sub").textContent = (purpose === "roster" ? "اكتب بيانات العامل وصوّر بطاقته وش وضهر."
+  $("idm-title").textContent = purpose === "complete" ? "استكمال — صورة البطاقة" : purpose === "roster" ? "إضافة عامل جديد للكشف" : "بديل جديد";
+  $("idm-sub").textContent = purpose === "complete" ? `${RT.ev?.name || ""}: صوّر البطاقة وش وضهر في نور كويس، واتأكد إن الاسم والرقم القومي اللي مكتوبين زي البطاقة بالظبط.`
+    : (purpose === "roster" ? "اكتب بيانات العامل وصوّر بطاقته وش وضهر."
     : `بديل لـ ${w?.name || ""}. اكتب بياناته وصوّر بطاقته، وبعدها هيفضل في قايمة البدلاء.`)
     + " اللي هتكتبه لازم يطابق البطاقة، والطلب بيروح للـ HR يعتمده.";
   const jobs = [...new Set(S.rosterNow.map(x => x.job).filter(Boolean))];
   $("idm-job").innerHTML = jobs.map(j => `<option>${esc(j)}</option>`).join("");
   if (w) $("idm-job").value = w.job;
   $("idm-job-wrap").classList.toggle("hidden", purpose !== "roster");
+  $("idm-type-wrap").classList.toggle("hidden", purpose === "complete");
   // النوع للاتنين: البديل الجديد يومية أو بديل راحات بس
   $("idm-type").querySelector('option[value="اساسي"]').disabled = purpose !== "roster";
   $("idm-type").value = purpose === "roster" ? "" : "يومية";
   ["idm-in-name", "idm-in-nid", "idm-in-phone"].forEach(id => $(id).value = ""); ID.typed = null;
+  if (purpose === "complete" && RT.ev) { $("idm-in-name").value = RT.ev.name || ""; $("idm-in-nid").value = RT.ev.nid || ""; $("idm-in-phone").value = RT.ev.phone || ""; }
+  $("idm-ok").textContent = purpose === "complete" ? "ابعت للـ HR" : "تأكيد الإضافة";
   hide($("idm-msg")); $("idm-result").classList.add("hidden");
   ID.front = ID.back = null; $("idm-send").disabled = true;
   ["front", "back"].forEach(sd => $("idm-" + sd + "-img").classList.add("hidden"));
@@ -1792,13 +1804,13 @@ $("idm-send").addEventListener("click", async () => {
   const t = { name: cleanName($("idm-in-name").value), nid: enDigits($("idm-in-nid").value).replace(/\D/g, ""), phone: cleanPhone($("idm-in-phone").value) };
   const bad = typedProblem(t.name, t.nid, t.phone);
   if (bad) return show($("idm-msg"), "err", bad);
-  if (!$("idm-type").value) return show($("idm-msg"), "err", "اختار نوع العامل الأول.");
+  if (ID.purpose !== "complete" && !$("idm-type").value) return show($("idm-msg"), "err", "اختار نوع العامل الأول.");
   ID.typed = t;
   $("idm-send").disabled = true; $("idm-result").classList.add("hidden");
   show($("idm-msg"), "info", "بيرفع صور البطاقة...");
   try {
     const u = auth.currentUser;
-    const ref = await addDoc(collection(db, "id_checks"), { site: S.site, date: S.date, image: ID.front, image_back: ID.back, purpose: ID.purpose,
+    const ref = await addDoc(collection(db, "id_checks"), { site: S.site, date: S.date, image: ID.front, image_back: ID.back, purpose: ID.purpose === "complete" ? "roster" : ID.purpose,
       typed_name: ID.typed.name, typed_nid: ID.typed.nid, typed_phone: ID.typed.phone,
       uploaded_by: u.uid, uploaded_email: actorEmail(u), status: "pending", created_at: serverTimestamp() });
     ID.check = ref.id;
@@ -1820,6 +1832,19 @@ $("idm-send").addEventListener("click", async () => {
 });
 $("idm-ok").addEventListener("click", async () => {
   const d = ID.result; if (!d || d.status !== "ok") return;
+  if (ID.purpose === "complete") {   // بطاقة لطلب الـ HR رده: الاسم والرقم من البطاقة نفسها
+    const ev = RT.ev; if (!ev) return;
+    let banned = false; try { banned = (await getDoc(doc(db, "blacklist", d.nid))).exists(); } catch (e) {}
+    if (banned) return show($("idm-msg"), "err", "العامل ده ممنوع تشغيله في تيما. راجع الإدارة.");
+    $("idm-ok").disabled = true;
+    try {
+      const phone = cleanPhone($("idm-in-phone").value);
+      await rtComplete(ev.id, { check_id: ID.check, name: d.name, nid: d.nid, ...(PHONE_RE.test(phone) ? { phone } : {}) });
+      $("idm").classList.add("hidden");
+    } catch (err) { show($("idm-msg"), "err", "ماتبعتش: " + (err.code === "permission-denied" ? "مش مسموح للحساب ده." : err.message)); }
+    $("idm-ok").disabled = false;
+    return;
+  }
   // النوع: أساسي بيدخل الكشف، بديل راحات/يومية بيروحوا قايمة البدلاء (السيرفر بيقسّمهم بالنوع)
   const typ = $("idm-type").value;
   if (!typ) return show($("idm-msg"), "err", "اختار نوع العامل الأول.");
@@ -1920,13 +1945,58 @@ function renderFiche() {
         ${x.no_card ? `<button class="btn sec small" data-card="${esc(x.id)}">رفع البطاقة</button>` : ""}</div></div>`;
   }).join("");
 }
-const FM = { nid: null, imgs: [] };
+// ===== طلبات الإضافة اللي الـ HR ردها للمشرف يستكمل =====
+// المشرف يستكمل الناقص (الفيش / البطاقة / التليفون / رد) ← الطلب يرجع «مستني» للـ HR ومكتوب عليه «المشرف استكمل»
+const RT = { list: [], ev: null };
+const RT_WHAT = { fiche: "الفيش ناقص", card: "صورة البطاقة مش واضحة أو ناقصة", phone: "التليفون غلط", nid: "الاسم أو الرقم القومي غلط", other: "أخرى" };
+function renderRet() {
+  $("ret-card").classList.toggle("hidden", !RT.list.length || S.office);
+  $("ret-list").innerHTML = RT.list.map(e => {
+    const r = e.return_reason || "other", id = esc(e.id);
+    const act = r === "fiche" ? `<button class="btn small" data-rtfiche="${id}">رفع الفيش</button>`
+      : r === "card" || r === "nid" ? `<button class="btn small" data-rtcard="${id}">صوّر البطاقة تاني</button>`
+      : r === "phone" ? `<input data-rtphone="${id}" dir="ltr" maxlength="11" inputmode="numeric" placeholder="التليفون الصح" style="width:130px;padding:4px 6px;"><button class="btn small" data-rtsend="${id}">ابعت للـ HR</button>`
+      : `<input data-rtnote="${id}" placeholder="اكتب ردك على الملاحظة" style="flex:1;min-width:150px;padding:4px 6px;"><button class="btn small" data-rtsend="${id}">ابعت للـ HR</button>`;
+    return `<div class="w" style="flex-wrap:wrap;"><div class="nm"><b>${esc(e.name)}</b><small>${esc(e.job || "")} · ${esc(e.type || "")} · ${esc(e.nid || "")}</small>
+      <div style="margin-top:4px;"><span class="pill p-err">الناقص: ${esc(e.decision_note || RT_WHAT[r] || "")}</span></div></div>
+      <div class="row" style="gap:4px;align-items:center;">${act}</div></div>`;
+  }).join("");
+}
+async function rtComplete(id, extra) {
+  const u = auth.currentUser;
+  await updateDoc(doc(db, "worker_events", id), { ...extra, status: "pending", completed_at: serverTimestamp(),
+    completed_by: u.uid, completed_email: actorEmail(u) });
+  show($("ret-msg"), "ok", "اتبعت للـ HR تاني ✓ — العامل هيدخل الكشف أول ما يعتمده.");
+}
+$("ret-list").addEventListener("click", async e => {
+  const ds = e.target.dataset, ev = RT.list.find(x => x.id === (ds.rtfiche || ds.rtcard || ds.rtsend)); if (!ev) return;
+  hide($("ret-msg")); RT.ev = ev;
+  if (ds.rtfiche) {
+    FM.nid = ev.nid; FM.imgs = []; FM.complete = ev.id; $("fm-thumbs").innerHTML = ""; $("fm-send").disabled = true; hide($("fm-msg"));
+    $("fm-title").textContent = "رفع الفيش — " + ev.name; return $("fm").classList.remove("hidden");
+  }
+  if (ds.rtcard) return openId("complete");
+  const box = e.target.closest(".w"), extra = {};
+  if (ev.return_reason === "phone") {
+    const p = cleanPhone(box.querySelector("[data-rtphone]").value);
+    if (!PHONE_RE.test(p)) return show($("ret-msg"), "err", "رقم التليفون لازم 11 رقم ويبدأ بـ 01.");
+    extra.phone = p;
+  } else {
+    const n = box.querySelector("[data-rtnote]").value.replace(/\s+/g, " ").trim();
+    if (!n) return show($("ret-msg"), "err", "اكتب ردك على ملاحظة الـ HR.");
+    extra.completion_note = n.slice(0, 300);
+  }
+  e.target.disabled = true;
+  try { await rtComplete(ev.id, extra); }
+  catch (err) { e.target.disabled = false; show($("ret-msg"), "err", "ماتبعتش: " + (err.code === "permission-denied" ? "مش مسموح للحساب ده." : err.message)); }
+});
+const FM = { nid: null, imgs: [], complete: null };
 $("fiche-list").addEventListener("click", e => {
   const f = e.target.dataset.fiche, c = e.target.dataset.card;
   if (c) return openId("roster");
   if (!f) return;
   const nw = S.newWorkers.find(x => x.id === f);
-  FM.nid = f; FM.imgs = []; $("fm-thumbs").innerHTML = ""; $("fm-send").disabled = true; hide($("fm-msg"));
+  FM.nid = f; FM.imgs = []; FM.complete = null; $("fm-thumbs").innerHTML = ""; $("fm-send").disabled = true; hide($("fm-msg"));
   $("fm-title").textContent = "رفع الفيش — " + (nw?.name || "");
   $("fm").classList.remove("hidden");
 });
@@ -1959,7 +2029,10 @@ $("fm-send").addEventListener("click", async () => {
     const un = onSnapshot(ref, snap => {
       const d = snap.data(); if (!d || d.status === "pending" || d.status === "saving") return;
       un();
-      if (d.status === "done") { $("fm").classList.add("hidden"); show($("f-msg"), "ok", "الفيش اتحفظ ✓"); }
+      if (d.status === "done" && FM.complete) {
+        const id = FM.complete; FM.complete = null; $("fm").classList.add("hidden");
+        rtComplete(id, { fiche_upload: ref.id }).catch(err => show($("ret-msg"), "err", "الفيش اتحفظ بس الطلب ماترجعش للـ HR: " + err.message));
+      } else if (d.status === "done") { $("fm").classList.add("hidden"); show($("f-msg"), "ok", "الفيش اتحفظ ✓"); }
       else { $("fm-send").disabled = false; show($("fm-msg"), "err", d.error || "الحفظ فشل"); }
     });
   } catch (err) { $("fm-send").disabled = false; show($("fm-msg"), "err", "ماترفعش: " + err.message); }
@@ -1971,7 +2044,7 @@ const LV = { who: null, img: "", imgFile: null, pages: [], list: [], unsub: null
 // طلبات القوة (إضافة / خروج / تغيير) في نفس القايمة — بشكل الحالات: from = التاريخ، status بنفس معاني الإجازة
 const WE_TY = { hire: "إضافة", leave: "خروج", change: "تغيير" };
 function weItem(e) {
-  const st = { pending: "pending", error: "pending", approved: "pending", done: "approved", rejected: "rejected" }[e.status];
+  const st = { pending: "pending", error: "pending", approved: "pending", done: "approved", rejected: "rejected", returned: "returned" }[e.status];
   if (!st || !WE_TY[e.kind]) return null;   // اتلغى، أو حركة تأمين (من صفحة السجل)
   const day = e.first_day || e.left_date || e.effective || "";
   const to = e.to ? Object.entries(e.to).map(([k, v]) => ({ type: "النوع", job: "الوظيفة", site: "الموقع" }[k] || k) + " ← " + v).join("، ") : "";
@@ -1986,9 +2059,10 @@ const LV_MAX_PAGES = 3, LV_PAGE_ONE = 380000, LV_IMG_MULTI = 360000, LV_PAGES_BU
 const LV_TY = { sick: "مرضي", leave: "إجازة" };
 // إصابة العمل: النوع sick وsick_kind = injury، ومعاها صورة المحضر المختوم (image2) إجباري
 const lvTyTxt = e => e.we ? WE_TY[e.we] : e.type === "sick" && e.sick_kind === "injury" ? "إصابة عمل" : (LV_TY[e.type] || "");
-const LV_ST = { pending: ["مستني الـ HR", "p-wait"], client_wait: ["في انتظار الموافقة", "p-warn"], approved: ["تم الاعتماد", "p-ok"], rejected: ["اترفض", "p-err"] };
+const LV_ST = { returned: ["تم رده — استكمل الناقص", "p-err"], pending: ["مستني الـ HR", "p-wait"], client_wait: ["في انتظار الموافقة", "p-warn"], approved: ["تم الاعتماد", "p-ok"], rejected: ["اترفض", "p-err"] };
 // بنود القايمة: المستني (HR ثم العميل)، وبعدين الإجازات والمرضي (وإصابة العمل معاه) المعتمد والمرفوض
 const LV_GROUPS = [
+  { k: "returned", t: "تم ردها — محتاجة تستكمل", f: e => e.status === "returned" },
   { k: "pending", t: "مستني الـ HR", f: e => e.status === "pending" },
   { k: "client_wait", t: "في انتظار الموافقة", f: e => e.status === "client_wait" },
   { k: "leave_ok", t: "إجازات تم الاعتماد", f: e => e.type === "leave" && e.status === "approved" },
@@ -1998,7 +2072,7 @@ const LV_GROUPS = [
   { k: "we_ok", t: "إضافة / خروج / تغيير — تم الاعتماد", f: e => e.we && e.status === "approved" },
   { k: "we_no", t: "إضافة / خروج / تغيير — مرفوض", f: e => e.we && e.status === "rejected" },
 ];
-const LV_OPEN = new Set(["pending"]);   // البنود المفتوحة بتفضل مفتوحة مع كل تحديث للقايمة
+const LV_OPEN = new Set(["returned", "pending"]);   // البنود المفتوحة بتفضل مفتوحة مع كل تحديث للقايمة
 const lvWorkDays = (f, t) => { let n = 0; for (let d = new Date(f + "T00:00"); d <= new Date(t + "T00:00"); d.setDate(d.getDate() + 1)) if (d.getDay() !== 5) n++; return n; };
 function lvWatch() {
   const site = $("site").value;
@@ -2007,6 +2081,7 @@ function lvWatch() {
   if (!site) return;
   LV.evUnsub = onSnapshot(query(collection(db, "worker_events"), where("branch", "==", site)), snap => {
     LV.evs = snap.docs.map(d => weItem({ id: d.id, ...d.data() })).filter(Boolean); renderLvList();
+    RT.list = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(e => e.kind === "hire" && e.status === "returned"); renderRet();
   }, () => {});
   LV.unsub = onSnapshot(query(collection(db, "hr_events"), where("source", "==", "supervisor"), where("site", "==", site)), snap => {
     LV.list = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderLvList();
@@ -2023,7 +2098,7 @@ function renderLvList() {
     const [st, cls] = LV_ST[e.status] || [esc(e.status), "p-grey"];
     const moved = e.original && (e.original.from !== e.from || e.original.to !== e.to)
       ? `<div class="muted">اتعدلت من ${esc(e.original.from)} → ${esc(e.original.to)}</div>` : "";
-    const why = e.status === "rejected" && e.note ? `<div class="muted">السبب: ${esc(e.note)}</div>` : "";
+    const why = (e.status === "rejected" || e.status === "returned") && e.note ? `<div class="muted">السبب: ${esc(e.note)}</div>` : "";
     return `<div style="border-bottom:1px solid #eee;padding:8px 0;"><div class="row" style="justify-content:space-between;">
       <b>${esc(e.name)}</b><span><span class="pill p-grey">${lvTyTxt(e)}</span> <span class="pill ${cls}">${st}</span></span></div>
       ${e.we ? `<div class="muted">${esc(e.from)}${e.detail ? " — " + esc(e.detail) : ""}</div>`

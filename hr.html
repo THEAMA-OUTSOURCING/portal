@@ -72,7 +72,7 @@ details.why>p{margin-top:6px;}
 .wq-f{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;font-size:13px;margin-top:6px;align-items:center;}
 .wq-f input,.wq-f select{padding:4px 6px;font-size:13px;border:1px solid #ddd;border-radius:8px;width:100%;}
 .t-sick{background:#eef4fb;color:#185fa5;} .t-leave{background:#eaf3de;color:#3b6d11;} .t-resign{background:#fcebeb;color:#a32d2d;}
-.s-pending{background:#fff5de;color:#8a5a10;} .s-client_wait{background:#eef4fb;color:#185fa5;} .g{background:#f0efe9;color:#555;} .s-approved{background:#eaf3de;color:#3b6d11;} .s-rejected{background:#f0efe9;color:#666;}
+.s-pending{background:#fff5de;color:#8a5a10;} .s-client_wait{background:#eef4fb;color:#185fa5;} .g{background:#f0efe9;color:#555;} .s-approved{background:#eaf3de;color:#3b6d11;} .s-rejected{background:#f0efe9;color:#666;} .s-returned{background:#eef4fb;color:#185fa5;}
 .warn{background:#fff5de;color:#8a5a10;border-radius:8px;padding:4px 8px;font-size:12px;margin-top:6px;}
 #zoom{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:9;cursor:zoom-out;}
 #zoom img{max-width:96vw;max-height:96vh;}
@@ -167,7 +167,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
         راجع البيانات وصلّحها لو محتاج، وبعدين اعتمد أو ارفض بسبب. بعد الاعتماد السيرفر بيسجّل في السجل الموحد على طول: العامل الجديد بياخد كوده القديم لو اشتغل قبل كده، أو كود T جديد،
         والخروج بيتسجل «مشى». الرفض بيرجّع الكشف زي ما كان، والمشرف بيشوف السبب.</p></details>
       <div class="row" style="margin-bottom:8px;">
-        <label class="f">الحالة<select id="wq-st"><option value="open">مستني / فيه خطأ</option><option value="done">اتنفذ</option><option value="rejected">مرفوض</option></select></label>
+        <label class="f">الحالة<select id="wq-st"><option value="open">مستني / فيه خطأ</option><option value="done">اتنفذ</option><option value="returned">مرتجع للمشرف</option><option value="rejected">مرفوض</option></select></label>
         <label class="f">النوع<select id="wq-kind"><option value="">الكل</option><option value="hire">إضافة</option><option value="leave">خروج</option><option value="change">تغيير</option></select></label>
         <label class="f">بحث<input id="wq-q" placeholder="الاسم أو الكود أو الرقم القومي أو الموقع"></label>
       </div>
@@ -520,7 +520,7 @@ $("sk-file").onchange = async () => {
       const line = `سطر ${i + 2}`;
       if (seen.has(id)) return bad.push(`${line}: الحالة متكررة`); seen.add(id);
       const ev = LIVE_W.get(id);
-      if (!ev) return bad.push(`${line}: الحالة دي مش مستنية رد العميل (اتسجل ردها قبل كده أو اترجعت)`);
+      if (!ev) return bad.push(`${line}: الحالة دي مش مستنية رد العميل: تم تسجيل ردها قبل كده، أو تم ردها لـ HR تيما`);
       if (ev.type !== "sick") return bad.push(`${line}: دي مش حالة مرضي`);
       const a = numOf(r[iA]), lim = iL >= 0 ? numOf(r[iL]) : null;
       if (Number.isNaN(a)) return bad.push(`${line}: «الأيام المعتمدة» لازم رقم صحيح`);
@@ -916,7 +916,11 @@ document.querySelectorAll(".tab").forEach(t => { t.dataset.key = t.dataset.tab +
 // الـ HR بيعتمد أو يرفض — السيرفر (record_events.py) هو اللي بيكتب في السجل ويطلّع الكود.
 const WQ = { open: new Map(), hist: [], view: "open", role: null, uid: "", sel: null };
 const WQ_KIND = { hire: "إضافة", leave: "خروج", change: "تغيير" };
-const WQ_ST = { pending: "مستني HR", error: "فيه خطأ", approved: "بيتنفذ…", done: "اتنفذ", rejected: "مرفوض" };
+const WQ_ST = { pending: "مستني HR", error: "فيه خطأ", approved: "بيتنفذ…", done: "اتنفذ", rejected: "مرفوض", returned: "مرتجع للمشرف" };
+// «رجّع للمشرف يستكمل» (إضافة بس): العامل مايدخلش الكشف ولا يتسجله حضور لحد ما المشرف يستكمل والـ HR يعتمد
+const WQ_RET = { fiche: "الفيش ناقص", card: "صورة البطاقة مش واضحة أو ناقصة", phone: "التليفون غلط", nid: "الاسم أو الرقم القومي غلط", other: "أخرى" };
+// الرفض نهائي: للحالات اللي مش هتتقبل خالص
+const WQ_REJ = ["موجود فعلاً / مكرر", "بلاك ليست", "مش مطابق للشروط", "العميل رفض", "البيانات غلط", "أخرى"];
 const WQ_TYPES = ["اساسي", "يومية", "بديل راحات"];
 const WQ_FIELD = { type: "النوع", job: "الوظيفة", site: "الموقع" };
 const WQ_REASONS = ["استقالة", "انقطاع", "نقل لموقع تاني", "فصل", "أخرى"];
@@ -927,7 +931,7 @@ function wqQ(...w) {
 function wqStart(role, uid) {
   WQ.role = role; WQ.uid = uid;
   const onErr = err => show($("wq-msg"), "err", "مش قادر أقرا طلبات القوة: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (worker_events)." : err.message));
-  for (const st of ["pending", "error", "approved"]) {
+  for (const st of ["pending", "error", "approved", "returned"]) {
     onSnapshot(wqQ(where("status", "==", st)), snap => {
       for (const [id, e] of WQ.open) if (e.status === st) WQ.open.delete(id);
       snap.forEach(d => { const e = d.data(); if (e.kind !== "insurance") WQ.open.set(d.id, { id: d.id, ...e }); });   // حركات التأمين: من صفحة السجل
@@ -936,7 +940,7 @@ function wqStart(role, uid) {
   }
 }
 async function wqLoadHist() {
-  if (WQ.view === "open") return wqRender();
+  if (WQ.view === "open" || WQ.view === "returned") return wqRender();   // المرتجع جاي مع المستني (live)
   show($("wq-msg"), "info", "بيحمّل…");
   try {
     const snap = await getDocs(wqQ(where("status", "==", WQ.view)));
@@ -981,10 +985,13 @@ function wqFields(e, edit) {
 }
 function wqCard(e) {
   const edit = !VIEW && (e.status === "pending" || e.status === "error");
+  const retEdit = !VIEW && e.status === "returned";   // المشرف ماستكملش: الـ HR يقدر يرفضه نهائي
   const img = e.kind === "hire" ? `<div class="ph" style="height:170px;" ${e.card_img ? `data-wqzoom="${e.id}"` : ""}>${e.card_img
     ? `<img src="${esc(e.card_img)}" alt="البطاقة">` : `<span class="muted">${e.check_id ? "صورة البطاقة اتحفظت على سيرفر الشركة" : "من غير بطاقة"}</span>`}</div>` : "";
   const notes = [e.note && `ملاحظة: ${e.note}`, e.status === "error" && e.error && `السيرفر: ${e.error}`,
-    e.status === "rejected" && e.decision_note && `سبب الرفض: ${e.decision_note}`].filter(Boolean);
+    e.status === "rejected" && e.decision_note && `سبب الرفض: ${e.decision_note}`,
+    e.status === "returned" && `تم رده للمشرف: ${e.decision_note || WQ_RET[e.return_reason] || ""}`,
+    e.completed_at && e.status !== "returned" && `المشرف استكمل (${wqDate(e.completed_at)}) — كان ناقص: ${WQ_RET[e.return_reason] || e.return_reason || ""}${e.completion_note ? "\nرد المشرف: " + e.completion_note : ""}`].filter(Boolean);
   const src = e.source === "page" ? "" : e.source === "sharqia_attendance_2026_10" ? " — من حضور الشرقية 2 أكتوبر" : e.source === "excel" ? ` — من إكسيل ${e.company === "chipsy" ? "شيبسي" : e.company === "sharqia" ? "الشرقية" : "الإمداد"} (اكتب التليفون)` : " — من التعديلات القديمة";
   return `<div class="ev" data-wq="${e.id}">${img}
     <div class="bd">
@@ -994,11 +1001,22 @@ function wqCard(e) {
       ${wqFields(e, edit)}
       ${notes.map(n => `<div class="warn" style="white-space:pre-line;">${esc(n)}</div>`).join("")}
     </div>
-    ${edit ? `<div class="ft">
+    ${edit ? `<div class="ft" style="flex-wrap:wrap;">
       <button class="btn ok small" data-wqok="${e.id}">اعتماد</button>
       <button class="btn sec small" data-wqsave="${e.id}">حفظ التعديل</button>
-      <input data-wqwhy placeholder="سبب الرفض (إجباري للرفض)" style="flex:1;min-width:140px;padding:4px 6px;font-size:12px;">
-      <button class="btn small" data-wqno="${e.id}">رفض</button></div>` : ""}
+      <select data-wqr style="padding:4px 6px;font-size:12px;border:1px solid #ddd;border-radius:8px;">
+        <option value="">— السبب (إجباري للرفض أو الإرجاع) —</option>
+        ${e.kind === "hire" ? `<optgroup label="رجّع للمشرف يستكمل">${Object.entries(WQ_RET).map(([k, t]) => `<option value="ret:${k}">${esc(t)}</option>`).join("")}</optgroup>` : ""}
+        <optgroup label="رفض نهائي">${WQ_REJ.map(t => `<option value="rej:${esc(t)}">${esc(t)}</option>`).join("")}</optgroup>
+      </select>
+      <input data-wqwhy placeholder="ملاحظة للمشرف (إجباري لو «أخرى»)" style="flex:1;min-width:140px;padding:4px 6px;font-size:12px;">
+      ${e.kind === "hire" ? `<button class="btn sec small" data-wqret="${e.id}">رجّع للمشرف يستكمل</button>` : ""}
+      <button class="btn small" data-wqno="${e.id}">رفض</button></div>` : retEdit ? `<div class="ft" style="flex-wrap:wrap;">
+      <span class="muted" style="font-size:12px;">مستني المشرف يستكمل. لو مش هيستكمل:</span>
+      <select data-wqr style="padding:4px 6px;font-size:12px;border:1px solid #ddd;border-radius:8px;"><option value="">— سبب الرفض —</option>
+        ${WQ_REJ.map(t => `<option value="rej:${esc(t)}">${esc(t)}</option>`).join("")}</select>
+      <input data-wqwhy placeholder="ملاحظة للمشرف" style="flex:1;min-width:140px;padding:4px 6px;font-size:12px;">
+      <button class="btn small" data-wqno="${e.id}">رفض نهائي</button></div>` : ""}
   </div>`;
 }
 function wqRow(e) {
@@ -1009,21 +1027,22 @@ function wqRow(e) {
     <div class="muted">${esc(e.site || e.branch || "")}${e.branch && e.branch !== e.site ? " — " + esc(e.branch) : ""} — ${wqDate(e.created_at)}${src}</div></button>`;
 }
 function wqRender() {
-  const list = WQ.view === "open" ? [...WQ.open.values()] : WQ.hist;
+  const all = [...WQ.open.values()];
+  const list = WQ.view === "open" ? all.filter(e => e.status !== "returned") : WQ.view === "returned" ? all.filter(e => e.status === "returned") : WQ.hist;
   const k = $("wq-kind").value, q = $("wq-q").value.trim();
   const rows = list.filter(e => (!k || e.kind === k)
     && (!q || [e.name, e.code, e.nid, e.site, e.branch, e.portal_code].some(v => String(v || "").includes(q))))
     .sort((a, b) => (a.status === "error" ? 0 : 1) - (b.status === "error" ? 0 : 1) || (a.created_at?.seconds || 0) - (b.created_at?.seconds || 0));
-  const nOpen = [...WQ.open.values()].filter(e => e.status !== "approved").length;
+  const nOpen = all.filter(e => e.status !== "approved" && e.status !== "returned").length;
   $("wq-count").textContent = nOpen ? nOpen + " مستني" : "";
   $("tn-force").textContent = nOpen || "";
   // قايمة أسامى تحت بعض — دوس على الاسم يفتح الكارت تحته.
   // اللي اتكتب في الكارت المفتوح بيفضل لو القايمة اتحدّثت (طلب تاني اتغير)
   const keep = {};
-  document.querySelectorAll("#wq-list .wq-open [data-wf], #wq-list .wq-open [data-wqwhy]").forEach(el => keep[el.dataset.wf || "_why"] = el.value);
+  document.querySelectorAll("#wq-list .wq-open [data-wf], #wq-list .wq-open [data-wqwhy], #wq-list .wq-open [data-wqr]").forEach(el => keep[el.dataset.wf || ("wqr" in el.dataset ? "_r" : "_why")] = el.value);
   $("wq-list").innerHTML = rows.length ? rows.slice(0, 300).map(e => wqRow(e) + (WQ.sel === e.id ? `<div class="wq-open">${wqCard(e)}</div>` : "")).join("")
-    : `<p class="muted">${WQ.view === "open" ? "مفيش طلبات مستنية." : "مفيش."}</p>`;
-  document.querySelectorAll("#wq-list .wq-open [data-wf], #wq-list .wq-open [data-wqwhy]").forEach(el => { const k = el.dataset.wf || "_why"; if (k in keep) el.value = keep[k]; });
+    : `<p class="muted">${WQ.view === "open" ? "مفيش طلبات مستنية." : WQ.view === "returned" ? "مفيش طلبات مرتجعة للمشرفين." : "مفيش."}</p>`;
+  document.querySelectorAll("#wq-list .wq-open [data-wf], #wq-list .wq-open [data-wqwhy], #wq-list .wq-open [data-wqr]").forEach(el => { const k = el.dataset.wf || ("wqr" in el.dataset ? "_r" : "_why"); if (k in keep) el.value = keep[k]; });
 }
 // البيانات اللي الـ HR عدّلها في الكارت (اللي اتغير بس)
 function wqEdits(card, e) {
@@ -1054,17 +1073,27 @@ $("wq-list").onclick = async ev => {
   const z = ev.target.closest("[data-wqzoom]");
   if (z) { $("zoom-img").src = (WQ.open.get(z.dataset.wqzoom) || WQ.hist.find(x => x.id === z.dataset.wqzoom))?.card_img || ""; return $("zoom").classList.remove("hidden"); }
   if (VIEW) return;
-  const ds = ev.target.dataset, id = ds.wqok || ds.wqsave || ds.wqno; if (!id) return;
+  const ds = ev.target.dataset, id = ds.wqok || ds.wqsave || ds.wqno || ds.wqret; if (!id) return;
   const e = WQ.open.get(id); if (!e) return;
   const card = ev.target.closest("[data-wq]"), upd = wqEdits(card, e), u = auth.currentUser;
   const meta = { decided_by: u.uid, decided_email: actorEmail(u), decided_at: serverTimestamp() };
   if (Object.keys(upd).length) upd.hr_edited = true;
   let data;
-  if (ds.wqno) {
-    const why = card.querySelector("[data-wqwhy]").value.trim();
-    if (!why) return show($("wq-msg"), "err", "اكتب سبب الرفض — بيوصل للمشرف.");
-    if (!await ask(`ترفض طلب ${WQ_KIND[e.kind]} — ${e.name || e.code}؟`, { ok: "ارفض", danger: true })) return;
-    data = { ...upd, status: "rejected", decision_note: why.slice(0, 300), ...meta };
+  if (ds.wqno || ds.wqret) {
+    const r = card.querySelector("[data-wqr]").value, note = card.querySelector("[data-wqwhy]").value.trim();
+    const isRet = !!ds.wqret;
+    if (!r || r.startsWith(isRet ? "rej:" : "ret:")) return show($("wq-msg"), "err", isRet
+      ? "اختار الناقص من «رجّع للمشرف يستكمل» في قايمة السبب." : "اختار سبب الرفض من «رفض نهائي» في قايمة السبب.");
+    const key = r.slice(4), label = isRet ? WQ_RET[key] : key;
+    if ((key === "other" || key === "أخرى") && !note) return show($("wq-msg"), "err", "اكتب الملاحظة — بتوصل للمشرف.");
+    const why = (label + (note ? " — " + note : "")).slice(0, 300);
+    if (isRet) {
+      if (!await ask(`ترجّع طلب إضافة ${e.name} للمشرف يستكمل؟\nالناقص: ${why}\n\nالعامل مش هيدخل الكشف ولا هيتسجله حضور لحد ما المشرف يستكمل وتعتمده.`, { ok: "رجّع للمشرف" })) return;
+      data = { ...upd, status: "returned", return_reason: key, decision_note: why, ...meta };
+    } else {
+      if (!await ask(`ترفض طلب ${WQ_KIND[e.kind]} — ${e.name || e.code}؟\nالسبب: ${why}\n\nالرفض نهائي.`, { ok: "ارفض", danger: true })) return;
+      data = { ...upd, status: "rejected", decision_note: why, ...meta };
+    }
   } else {
     const bad = wqCheck(e, upd); if (bad) return show($("wq-msg"), "err", bad);
     if (ds.wqsave) { if (!Object.keys(upd).length) return show($("wq-msg"), "info", "مفيش تعديل."); data = { ...upd, status: "pending" }; }
@@ -1074,8 +1103,9 @@ $("wq-list").onclick = async ev => {
   try {
     await updateDoc(doc(db, "worker_events", id), data);
     if (!ds.wqsave) { WQ.sel = null; wqRender(); }
-    show($("wq-msg"), "ok", ds.wqno ? "اترفض — المشرف هيشوف السبب." : ds.wqsave ? "اتحفظ التعديل."
-      : e.kind === "hire" ? "اتعتمد — الكود هيطلع خلال ثواني (هيظهر في «اتنفذ» وفي «بيانات العمال ← أكواد جديدة»)." : "اتعتمد — هيتسجل في السجل خلال ثواني.");
+    show($("wq-msg"), "ok", ds.wqno ? "اترفض — المشرف هيشوف السبب." : ds.wqret ? "تم رده للمشرف — هيوصله إشعار بالناقص، والطلب هيرجعلك «مستني» أول ما يستكمل."
+      : ds.wqsave ? "اتحفظ التعديل."
+      : e.kind === "hire" ? "تم الاعتماد — الكود هيطلع خلال ثواني (هيظهر في «اتنفذ» وفي «بيانات العمال ← أكواد جديدة»)." : "تم الاعتماد — هيتسجل في السجل خلال ثواني.");
   } catch (err) { ev.target.disabled = false; show($("wq-msg"), "err", "ماتحفظش: " + (err.code === "permission-denied" ? "مش مسموح (يمكن الطلب مش من فروعك، أو اتعدل من حد تاني)." : err.message)); }
 };
 </script>
