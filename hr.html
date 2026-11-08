@@ -985,7 +985,7 @@ function wqCard(e) {
     ? `<img src="${esc(e.card_img)}" alt="البطاقة">` : `<span class="muted">${e.check_id ? "صورة البطاقة اتحفظت على سيرفر الشركة" : "من غير بطاقة"}</span>`}</div>` : "";
   const notes = [e.note && `ملاحظة: ${e.note}`, e.status === "error" && e.error && `السيرفر: ${e.error}`,
     e.status === "rejected" && e.decision_note && `سبب الرفض: ${e.decision_note}`].filter(Boolean);
-  const src = e.source === "page" ? "" : e.source === "sharqia_attendance_2026_10" ? " — من حضور الشرقية 2 أكتوبر" : " — من التعديلات القديمة";
+  const src = e.source === "page" ? "" : e.source === "sharqia_attendance_2026_10" ? " — من حضور الشرقية 2 أكتوبر" : e.source === "excel" ? ` — من إكسيل ${e.company === "chipsy" ? "شيبسي" : e.company === "sharqia" ? "الشرقية" : "الإمداد"} (اكتب التليفون)` : " — من التعديلات القديمة";
   return `<div class="ev" data-wq="${e.id}">${img}
     <div class="bd">
       <div class="row" style="justify-content:space-between;align-items:center;"><span class="nm">${esc(e.name || e.code || "")}</span>
@@ -1002,7 +1002,7 @@ function wqCard(e) {
   </div>`;
 }
 function wqRow(e) {
-  const src = e.source === "page" ? "" : e.source === "sharqia_attendance_2026_10" ? " — من حضور الشرقية 2 أكتوبر" : " — من التعديلات القديمة";
+  const src = e.source === "page" ? "" : e.source === "sharqia_attendance_2026_10" ? " — من حضور الشرقية 2 أكتوبر" : e.source === "excel" ? ` — من إكسيل ${e.company === "chipsy" ? "شيبسي" : e.company === "sharqia" ? "الشرقية" : "الإمداد"} (اكتب التليفون)` : " — من التعديلات القديمة";
   return `<button type="button" class="wq-row ${WQ.sel === e.id ? "on" : ""}" data-wqopen="${e.id}">
     <div class="row" style="justify-content:space-between;align-items:center;gap:6px;"><span class="nm">${esc(e.name || e.code || "")}</span>
       <span><span class="pill t-${cls(e.kind)}">${WQ_KIND[e.kind] || esc(e.kind)}</span> <span class="pill s-${cls(e.status)}">${WQ_ST[e.status] || esc(e.status)}</span></span></div>

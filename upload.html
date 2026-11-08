@@ -380,7 +380,7 @@ $("save").onclick = async () => {
     const a = $("p-from").value, z = $("p-to").value;
     try { for (const w of Object.values(S.newbies || {})) {
       if (!w.present || w.first > z) continue;
-      const ex = await getDocs(query(collection(db, "worker_events"), where("nid", "==", w.nid), where("kind", "==", "hire")));
+      const ex = await getDocs(query(collection(db, "worker_events"), where("branch", "==", w.site), where("nid", "==", w.nid), where("kind", "==", "hire")));
       if (ex.docs.some(x => x.data().status !== "rejected")) continue;
       await addDoc(collection(db, "worker_events"), { kind: "hire", status: "pending", source: "excel", file: S.fileName, company: S.type,
         branch: w.site, site: w.site, name: w.name, nid: w.nid, phone: "", job: w.job, type: "اساسي", first_day: w.first < a ? a : w.first,
