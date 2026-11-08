@@ -127,6 +127,60 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
 .sticky{background:#f2f3f5;}
 .modal .box{border-radius:24px 24px 0 0;padding:18px 16px 24px;}
 @media (min-width:600px){.modal .box{border-radius:20px;}}
+/* ===== تصميم الموبايل — المرحلة ١ (نوفمبر 2026): شكل بس، من غير تغيير في منطق الصفحة ===== */
+/* أزرار الصفحات: سطر واحد بيتسحب بالعرض بدل سطرين */
+#app .pnav:not(:empty){display:flex;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;}
+#app .pnav::-webkit-scrollbar{display:none;}
+#app .pnav a{flex:0 0 auto;width:auto;min-width:80px;flex-direction:row;gap:6px;padding:8px 12px;font-size:13px;}
+#app .pnav a svg{width:18px;height:18px;}
+/* الخطوات: صوّر ← راجع ← أكّد */
+.steps{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;font-size:13px;}
+.steps .st{display:flex;align-items:center;gap:6px;color:#6a6e75;font-weight:500;white-space:nowrap;}
+.steps .st i{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:#e6e7ea;color:#6a6e75;font-style:normal;font-weight:700;font-size:13px;}
+.steps .st.now{color:#1d2024;font-weight:700;} .steps .st.now i{background:#a61b12;color:#fff;}
+.steps .st.done{color:#1d2024;} .steps .st.done i{background:#3b6d11;color:#fff;}
+.steps .ln{width:24px;height:2px;border-radius:1px;background:#e6e7ea;flex-shrink:0;} .steps .ln.done{background:#3b6d11;}
+/* صور الكشف: زراير أصغر وصور مصغرة */
+.upl{min-height:84px!important;gap:2px;padding:10px;}
+.upl i{font-size:24px;}
+@media(max-width:520px){.upl .muted{display:none;}}
+.pages{grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;}
+.pg img{height:88px;}
+/* الأرقام: كلهم في سطر واحد */
+.stats{grid-template-columns:repeat(auto-fit,minmax(62px,1fr))!important;}
+.stat{padding:10px 4px;} .stat .v{font-size:22px;} .stat .l{font-size:11.5px;line-height:1.3;}
+/* مربعات بتتفتح وتتقفل */
+details.fold>summary{list-style:none;display:flex;align-items:center;gap:10px;cursor:pointer;min-height:44px;}
+details.fold>summary::-webkit-details-marker{display:none;}
+details.fold>summary::after{content:"";width:9px;height:9px;border-inline-start:2px solid #6a6e75;border-bottom:2px solid #6a6e75;transform:rotate(45deg);margin-inline-start:4px;flex-shrink:0;transition:transform .15s;}
+details.fold[open]>summary::after{transform:rotate(-45deg);}
+details.fold[open]>summary{margin-bottom:12px;}
+.fold-ic{width:40px;height:40px;border-radius:12px;background:#fbeceb;color:#a61b12;display:inline-flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+.fold-t{flex:1;min-width:0;} .fold-t h2{margin:0;font-size:15px;font-weight:700;} .fold-t small{display:block;color:#6a6e75;font-size:12px;}
+.fold-badge{background:#eef4fb;color:#185fa5;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600;white-space:nowrap;}
+details.plan.warn{background:#fff5de;} details.plan.warn .fold-ic{background:#fff;color:#8a5a10;} details.plan.warn .fold-t h2,details.plan.warn .fold-t small{color:#8a5a10;}
+details.plan.warn[open] .fold-t small{font-weight:600;}
+details.plan #plan-box{background:#fff;border-radius:12px;padding:4px 6px;}
+/* فلتر العمال */
+.fbar{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 4px;}
+.fbar button{border:1px solid #e6e7ea;background:#fff;color:#4a4e55;border-radius:999px;padding:6px 12px;min-height:36px;font-size:13px;font-weight:600;cursor:pointer;}
+.fbar button[aria-pressed=true]{background:#1d2024;border-color:#1d2024;color:#fff;}
+.fbar button.fw{color:#8a5a10;} .fbar button.fw[aria-pressed=true]{background:#8a5a10;border-color:#8a5a10;color:#fff;}
+.f-off{display:none!important;}
+/* صف العامل: الاسم وحاضر/غايب في سطر واحد */
+.grp{background:none;color:#1d2024;font-size:14px;font-weight:700;padding:10px 4px 4px;margin:6px 0 2px;border-bottom:1px solid #e6e7ea;border-radius:0;}
+.w{flex-wrap:nowrap!important;gap:10px;padding:10px 8px;}
+.w .nm{flex:1 1 auto!important;min-width:0;}
+.w .nm b{font-size:15px;}
+.w.flag{background:#fffaf0;border-inline-start:4px solid #8a5a10;}
+.seg{border:0;background:#f2f3f5;border-radius:12px;padding:3px;gap:3px;}
+.seg button{min-height:38px;padding:4px 11px;border-radius:9px;background:transparent;font-weight:500;}
+.seg button[aria-pressed=true]{font-weight:700;}
+@media(max-width:380px){.seg button{padding:4px 8px;font-size:12.5px;}}
+/* السطر اللي فوق زرار التأكيد */
+.c-sum{text-align:center;font-size:13px;color:#4a4e55;margin-bottom:6px;}
+.c-sum b{color:#1d2024;}
+.sticky{box-shadow:0 -6px 12px -8px rgba(0,0,0,.18);padding:10px 0 8px;}
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#c0392b">
@@ -175,10 +229,7 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
         <label class="grow"><span class="muted">الموقع</span><select id="site"></select></label>
         <label class="grow"><span class="muted">يوم الحضور</span><input type="date" id="date"></label>
       </div>
-      <div class="row" id="print-row" style="margin-top:10px;gap:8px;">
-        <button class="btn sec grow" id="print"><i class="ti ti-printer"></i> طباعة الكشف</button>
-        <button class="btn sec grow" id="order"><i class="ti ti-arrows-sort"></i> ترتيب الكشف</button>
-      </div>
+      <div class="steps hidden" id="steps" aria-label="الخطوات"></div>
       <div class="msg" id="deadline"></div>
       <div class="msg" id="day-state"></div>
       <div id="refresh-box" class="hidden" style="margin-top:6px;"><button class="btn sec small" id="refresh-times">تحديث الساعات من القراءة</button>
@@ -213,8 +264,49 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
       <div id="force-plan"></div>
     </div>
 
-    <div class="card" id="manage-card">
-      <h2>إدارة الكشف</h2>
+
+
+    <div class="card hidden" id="fiche-card">
+      <h2>عمال جداد: الفيش والبطاقة</h2>
+      <p class="muted" style="margin-bottom:8px;">الفيش (صحيفة الحالة الجنائية) لازم يترفع خلال 5 أيام عمل من أول يوم حضور. بعد المهلة، حضور العامل بيتقفل لحد ما يترفع.</p>
+      <div id="fiche-list"></div>
+      <div class="msg" id="f-msg"></div>
+    </div>
+
+    <div id="review" class="hidden">
+      <div class="stats" id="stats"></div>
+      <div class="msg" id="checks"></div>
+      <details class="card fold plan" id="plan-card">
+        <summary><span class="fold-ic"><i class="ti ti-users-group"></i></span><span class="fold-t"><h2>العدد المطلوب</h2><small id="plan-sum">الحاضرين مقابل المطلوب لكل وظيفة</small></span></summary>
+        <div id="plan-box"></div>
+      </details>
+      <div class="card">
+        <h2>العمال</h2>
+        <p class="muted" style="margin-bottom:4px;">اللي متلوّن بالأصفر محتاج تراجعه، واللي بالرمادي مش موجود في أي صورة لسه.</p>
+        <div class="fbar hidden" id="fbar" role="group" aria-label="فلتر العمال"></div>
+        <div id="workers"></div>
+        <div class="muted hidden" id="f-empty" style="text-align:center;padding:14px 0;">مفيش حد في الفلتر ده</div>
+      </div>
+      <div class="card hidden" id="extra-card">
+        <h2>صفوف مكتوبة بخط اليد أو مش متطابقة</h2>
+        <p class="muted" style="margin-bottom:6px;">اختار صاحب كل سطر من الاقتراحات أو دوّر عليه بالاسم أو الكود. السطر مايتحسبش حاضر غير لما تختاره. «ضيفه بالبطاقة» للعامل الجديد خالص بس.</p>
+        <div id="extras"></div>
+      </div>
+      <div class="sticky">
+        <div class="c-sum hidden" id="c-sum"></div>
+        <button class="btn ok block" id="confirm">تأكيد الحضور</button>
+        <button class="btn sec block hidden" id="back-acc" style="margin-top:6px;">رجّع اليوم للمحاسب يراجعه ويعتمده</button>
+        <div class="msg" id="c-msg"></div>
+      </div>
+    </div>
+
+    <details class="card fold" id="manage-card">
+      <summary><span class="fold-ic"><i class="ti ti-list-details"></i></span><span class="fold-t"><h2>إدارة الكشف</h2><small>طباعة · ترتيب · إضافة عامل · شيل اسم</small></span></summary>
+      <div class="row" id="print-row" style="margin-bottom:10px;gap:8px;">
+        <button class="btn sec grow" id="print"><i class="ti ti-printer"></i> طباعة الكشف</button>
+        <button class="btn sec grow" id="order"><i class="ti ti-arrows-sort"></i> ترتيب الكشف</button>
+      </div>
+
       <p class="muted" style="margin-bottom:8px;">الحذف والإضافة هنا بيغيّروا الكشف المطبوع وقايمة المراجعة بس، والمرتبات مش بتتأثر. وأي تغيير بيوصل لـ HR.</p>
       <div class="row">
         <button class="btn sec" id="m-add"><i class="ti ti-user-plus"></i> إضافة عامل جديد (بالبطاقة)</button>
@@ -238,46 +330,15 @@ input:focus,select:focus{border-color:#a61b12!important;background:#fff;}
       </div>
       <div id="m-removed" style="margin-top:10px;"></div>
       <div class="msg" id="m-msg"></div>
-    </div>
+    </details>
 
-    <div class="card" id="lv-card">
-      <h2>طلبات الإجازة والمرضي</h2>
+    <details class="card fold" id="lv-card">
+      <summary><span class="fold-ic"><i class="ti ti-calendar-plus"></i></span><span class="fold-t"><h2>طلبات الإجازة والمرضي</h2><small>طلب جديد · الطلبات اللي اتبعتت</small></span><span class="fold-badge hidden" id="lv-badge"></span></summary>
       <details class="why"><summary>الشرح</summary><p class="muted">اختار العامل والنوع والأيام، وصوّر الورقة (التقرير الطبي أو طلب الإجازة). الطلب بيروح للـ HR، وبعده لاعتماد العميل.</p></details>
       <button class="btn sec" id="lv-new"><i class="ti ti-calendar-plus"></i> طلب جديد</button>
       <div class="msg" id="lv-msg"></div>
       <div id="lv-list" style="margin-top:10px;"></div>
-    </div>
-
-    <div class="card hidden" id="fiche-card">
-      <h2>عمال جداد: الفيش والبطاقة</h2>
-      <p class="muted" style="margin-bottom:8px;">الفيش (صحيفة الحالة الجنائية) لازم يترفع خلال 5 أيام عمل من أول يوم حضور. بعد المهلة، حضور العامل بيتقفل لحد ما يترفع.</p>
-      <div id="fiche-list"></div>
-      <div class="msg" id="f-msg"></div>
-    </div>
-
-    <div id="review" class="hidden">
-      <div class="stats" id="stats"></div>
-      <div class="msg" id="checks"></div>
-      <div class="card">
-        <h2>العدد المطلوب</h2>
-        <div id="plan-box"></div>
-      </div>
-      <div class="card">
-        <h2>العمال</h2>
-        <p class="muted" style="margin-bottom:4px;">اللي متلوّن بالأصفر محتاج تراجعه، واللي بالرمادي مش موجود في أي صورة لسه.</p>
-        <div id="workers"></div>
-      </div>
-      <div class="card hidden" id="extra-card">
-        <h2>صفوف مكتوبة بخط اليد أو مش متطابقة</h2>
-        <p class="muted" style="margin-bottom:6px;">اختار صاحب كل سطر من الاقتراحات أو دوّر عليه بالاسم أو الكود. السطر مايتحسبش حاضر غير لما تختاره. «ضيفه بالبطاقة» للعامل الجديد خالص بس.</p>
-        <div id="extras"></div>
-      </div>
-      <div class="sticky">
-        <button class="btn ok block" id="confirm">تأكيد الحضور</button>
-        <button class="btn sec block hidden" id="back-acc" style="margin-top:6px;">رجّع اليوم للمحاسب يراجعه ويعتمده</button>
-        <div class="msg" id="c-msg"></div>
-      </div>
-    </div>
+    </details>
   </div>
 </div>
 <div class="viewer hidden" id="viewer"><div class="viewer-cap" id="viewer-cap"></div><img id="viewer-img" alt="صورة"><div class="muted" style="color:#ccc;">دوس في أي حتة للقفل</div></div>
@@ -2102,6 +2163,111 @@ $("lv-send").addEventListener("click", async () => {
     show($("lv-m"), "err", "ماترفعش: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : err.message));
   }
 });
+</script>
+<script>
+// ===== تصميم الموبايل — المرحلة ١: الخطوات والفلتر والملخصات =====
+// بيقرا من الصفحة بس (اللي الكود الأصلي بيرسمه) ومش بيغيّر أي بيانات أو قرارات.
+(() => {
+  const $ = id => document.getElementById(id);
+  const ar = n => Number(n || 0).toLocaleString("ar-EG");
+  const num = t => Number(String(t || "").replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/[^\d]/g, "")) || 0;
+  const visible = el => el && !el.classList.contains("hidden");
+  const watch = (el, fn, opts) => { if (!el) return; new MutationObserver(fn).observe(el, opts || { childList: true }); fn(); };
+
+  // --- الخطوات ---
+  function steps() {
+    const box = $("steps");
+    const photo = visible($("upload-card")) && visible($("app"));
+    box.classList.toggle("hidden", !photo);
+    if (!photo) return;
+    const hasPages = $("pages").children.length > 0;
+    const confirmed = $("day-state").classList.contains("ok") && $("day-state").classList.contains("show");
+    const review = visible($("review"));
+    const s1 = hasPages ? "done" : "now";
+    const s2 = confirmed ? "done" : review ? "now" : "";
+    const s3 = confirmed ? "done" : "";
+    const st = (cls, n, t) => `<span class="st ${cls}"><i>${cls === "done" ? "✓" : n}</i>${t}</span>`;
+    box.innerHTML = st(s1, "١", "صوّر") + `<span class="ln ${hasPages ? "done" : ""}"></span>` +
+      st(s2, "٢", "راجع") + `<span class="ln ${confirmed ? "done" : ""}"></span>` + st(s3, "٣", "أكّد");
+  }
+  watch($("pages"), steps);
+  watch($("day-state"), steps, { attributes: true, attributeFilter: ["class"] });
+  watch($("review"), steps, { attributes: true, attributeFilter: ["class"] });
+  watch($("upload-card"), () => {
+    steps();
+    // مواقع الإكسيل والمكتب: الكشف هو الشغل الأساسي، فـ«إدارة الكشف» تفضل مفتوحة
+    if (!visible($("upload-card"))) $("manage-card").open = true;
+  }, { attributes: true, attributeFilter: ["class"] });
+  watch($("app"), steps, { attributes: true, attributeFilter: ["class"] });
+
+  // --- فلتر العمال ---
+  let F = "all";
+  const isAbs = w => !!w.querySelector('.seg button.a[aria-pressed="true"]');
+  const match = w => F === "all" || (F === "flag" && w.classList.contains("flag")) ||
+    (F === "abs" && isAbs(w)) || (F === "miss" && w.classList.contains("missing"));
+  function filter() {
+    const box = $("workers"), rows = [...box.querySelectorAll(":scope > .w")];
+    const c = { all: rows.length, flag: 0, abs: 0, miss: 0 };
+    rows.forEach(w => { if (w.classList.contains("flag")) c.flag++; if (isAbs(w)) c.abs++; if (w.classList.contains("missing")) c.miss++; });
+    if (F !== "all" && !c[F]) F = "all";
+    const bar = $("fbar");
+    bar.classList.toggle("hidden", rows.length < 6 || (!c.flag && !c.abs && !c.miss));
+    bar.innerHTML = [["all", "الكل"], ["flag", "راجعهم"], ["abs", "غايب"], ["miss", "مش في الصور"]]
+      .filter(([k]) => k === "all" || c[k])
+      .map(([k, t]) => `<button type="button" data-f="${k}" class="${k === "flag" ? "fw" : ""}" aria-pressed="${F === k}">${t} ${ar(c[k])}</button>`).join("");
+    let shown = 0, grp = null, grpShown = 0;
+    const closeGrp = () => { if (grp) grp.classList.toggle("f-off", F !== "all" && !grpShown); };
+    [...box.children].forEach(el => {
+      if (el.classList.contains("grp")) { closeGrp(); grp = el; grpShown = 0; return; }
+      if (el.classList.contains("w")) { const ok = match(el); el.classList.toggle("f-off", !ok); if (ok) { shown++; grpShown++; } return; }
+      // البديل بيتبع صف الغايب اللي قبله
+      const prev = el.previousElementSibling;
+      el.classList.toggle("f-off", !!prev && prev.classList.contains("f-off"));
+    });
+    closeGrp();
+    $("f-empty").classList.toggle("hidden", !rows.length || shown > 0);
+  }
+  $("fbar").addEventListener("click", e => {
+    const b = e.target.closest("button[data-f]"); if (!b) return;
+    F = b.dataset.f; filter();
+    $("workers").closest(".card").scrollIntoView({ block: "start", behavior: "smooth" });
+  });
+  watch($("workers"), filter);
+
+  // --- ملخص العدد المطلوب ---
+  watch($("plan-box"), () => {
+    const box = $("plan-box"), card = $("plan-card");
+    const over = box.querySelectorAll(".pill.p-err").length, short = box.querySelectorAll(".pill.p-grey").length;
+    const hasTable = !!box.querySelector("table");
+    card.classList.toggle("warn", over > 0 || short > 0);
+    $("plan-sum").textContent = !hasTable ? "مفيش عدد مطلوب متسجل للموقع ده"
+      : over || short ? [over ? `زيادة في ${ar(over)} وظيفة` : "", short ? `ناقص في ${ar(short)} وظيفة` : ""].filter(Boolean).join(" · ") + " — دوس تشوف التفاصيل"
+      : "مطابق ✓";
+    if (over) card.open = true;   // الزيادة بتوقف التأكيد، فلازم تبان
+  });
+
+  // --- السطر اللي فوق زرار التأكيد ---
+  watch($("stats"), () => {
+    const get = l => { const s = [...$("stats").querySelectorAll(".stat")].find(x => x.querySelector(".l")?.textContent.trim() === l); return s ? num(s.querySelector(".v").textContent) : null; };
+    const p = get("حاضر"), a = get("غايب"), q = get("توقف"), o = get("محتاج قرار");
+    const el = $("c-sum");
+    el.classList.toggle("hidden", p == null);
+    if (p == null) return;
+    el.innerHTML = `<b>${ar(p)}</b> حاضر · <b>${ar(a)}</b> غايب` + (q ? ` · <b>${ar(q)}</b> توقف` : "") + (o ? ` · <span style="color:#8a5a10">${ar(o)} محتاج قرار</span>` : "");
+  });
+
+  // --- عدد الطلبات المستنية على مربع الطلبات ---
+  watch($("lv-list"), () => {
+    let n = 0;
+    $("lv-list").querySelectorAll('details[data-lvg="pending"],details[data-lvg="client_wait"]').forEach(g => n += num(g.querySelector("summary .pill")?.textContent));
+    const b = $("lv-badge");
+    b.classList.toggle("hidden", !n);
+    b.textContent = `${ar(n)} مستني${n > 1 ? "ين" : ""}`;
+  });
+  // رسالة الطلب (اتبعت/غلط) أو قايمة شيل الاسم: المربع يتفتح عشان تبان
+  watch($("lv-msg"), () => { if ($("lv-msg").classList.contains("show")) $("lv-card").open = true; }, { attributes: true, attributeFilter: ["class"] });
+  watch($("m-msg"), () => { if ($("m-msg").classList.contains("show")) $("manage-card").open = true; }, { attributes: true, attributeFilter: ["class"] });
+})();
 </script>
 </body>
 </html>
