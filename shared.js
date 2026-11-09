@@ -14,17 +14,27 @@ export const firebaseConfig = {
   messagingSenderId: "469549638177",
   appId: "1:469549638177:web:4e5c1d4c055108312cb960"
 };
-export const app = initializeApp(firebaseConfig);
+
 // App Check: كل طلب لـ Firebase بيتبعت معاه إثبات (reCAPTCHA في الخلفية) إنه جاي من صفحات البوابة نفسها،
 // عشان السكريبتات والبوتات اللي بتستخدم المفتاح من برّه تترفض. لازم يتعمل قبل أي استخدام لـ Firestore أو Auth.
 // المفتاح مش سري (بيتشاف في أي صفحة). الدومينات المسموحة متحددة في إعدادات المفتاح على Google Cloud.
 export const APP_CHECK_KEY = "6LeFr_YtAAAAADMBkt1vAf8bqyUJARWtAgaoogfP";
-export const appCheck = initializeAppCheck(app, {
-  provider: new ReCaptchaEnterpriseProvider(APP_CHECK_KEY),
-  isTokenAutoRefreshEnabled: true
-});
-export const db = getFirestore(app);
-export const auth = getAuth(app);
+// لو shared.js اتحمّل مرتين في نفس الصفحة (صفحة قديمة من الكاش بتستورده بـ ?v= قديم، و notify.js/sheet.js بيستوردوه بالـ ?v= الجديد
+// → المتصفح بيعتبرهم ملفين ونسختين) — النسخة التانية بتاخد نفس Firebase بتاع الأولى بدل ما تعمل App Check تاني
+// (اللي كان بيرمي «reCAPTCHA has already been rendered in this element»)، ومابتكررش الجرس وأزرار التنقل.
+const FIRST_COPY = !globalThis.__theamaFB;
+const FB = globalThis.__theamaFB ||= (() => {
+  const app = initializeApp(firebaseConfig);
+  const appCheck = initializeAppCheck(app, {
+    provider: new ReCaptchaEnterpriseProvider(APP_CHECK_KEY),
+    isTokenAutoRefreshEnabled: true
+  });
+  return { app, appCheck, db: getFirestore(app), auth: getAuth(app) };
+})();
+export const app = FB.app;
+export const appCheck = FB.appCheck;
+export const db = FB.db;
+export const auth = FB.auth;
 
 // ===== المواقع =====
 // مواقع بوابة الحضور (كشوف مصورة) — لازم تفضل نفس القايمة اللي في firestore.rules (attSites) و worker.py (ATT_SITES)
@@ -118,7 +128,7 @@ onAuthStateChanged(auth, async user => {
 export const actorEmail = u => ACTOR_ROLE === "admin" ? "ادمن" : (u?.email || "");
 
 // بترسم الأزرار لوحدها في أي صفحة فيها <nav id="pnav"> بعد الدخول، وبتشيلها بعد الخروج
-onAuthStateChanged(auth, async user => {
+if (FIRST_COPY) onAuthStateChanged(auth, async user => {
   const el = document.getElementById("pnav");
   if (!el) return;
   if (!user) { el.innerHTML = ""; return; }
@@ -419,4 +429,4 @@ window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-import('./notify.js?v=20261104e').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+if (FIRST_COPY) import('./notify.js?v=20261104e').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
