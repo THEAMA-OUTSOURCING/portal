@@ -23,7 +23,8 @@ export const APP_CHECK_KEY = "6LeFr_YtAAAAADMBkt1vAf8bqyUJARWtAgaoogfP";
 // → المتصفح بيعتبرهم ملفين ونسختين) — النسخة التانية بتاخد نفس Firebase بتاع الأولى بدل ما تعمل App Check تاني
 // (اللي كان بيرمي «reCAPTCHA has already been rendered in this element»)، ومابتكررش الجرس وأزرار التنقل.
 const FIRST_COPY = !globalThis.__theamaFB;
-const FB = globalThis.__theamaFB ||= (() => {
+// (من غير ||= — الموبايلات القديمة مابتفهموش وبترمي «Unexpected token '='» والبوابة كلها تقف)
+if (!globalThis.__theamaFB) globalThis.__theamaFB = (() => {
   const app = initializeApp(firebaseConfig);
   const appCheck = initializeAppCheck(app, {
     provider: new ReCaptchaEnterpriseProvider(APP_CHECK_KEY),
@@ -31,6 +32,7 @@ const FB = globalThis.__theamaFB ||= (() => {
   });
   return { app, appCheck, db: getFirestore(app), auth: getAuth(app) };
 })();
+const FB = globalThis.__theamaFB;
 export const app = FB.app;
 export const appCheck = FB.appCheck;
 export const db = FB.db;
