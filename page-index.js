@@ -183,6 +183,7 @@ onAuthStateChanged(auth, async (user)=>{
     loginBox.style.display='none';
     uploadBox.style.display='block';
     watchServerStatus();
+    if(canPayroll || isAdmin) loadXlsx().catch(()=>{});   // تجهيز مكتبة الإكسيل في الخلفية (رفع المرتبات / تصدير البيانات)
   } else {
     stopServerStatus();
     loginBox.style.display='block';
@@ -245,6 +246,23 @@ async function copyNumber(el){
   setTimeout(()=>{ t.remove(); el.classList.remove('pv-hl'); }, 2500);
 }
 
+// ===== مكتبة الإكسيل =====
+// 930 ك — بتتحمّل بس لما حساب إدارة يدخل (أو أول ما يحتاجها)، عشان العامل مايحمّلهاش على باقته من غير لازمة.
+// نفس الملف ونفس البصمة (integrity): لو الملف اتغيّر المتصفح مايشغّلوش.
+let xlsxReady = null;
+function loadXlsx(){
+  if(window.XLSX) return Promise.resolve(window.XLSX);
+  if(!xlsxReady) xlsxReady = new Promise((ok,fail)=>{
+    const sc = document.createElement('script');
+    sc.src = 'vendor/xlsx-0.20.3.full.min.js';
+    sc.integrity = 'sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT';
+    sc.onload = ()=> window.XLSX ? ok(window.XLSX) : fail(new Error('مكتبة الإكسيل مااشتغلتش'));
+    sc.onerror = ()=>{ xlsxReady = null; fail(new Error('مكتبة الإكسيل مااتحمّلتش — اتأكد من النت وجرّب تاني')); };
+    document.head.appendChild(sc);
+  });
+  return xlsxReady;
+}
+
 // ===== قراءة الشيت ومراجعته (كل تابة = شركة) =====
 let payParsed = null;   // نتيجة المراجعة الأخيرة، الرفع بيستخدمها
 function resetPayReview(clearFile){
@@ -259,6 +277,7 @@ function resetPayReview(clearFile){
 window.resetPayReview = resetPayReview;
 
 async function parsePayroll(file){
+  const XLSX = await loadXlsx();
   const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()),{type:'array'});
   const tabs = [], skipped = [], recs = [], codeTabs = new Map();
   wb.SheetNames.forEach(name=>{
@@ -1239,6 +1258,7 @@ async function exportRequests(){
       return;
     }
 
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'بيانات الموظفين');
