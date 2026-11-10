@@ -32,7 +32,7 @@ input,select{padding:8px 10px;border:1px solid #ddd;border-radius:9px;background
 .wrap{max-width:1300px;margin:0 auto;}
 .card{background:#fff;border:1px solid #e5e5e5;border-radius:14px;padding:14px 16px;margin-bottom:12px;}
 h1{font-size:19px;font-weight:600;} h2{font-size:15px;font-weight:600;margin-bottom:8px;}
-.muted{color:#888;font-size:13px;}
+.muted{color:#6b6b6b;font-size:13px;}
 .row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
 label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#777;}
 .btn{padding:9px 16px;font-weight:500;cursor:pointer;background:#c0392b;color:#fff;border:none;border-radius:9px;}
@@ -112,11 +112,11 @@ th{background:#1d2024;}
   </div>
   <div id="login" class="card center hidden">
     <h2>تقارير الحضور</h2>
-    <div style="display:flex;flex-direction:column;gap:8px;">
-      <input type="email" id="l-email" placeholder="الإيميل" dir="ltr">
-      <input type="password" id="l-pass" placeholder="الباسورد" dir="ltr">
-      <button class="btn" id="l-btn">دخول</button>
-    </div>
+    <form id="l-form" style="display:flex;flex-direction:column;gap:8px;" novalidate>
+      <input type="email" id="l-email" placeholder="الإيميل" dir="ltr" autocomplete="username" aria-label="الإيميل">
+      <input type="password" id="l-pass" placeholder="الباسورد" dir="ltr" autocomplete="current-password" aria-label="الباسورد">
+      <button type="submit" class="btn" id="l-btn">دخول</button>
+    </form>
     <div class="msg err" id="l-err"></div>
   </div>
   <div id="denied" class="card center hidden"><h2>الحساب ده مالوش صلاحية على التقارير</h2><button class="btn sec" id="d-out" style="margin-top:10px;">خروج</button></div>

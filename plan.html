@@ -36,7 +36,7 @@ button:focus-visible{outline:2px solid #185fa5;outline-offset:2px;}
 .wrap{max-width:1080px;margin:0 auto;}
 .top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
 .top h1{font-size:20px;font-weight:600;}
-.top .who{font-size:12px;color:#888;}
+.top .who{font-size:12px;color:#6b6b6b;}
 .card{background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:1.1rem 1.25rem;margin-bottom:1rem;}
 .card h2{font-size:15px;font-weight:600;margin-bottom:10px;}
 details.fold>summary{list-style:none;cursor:pointer;user-select:none;}
@@ -47,8 +47,8 @@ details.fold>summary h2{display:flex;align-items:center;gap:6px;margin-bottom:0;
 details.fold>summary h2::before{content:"";width:0;height:0;border-block:5px solid transparent;border-inline-end:7px solid currentColor;transition:transform .15s;}
 details.fold[open]>summary h2::before{transform:rotate(-90deg);}
 details.fold[open]>summary h2{margin-bottom:10px;}
-details.fold .fold-n{font-weight:400;font-size:13px;color:#888;}
-.muted{color:#888;font-size:13px;}
+details.fold .fold-n{font-weight:400;font-size:13px;color:#6b6b6b;}
+.muted{color:#6b6b6b;font-size:13px;}
 .btn{padding:8px 16px;font-weight:500;cursor:pointer;background:#c0392b;color:#fff;border:none;border-radius:8px;}
 .btn:hover{background:#a93226;}
 .btn:disabled{background:#e0a09a;cursor:not-allowed;}
@@ -68,7 +68,7 @@ details.fold .fold-n{font-weight:400;font-size:13px;color:#888;}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:#e5e5e5;border:1px solid #e5e5e5;border-radius:12px;overflow:hidden;margin-bottom:1rem;}
 .kpi{background:#fff;padding:12px 14px;}
 .kpi .v{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.2;}
-.kpi .l{color:#888;font-size:12px;}
+.kpi .l{color:#6b6b6b;font-size:12px;}
 .kpi.s .v{color:#b42318;} .kpi.o .v{color:#185fa5;}
 .site{display:grid;grid-template-columns:130px 1fr 80px;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid #f0efe9;cursor:pointer;}
 .site:last-child{border-bottom:0;}
@@ -83,18 +83,18 @@ details.fold .fold-n{font-weight:400;font-size:13px;color:#888;}
 .tbl{overflow-x:auto;}
 table{width:100%;border-collapse:collapse;min-width:520px;}
 th,td{padding:8px 10px;text-align:right;border-bottom:1px solid #f0efe9;font-size:13px;}
-th{color:#888;font-weight:500;}
+th{color:#6b6b6b;font-weight:500;}
 td.n,th.n{text-align:center;font-variant-numeric:tabular-nums;}
 .pill{display:inline-block;min-width:42px;text-align:center;padding:1px 8px;border-radius:999px;font-weight:600;direction:ltr;}
 .pill.s{background:#fcebeb;color:#b42318;} .pill.o{background:#e6eefa;color:#185fa5;} .pill.k{background:#eaf3de;color:#3b6d11;}
 .amd{font-size:11px;color:#185fa5;margin-inline-start:6px;}
-.was{color:#999;text-decoration:line-through;font-size:11px;margin-inline-start:4px;}
+.was{color:#6b6b6b;text-decoration:line-through;font-size:11px;margin-inline-start:4px;}
 tr.has-sec td{font-weight:600;} tr.sec-row td{font-size:13px;color:#555;border-top:none;padding-top:3px;padding-bottom:3px;}
 tr.sec-row td:nth-child(2){padding-inline-start:18px;} .sec-warn{color:#b42318;font-size:12px;}
 .chip{padding:4px 12px;border:1px solid #ddd;background:#fff;border-radius:999px;cursor:pointer;font-size:12px;}
 .chip[aria-pressed=true]{background:#222;color:#fff;border-color:#222;}
 .grid-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end;}
-.grid-form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#888;}
+.grid-form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#6b6b6b;}
 .grid-form .wide{grid-column:1/-1;}
 .set-tbl input,.set-tbl select{width:100%;padding:5px 8px;font-size:13px;}
 .hidden{display:none !important;}
@@ -146,11 +146,11 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
   <div id="login" class="card center hidden">
     <h2>الاحتياج والأعداد</h2>
     <p class="muted" style="margin-bottom:12px;">الصفحة دي للإدارة بس. ادخل بنفس حساب لوحة الإدارة.</p>
-    <div style="display:flex;flex-direction:column;gap:8px;">
-      <input type="email" id="l-email" placeholder="الإيميل" autocomplete="username">
-      <input type="password" id="l-pass" placeholder="الباسورد" autocomplete="current-password">
-      <button class="btn" id="l-btn">دخول</button>
-    </div>
+    <form id="l-form" style="display:flex;flex-direction:column;gap:8px;" novalidate>
+      <input type="email" id="l-email" placeholder="الإيميل" autocomplete="username" aria-label="الإيميل">
+      <input type="password" id="l-pass" placeholder="الباسورد" autocomplete="current-password" aria-label="الباسورد">
+      <button type="submit" class="btn" id="l-btn">دخول</button>
+    </form>
     <div class="msg err" id="l-err"></div>
   </div>
 

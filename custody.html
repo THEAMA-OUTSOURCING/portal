@@ -95,11 +95,11 @@ th{color:#6a6e75;font-weight:500;}
   </div>
   <div id="login" class="card center hidden">
     <h2>العُهد</h2>
-    <div style="display:flex;flex-direction:column;gap:8px;">
-      <input type="email" id="l-email" placeholder="الإيميل" dir="ltr">
-      <input type="password" id="l-pass" placeholder="الباسورد" dir="ltr">
-      <button class="btn" id="l-btn">دخول</button>
-    </div>
+    <form id="l-form" style="display:flex;flex-direction:column;gap:8px;" novalidate>
+      <input type="email" id="l-email" placeholder="الإيميل" dir="ltr" autocomplete="username" aria-label="الإيميل">
+      <input type="password" id="l-pass" placeholder="الباسورد" dir="ltr" autocomplete="current-password" aria-label="الباسورد">
+      <button type="submit" class="btn" id="l-btn">دخول</button>
+    </form>
     <div class="msg err" id="l-err"></div>
   </div>
   <div id="denied" class="card center hidden"><h2>الصفحة دي مش متاحة للحساب ده</h2><button class="btn sec" id="d-out" style="margin-top:10px;">خروج</button></div>

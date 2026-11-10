@@ -35,7 +35,7 @@ button:focus-visible{outline:2px solid #185fa5;outline-offset:2px;}
 .card{background:#fff;border:1px solid #e5e5e5;border-radius:14px;padding:14px 16px;margin-bottom:12px;}
 h1{font-size:19px;font-weight:600;}
 h2{font-size:15px;font-weight:600;margin-bottom:8px;}
-.muted{color:#888;font-size:13px;}
+.muted{color:#6b6b6b;font-size:13px;}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
 .grow{flex:1 1 160px;}
 .btn{padding:11px 18px;font-weight:500;cursor:pointer;background:#c0392b;color:#fff;border:none;border-radius:10px;}
@@ -58,14 +58,14 @@ h2{font-size:15px;font-weight:600;margin-bottom:8px;}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#e5e5e5;border:1px solid #e5e5e5;border-radius:12px;overflow:hidden;margin-bottom:12px;}
 .stat{background:#fff;padding:8px 10px;text-align:center;}
 .stat .v{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;}
-.stat .l{font-size:11px;color:#888;}
+.stat .l{font-size:11px;color:#6b6b6b;}
 .grp{font-size:13px;font-weight:600;color:#fff;background:#2b2b2b;border-radius:8px;padding:4px 10px;margin:12px 0 6px;}
 .w{display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid #f0efe9;}
 .w.flag{background:#fffaf0;}
 .w.missing{background:#f6f6f6;}
 .w .nm{flex:1;min-width:0;}
 .w .nm b{font-weight:500;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.w .nm small{color:#888;font-size:12px;display:block;}
+.w .nm small{color:#6b6b6b;font-size:12px;display:block;}
 .seg{display:flex;border:1px solid #ddd;border-radius:9px;overflow:hidden;flex-shrink:0;}
 .seg button{border:none;background:#fff;padding:6px 11px;font-size:13px;cursor:pointer;color:#555;}
 .seg button[aria-pressed=true].p{background:#3b6d11;color:#fff;}
@@ -76,7 +76,7 @@ details.why{margin-bottom:8px;} details.why>summary{cursor:pointer;color:#185fa5
 .lv-grp{border:1px solid #eee;border-radius:12px;padding:0 12px;margin-bottom:8px;}
 .lv-grp>summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;padding:10px 0;font-weight:600;}
 .lv-grp>summary::-webkit-details-marker{display:none;}
-.lv-grp>summary span:first-child::before{content:"◂ ";color:#888;font-size:12px;}
+.lv-grp>summary span:first-child::before{content:"◂ ";color:#6b6b6b;font-size:12px;}
 .lv-grp[open]>summary span:first-child::before{content:"▾ ";}
 .lv-grp>div:last-child{border-bottom:0 !important;}
 .center{max-width:380px;margin:50px auto;}
@@ -87,7 +87,7 @@ details.why{margin-bottom:8px;} details.why>summary{cursor:pointer;color:#185fa5
 .m-hits:empty{display:none;}
 .m-hits button{display:block;width:100%;text-align:right;padding:10px 12px;border:0;border-bottom:1px solid #eee;background:#fafafa;cursor:pointer;font:inherit;}
 .m-hits button:hover{background:#f0f0f0;}
-.m-hits small{color:#888;margin-inline-start:6px;}
+.m-hits small{color:#6b6b6b;margin-inline-start:6px;}
 .m-picked{margin:6px 0 8px;padding:10px 12px;border:2px solid #c0392b;border-radius:10px;background:#fff5f4;display:flex;justify-content:space-between;align-items:center;gap:8px;}
 .viewer-cap{color:#fff;font-weight:700;text-align:center;}
 img[data-zoom]{cursor:zoom-in;}
@@ -206,11 +206,11 @@ details.plan #plan-box{background:#fff;border-radius:12px;padding:4px 6px;}
   <div id="login" class="card center hidden">
     <h2>تسجيل الحضور</h2>
     <p class="muted" style="margin-bottom:12px;">ادخل بحساب الموقع.</p>
-    <div style="display:flex;flex-direction:column;gap:8px;">
-      <input type="email" id="l-email" placeholder="الإيميل" autocomplete="username" dir="ltr">
-      <input type="password" id="l-pass" placeholder="الباسورد" autocomplete="current-password" dir="ltr">
-      <button class="btn" id="l-btn">دخول</button>
-    </div>
+    <form id="l-form" style="display:flex;flex-direction:column;gap:8px;" novalidate>
+      <input type="email" id="l-email" placeholder="الإيميل" autocomplete="username" dir="ltr" aria-label="الإيميل">
+      <input type="password" id="l-pass" placeholder="الباسورد" autocomplete="current-password" dir="ltr" aria-label="الباسورد">
+      <button type="submit" class="btn" id="l-btn">دخول</button>
+    </form>
     <div class="msg err" id="l-err"></div>
   </div>
 

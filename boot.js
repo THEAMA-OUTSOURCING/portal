@@ -31,6 +31,8 @@
     var el = e.target.closest && e.target.closest("[data-call]");
     if (el) run(el, el.getAttribute("data-call"), e);
   });
+  // فورم الدخول: Enter أو «دخول» بيدوس الزرار (data-call) — الفورم نفسه مايبعتش ولا يعمل تحديث للصفحة
+  document.addEventListener("submit", function (e) { e.preventDefault(); });
   document.addEventListener("change", function (e) {
     var el = e.target.closest && e.target.closest("[data-change]");
     if (el) run(el, el.getAttribute("data-change"), e);

@@ -33,7 +33,7 @@ input[type=file]{width:100%;padding:10px;border:1px dashed #bbb;background:#fafa
 .wrap{max-width:1000px;margin:0 auto;}
 .card{background:#fff;border:1px solid #e5e5e5;border-radius:14px;padding:14px 16px;margin-bottom:12px;}
 h1{font-size:19px;font-weight:600;} h2{font-size:15px;font-weight:600;margin-bottom:8px;}
-.muted{color:#888;font-size:13px;}
+.muted{color:#6b6b6b;font-size:13px;}
 .row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
 label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#777;}
 .btn{padding:9px 16px;font-weight:500;cursor:pointer;background:#c0392b;color:#fff;border:none;border-radius:9px;}
@@ -43,7 +43,7 @@ label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#777;}
 .hidden{display:none !important;}
 table{border-collapse:collapse;width:100%;font-size:13px;}
 th,td{border-bottom:1px solid #eee;padding:6px 8px;text-align:right;}
-th{color:#888;font-weight:500;}
+th{color:#6b6b6b;font-weight:500;}
 .num{font-variant-numeric:tabular-nums;}
 .center{max-width:380px;margin:50px auto;}
 .legend span{display:inline-block;margin-left:12px;}
@@ -85,11 +85,11 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
   </div>
   <div id="login" class="card center hidden">
     <h2>رفع حضور إكسيل</h2>
-    <div style="display:flex;flex-direction:column;gap:8px;">
-      <input type="email" id="l-email" placeholder="الإيميل" dir="ltr">
-      <input type="password" id="l-pass" placeholder="الباسورد" dir="ltr">
-      <button class="btn" id="l-btn">دخول</button>
-    </div>
+    <form id="l-form" style="display:flex;flex-direction:column;gap:8px;" novalidate>
+      <input type="email" id="l-email" placeholder="الإيميل" dir="ltr" autocomplete="username" aria-label="الإيميل">
+      <input type="password" id="l-pass" placeholder="الباسورد" dir="ltr" autocomplete="current-password" aria-label="الباسورد">
+      <button type="submit" class="btn" id="l-btn">دخول</button>
+    </form>
     <div class="msg err" id="l-err"></div>
   </div>
   <div id="denied" class="card center hidden"><h2>الصفحة دي للأدمن بس حالياً</h2><button class="btn sec" id="d-out" style="margin-top:10px;">خروج</button></div>

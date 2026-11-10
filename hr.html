@@ -31,7 +31,7 @@ input,select,textarea{padding:8px 10px;border:1px solid #ddd;border-radius:9px;b
 .wrap{max-width:1100px;margin:0 auto;}
 .card{background:#fff;border:1px solid #e5e5e5;border-radius:14px;padding:14px 16px;margin-bottom:12px;}
 h1{font-size:19px;font-weight:600;} h2{font-size:15px;font-weight:600;margin-bottom:8px;}
-.muted{color:#888;font-size:13px;}
+.muted{color:#6b6b6b;font-size:13px;}
 .row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
 label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#777;}
 .btn{padding:8px 16px;font-weight:500;cursor:pointer;background:#c0392b;color:#fff;border:none;border-radius:9px;}
@@ -41,7 +41,7 @@ label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#777;}
 .hidden{display:none !important;}
 details.fold>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;}
 details.fold>summary::-webkit-details-marker{display:none;}
-details.fold>summary::before{content:"◂";font-size:12px;color:#888;transition:transform .15s;}
+details.fold>summary::before{content:"◂";font-size:12px;color:#6b6b6b;transition:transform .15s;}
 details.fold[open]>summary::before{transform:rotate(-90deg);}
 details.fold>summary h2{margin:0;} details.fold[open]>summary{margin-bottom:10px;}
 details.why{margin-bottom:8px;} details.why>summary{cursor:pointer;color:#185fa5;font-size:13px;width:max-content;}
@@ -54,7 +54,7 @@ details.why>p{margin-top:6px;}
 .ev .bd{padding:10px 12px;flex:1;}
 .ev .nm{font-weight:600;font-size:15px;}
 .ev dl{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:13px;margin-top:6px;}
-.ev dt{color:#888;} .ev dd{margin:0;}
+.ev dt{color:#6b6b6b;} .ev dd{margin:0;}
 .ev .ft{padding:10px 12px;border-top:1px solid #f0efe9;display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
 .pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:600;}
 .t-hire{background:#eaf3de;color:#3b6d11;} .t-change{background:#f3eefb;color:#5b3aa5;} .s-error{background:#fcebeb;color:#a32d2d;} .s-done{background:#eaf3de;color:#3b6d11;}
@@ -124,11 +124,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
   </div>
   <div id="login" class="card center hidden">
     <h2>اعتماد الحالات</h2>
-    <div style="display:flex;flex-direction:column;gap:8px;">
-      <input type="email" id="l-email" placeholder="الإيميل" dir="ltr">
-      <input type="password" id="l-pass" placeholder="الباسورد" dir="ltr">
-      <button class="btn" id="l-btn">دخول</button>
-    </div>
+    <form id="l-form" style="display:flex;flex-direction:column;gap:8px;" novalidate>
+      <input type="email" id="l-email" placeholder="الإيميل" dir="ltr" autocomplete="username" aria-label="الإيميل">
+      <input type="password" id="l-pass" placeholder="الباسورد" dir="ltr" autocomplete="current-password" aria-label="الباسورد">
+      <button type="submit" class="btn" id="l-btn">دخول</button>
+    </form>
     <div class="msg err" id="l-err"></div>
   </div>
   <div id="denied" class="card center hidden"><h2>الصفحة دي للـ HR والأدمن بس</h2><button class="btn sec" id="d-out" style="margin-top:10px;">خروج</button></div>

@@ -305,16 +305,16 @@ async function reviewSheet(){
     const cnt=v=>Number(v).toLocaleString('en-US');
     const td='padding:6px 8px;border-bottom:1px solid #eee;text-align:right;', th=td+'background:#f5f5f0;font-weight:500;';
     let h='<style>.pv-n{cursor:pointer;border-radius:5px;padding:1px 3px;margin:0 -3px;font-variant-numeric:tabular-nums;white-space:nowrap;}'
-      +'.pv-n:hover,.pv-n.pv-hl{background:#eef6f0;}.pv-cp{font-style:normal;font-size:10px;color:#aaa;margin-inline-start:3px;}'
+      +'.pv-n:hover,.pv-n.pv-hl{background:#eef6f0;}.pv-cp{font-style:normal;font-size:10px;color:#767676;margin-inline-start:3px;}'
       +'.pv-toast{display:block;font-size:11px;color:#1e7a4a;font-weight:500;}</style>';
     h+='<div style="border:1px solid #e5e5e5;border-radius:10px;padding:12px;margin-bottom:12px;font-size:13px;">';
     h+='<div class="info-box" style="margin-bottom:8px;">علّم على الشركات اللي هترفعها دلوقتي. كشوف الشركات التانية ومدة ظهورها مش هيتغيّروا.</div>';
-    h+='<p style="font-weight:500;margin-bottom:8px;">مراجعة الشيت — '+cnt(p.tabs.length)+' تابة، '+cnt(p.recs.length)+' كشف <span style="font-size:11px;color:#888;font-weight:400;">· دوس على أي رقم ينسخه</span></p>';
+    h+='<p style="font-weight:500;margin-bottom:8px;">مراجعة الشيت — '+cnt(p.tabs.length)+' تابة، '+cnt(p.recs.length)+' كشف <span style="font-size:11px;color:#6b6b6b;font-weight:400;">· دوس على أي رقم ينسخه</span></p>';
     // كل تابة كارت لوحده: الاسم والعدد، وتحتهم المستحقات / الخصومات / الصافي
-    const cell=(l,v,st)=>'<div style="flex:1;min-width:0;"><span style="display:block;font-size:11px;color:#888;">'+l+'</span><b style="font-size:13px;'+(st||'')+'">'+v+'</b></div>';
+    const cell=(l,v,st)=>'<div style="flex:1;min-width:0;"><span style="display:block;font-size:11px;color:#6b6b6b;">'+l+'</span><b style="font-size:13px;'+(st||'')+'">'+v+'</b></div>';
     p.tabs.forEach(t=>{
       h+='<div style="border-top:1px solid #eee;padding:8px 0;">';
-      h+='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="pv-pick" value="'+esc(t.name)+'" style="width:18px;height:18px;accent-color:#c0392b;"><b style="font-size:14px;">'+esc(t.name)+(t.diffs.length?' <span style="color:#a32d2d;">⚠</span>':'')+'</b></label><span style="font-size:12px;color:#888;">'+cnt(t.count)+' كشف</span></div>';
+      h+='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="pv-pick" value="'+esc(t.name)+'" style="width:18px;height:18px;accent-color:#c0392b;"><b style="font-size:14px;">'+esc(t.name)+(t.diffs.length?' <span style="color:#a32d2d;">⚠</span>':'')+'</b></label><span style="font-size:12px;color:#6b6b6b;">'+cnt(t.count)+' كشف</span></div>';
       h+='<div style="display:flex;gap:8px;">'+cell('المستحقات',money(t.P))+cell('الخصومات',money(t.M),'color:#a32d2d;')+cell('الصافي',money(t.net),'color:#1e7a4a;')+'</div>';
       const ms=Object.entries(t.methods);
       if(ms.length>1){
@@ -346,7 +346,7 @@ async function reviewSheet(){
         +p.dups.map(d=>esc(d.code)+' ('+d.tabs.map(esc).join('، ')+')').join(' · ')+'</div>';
     }
     if(p.skipped.length){
-      h+='<p style="font-size:12px;color:#888;margin-top:8px;">تابات اتسابت (مفيهاش «كود الموظف»): '+p.skipped.map(esc).join('، ')+'</p>';
+      h+='<p style="font-size:12px;color:#6b6b6b;margin-top:8px;">تابات اتسابت (مفيهاش «كود الموظف»): '+p.skipped.map(esc).join('، ')+'</p>';
     }
     h+='</div>';
     const box = document.getElementById('pay-review');
@@ -983,7 +983,7 @@ async function renderCardPreview(preview, bytes, type, url){
     preview.innerHTML = '<img src="'+url+'" style="width:100%;display:block;" alt="البطاقة الطبية"/>';
     return;
   }
-  preview.innerHTML = '<p style="text-align:center;color:#888;font-size:13px;padding:24px 0;"><span class="spinner" style="border-color:#ccc;border-top-color:#c0392b;"></span> جاري عرض البطاقة...</p>';
+  preview.innerHTML = '<p style="text-align:center;color:#6b6b6b;font-size:13px;padding:24px 0;"><span class="spinner" style="border-color:#ccc;border-top-color:#c0392b;"></span> جاري عرض البطاقة...</p>';
   try{
     const lib = await loadPdfJs();
     const pdf = await lib.getDocument({data: bytes.slice(), isEvalSupported: false}).promise;   // isEvalSupported: false = ملف PDF ملغّم مايقدرش يشغّل كود (ثغرة CVE-2024-4367 في pdf.js 3.x)
@@ -1007,7 +1007,7 @@ async function renderCardPreview(preview, bytes, type, url){
     console.error('card render error:', e);
     // لو pdf.js مااشتغلش (نت ضعيف مثلاً) نرجع للطريقة القديمة على الكمبيوتر، ورسالة واضحة على الموبايل
     preview.innerHTML = '<iframe src="'+url+'" style="width:100%;height:420px;border:none;"></iframe>'
-      + '<p style="font-size:12px;color:#888;padding:8px 10px;">لو البطاقة مش ظاهرة، دوس «تحميل البطاقة» تحت.</p>';
+      + '<p style="font-size:12px;color:#6b6b6b;padding:8px 10px;">لو البطاقة مش ظاهرة، دوس «تحميل البطاقة» تحت.</p>';
   }
 }
 
@@ -1365,10 +1365,9 @@ window.downloadAdminCard = downloadAdminCard;
 
 
 // Enter keys
-document.getElementById('emp-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
-document.getElementById('emp-code').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('emp-pass').focus();});
+// Enter في كلمة المرور = «دخول» (الفورم بيدوس الزرار لوحده)
+document.getElementById('emp-code').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();document.getElementById('emp-pass').focus();}});
 document.getElementById('new-pass2').addEventListener('keydown',e=>{if(e.key==='Enter')doSetPass();});
-document.getElementById('admin-pass').addEventListener('keydown',e=>{if(e.key==='Enter')checkAdminPass();});
 document.getElementById('search-sal-code').addEventListener('keydown',e=>{if(e.key==='Enter')lookupSalary();});
 // الصفحة خلصت تحميل: نشيل رسالة «لحظة» لو لسه ظاهرة
 document.getElementById('boot-toast')?.remove();

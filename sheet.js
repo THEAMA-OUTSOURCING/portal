@@ -589,15 +589,15 @@ const ORDER_CSS = `
 #so li{display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid #f0efe9;background:#fff;font-size:14px;}
 #so li:last-child{border-bottom:0;}
 #so li.brk{border-bottom:2px dashed #c0392b;}
-#so li .h{cursor:grab;color:#aaa;font-size:18px;padding:0 4px;touch-action:none;user-select:none;}
-#so li .i{width:24px;text-align:center;color:#999;font-size:12px;font-variant-numeric:tabular-nums;}
+#so li .h{cursor:grab;color:#767676;font-size:18px;padding:0 4px;touch-action:none;user-select:none;}
+#so li .i{width:24px;text-align:center;color:#6b6b6b;font-size:12px;font-variant-numeric:tabular-nums;}
 #so li .nm{flex:1 1 140px;min-width:0;white-space:normal;overflow-wrap:anywhere;line-height:1.45;}
 @media(max-width:520px){#so li{flex-wrap:wrap;padding:8px;}#so li .nm{flex-basis:calc(100% - 70px);font-size:15px;}#so li .nm small{display:block;margin:0;}}
-#so li .nm small{color:#999;font-size:11px;margin-inline-start:6px;}
+#so li .nm small{color:#6b6b6b;font-size:11px;margin-inline-start:6px;}
 #so li .new{font-size:11px;background:#eef4fb;color:#185fa5;border-radius:999px;padding:0 7px;}
 #so li button{border:1px solid #e5e5e5;background:#fafafa;border-radius:7px;cursor:pointer;font-size:12px;padding:3px 7px;color:#555;}
 #so li button.cut.on{background:#c0392b;border-color:#c0392b;color:#fff;}
-#so li.off .nm{color:#aaa;text-decoration:line-through;}
+#so li.off .nm{color:#767676;text-decoration:line-through;}
 #so li .tag{font-size:11px;background:#fcebeb;color:#a32d2d;border-radius:999px;padding:0 7px;white-space:nowrap;}
 #so li button.rm{color:#a32d2d;}#so li button.rm.on{color:#185fa5;}
 #so .sortable-ghost{opacity:.35;}

@@ -58,7 +58,7 @@ $("l-btn").addEventListener("click", async () => {
   try { await signInWithEmailAndPassword(auth, $("l-email").value.trim(), $("l-pass").value); }
   catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); }
 });
-$("l-pass").addEventListener("keydown", e => { if (e.key === "Enter") $("l-btn").click(); });
+// Enter في الباسورد = «دخول» (فورم الدخول بيدوس الزرار لوحده)
 $("logout").addEventListener("click", () => signOut(auth).finally(() => location.reload()));
 $("d-out").addEventListener("click", () => signOut(auth).finally(() => location.reload()));
 

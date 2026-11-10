@@ -421,6 +421,10 @@ export const ask = (msg, o = {}) => dlg(msg, o);
 export const tell = (msg, o = {}) => dlg(msg, { cancel: "", ...o });
 export const askText = (msg, o = {}) => dlg(msg, { input: "text", ...o });
 
+// ===== فورم الدخول (l-form) =====
+// Enter في الإيميل أو الباسورد بيدوس «دخول» لوحده (زرار submit)، والفورم نفسه مايعملش تحديث للصفحة
+document.addEventListener("submit", e => { if (e.target?.id === "l-form") e.preventDefault(); });
+
 // ===== شاشة التحميل =====
 // كل صفحة فيها <div id="boot"> (لوجو + «جاري التحميل…») ظاهر من الـ HTML نفسه، عشان المستخدم مايشوفش صفحة فاضية
 // لحد ما Firebase يتحمّل. بيستخبى لوحده بالـ CSS أول ما الدخول أو الصفحة يظهروا، وهنا احتياطي للمتصفحات القديمة.
