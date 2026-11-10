@@ -1431,7 +1431,7 @@ async function renderCardPreview(preview, bytes, type, url){
   preview.innerHTML = '<p style="text-align:center;color:#888;font-size:13px;padding:24px 0;"><span class="spinner" style="border-color:#ccc;border-top-color:#c0392b;"></span> جاري عرض البطاقة...</p>';
   try{
     const lib = await loadPdfJs();
-    const pdf = await lib.getDocument({data: bytes.slice()}).promise;
+    const pdf = await lib.getDocument({data: bytes.slice(), isEvalSupported: false}).promise;   // isEvalSupported: false = ملف PDF ملغّم مايقدرش يشغّل كود (ثغرة CVE-2024-4367 في pdf.js 3.x)
     const w = Math.max(preview.clientWidth || 360, 300);
     const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
     const imgs = [];
@@ -1687,7 +1687,7 @@ async function exportRequests(){
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'بيانات الموظفين');
-    const today = new Date().toISOString().slice(0,10);
+    const d0 = new Date(), today = d0.getFullYear()+'-'+String(d0.getMonth()+1).padStart(2,'0')+'-'+String(d0.getDate()).padStart(2,'0');   // تاريخ مصر (مش UTC)
     XLSX.writeFile(wb, 'بيانات_الموظفين_المطلوبة_' + today + '.xlsx');
     countEl.textContent = 'تم تحميل ' + rows.length + ' موظف.' + (oldCount ? ' (' + oldCount + ' تسجيل قديم مش متحسب)' : '');
   }catch(e){

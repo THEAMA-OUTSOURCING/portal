@@ -210,7 +210,14 @@ const SHARQIA = "الشرقية للدخان";
 // ===== البيانات =====
 // السجل كله بيتقري مرة، وبعدها التحديثات بس (updated_at) — محفوظ في المتصفح عشان القراية ماتتكررش كل مرة
 const S = { all: new Map(), scoped: null, role: null };
-const CACHE_KEY = "sijil_v1";
+// نسخة السجل في المتصفح (عشان مانقراش آلاف العمال من Firestore كل مرة): لكل حساب لوحده، وبتتمسح مع الخروج
+// أو لما الصفحة تتفتح من غير دخول، وبتتجاهل لو أقدم من 7 أيام — عشان الأرقام القومية والتليفونات ماتفضلش على جهاز حد خرج
+const CACHE_PREFIX = "sijil_v1";
+const CACHE_MAX_MS = 7 * 864e5;
+const cacheKey = () => CACHE_PREFIX + "_" + (auth.currentUser?.uid || "");
+function purgeCache() {
+  try { Object.keys(localStorage).filter(k => k.startsWith(CACHE_PREFIX)).forEach(k => localStorage.removeItem(k)); } catch (e) {}
+}
 const FIELDS = ["code", "portal_code", "nid", "name", "phone", "birth", "company", "group", "site", "job", "type", "status",
   "hire_date", "left_date", "left_reason", "blacklist", "todo"];
 function slim(d) {
@@ -222,11 +229,11 @@ function slim(d) {
   return o;
 }
 function loadCache() {
-  try { const c = JSON.parse(localStorage.getItem(CACHE_KEY) || "null"); if (c && c.v === 1) return c; } catch (e) {}
+  try { const c = JSON.parse(localStorage.getItem(cacheKey()) || "null"); if (c && c.v === 1 && Date.now() - (c.at || 0) < CACHE_MAX_MS) return c; } catch (e) {}
   return null;
 }
 function saveCache(maxU) {
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ v: 1, maxU, rows: [...S.all.values()] })); } catch (e) {}   // لو المساحة مش كفاية: من غير حفظ
+  try { localStorage.setItem(cacheKey(), JSON.stringify({ v: 1, at: Date.now(), maxU, rows: [...S.all.values()] })); } catch (e) {}   // لو المساحة مش كفاية: من غير حفظ
 }
 async function load(full) {
   show($("msg"), "info", "بيحمّل السجل…");
@@ -501,14 +508,15 @@ $("ins-save").onclick = async () => {
 
 // ===== الدخول =====
 $("l-btn").onclick = async () => { try { await signInWithEmailAndPassword(auth, $("l-email").value.trim(), $("l-pass").value); } catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); } };
-$("logout").onclick = () => signOut(auth).finally(() => location.reload()); $("d-out").onclick = () => signOut(auth).finally(() => location.reload());
+const out = () => { purgeCache(); signOut(auth).finally(() => location.reload()); };
+$("logout").onclick = out; $("d-out").onclick = out;
 onAuthStateChanged(auth, async user => {
   ["login", "denied", "app"].forEach(i => $(i).classList.add("hidden"));
-  if (!user) return $("login").classList.remove("hidden");
+  if (!user) { purgeCache(); return $("login").classList.remove("hidden"); }
   let claims = {}; try { claims = (await user.getIdTokenResult()).claims || {}; } catch (e) {}
   S.role = claims.role || null;
   // مؤقتاً: لمحمود بس (لحد ما يتراجع ويتفتح للإدارة والـ HR والمحاسبين)
-  if (!(S.role === "admin" && claims.email === "myehia200@gmail.com")) return $("denied").classList.remove("hidden");
+  if (!(S.role === "admin" && claims.email === "myehia200@gmail.com")) { purgeCache(); return $("denied").classList.remove("hidden"); }
   S.scoped = ["hr", "accountant"].includes(S.role) && Array.isArray(claims.sites) && claims.sites.length ? claims.sites : null;
   if (S.scoped) $("scope-note").textContent = "حسابك ليه الفروع دي بس: " + S.scoped.join("، ") + ".";
   $("who").textContent = user.email; $("app").classList.remove("hidden");
