@@ -84,6 +84,20 @@ async function fixNids() {
   const old = {};
   try { const ci = await getDoc(doc(db, "codes_index", "all"));
     Object.entries(ci.data()?.codes || {}).forEach(([c, v]) => { if (v?.[0]) old[String(v[0])] = { code: c, name: v[1] || "", bl: !!v[2] }; }); } catch (er) {}
+  // السجل كله بالرقم القومي (مش عمال الموقع بس) — نفس اللي السيرفر بيعمله عند الاعتماد:
+  // عامل «مشى» وموقعه في السجل فاضي أو موقع تاني بيرجع بكوده، وعامل شغال في موقع تاني بيتكتب كده.
+  const whole = {};
+  const inRecord = async n => {
+    if (!(n in whole)) {
+      whole[n] = null;
+      try {
+        const sn = await getDocs(query(collection(db, "workers"), where("nid", "==", n)));
+        const all = sn.docs.map(x => ({ code: x.data().code || x.id, site: x.data().site || "", status: x.data().status || "" }));
+        whole[n] = all.find(w => w.status === "شغال") || all[0] || null;
+      } catch (er) {}
+    }
+    return whole[n];
+  };
   const pick = {}, miss = {};
   for (const d of Object.values(S.res.days)) {
     const list = ws[d.site] || [];
@@ -118,7 +132,13 @@ async function fixNids() {
             miss["bl|" + n].days++; if (e.s === "P") miss["bl|" + n].present++;
             continue;
           }
-          const nw = S.newbies[n] = S.newbies[n] || { site: d.site, name: e.name, nid: n, job: e.pj || e.job, first: d.date, present: 0, old: old[n]?.code || "" };
+          if (!S.newbies[n]) {
+            const rec = await inRecord(n);   // السجل الأول، وبعده قايمة الأكواد (زي السيرفر)
+            const active = rec && rec.status === "شغال" ? rec : null;
+            S.newbies[n] = { site: d.site, name: e.name, nid: n, job: e.pj || e.job, first: d.date, present: 0,
+              old: rec && !active ? rec.code : (old[n]?.code || ""), active };
+          }
+          const nw = S.newbies[n];
           if (d.date < nw.first) nw.first = d.date;
           if (e.s === "P") nw.present++;
           continue;
@@ -157,7 +177,7 @@ function renderPreview() {
          `<tr><td>${esc(f.site)}</td><td>${esc(f.name)}</td><td dir="ltr">${esc(f.nid)}</td><td>${esc(f.old)}</td><td>${esc(f.reason)}</td><td class="num">${f.present}</td></tr>`).join("")}</tbody></table>` : "")
     + (nw.length ? `<div class="msg show warn" style="display:block;margin-top:8px;">${nw.length} عامل مش في السجل — مع الحفظ هيروحوا لـ HR في «اعتماد الحالات» يراجعوا الاسم والرقم القومي ويكمّلوا التليفون. اللي ليه كود قديم بيرجع بيه، والجديد بياخد كود جديد.</div>
        <table style="margin-top:6px"><thead><tr><th>الموقع</th><th>الاسم في الشيت</th><th>الرقم القومي</th><th>الكود</th><th>الوظيفة</th><th>أول يوم</th><th>أيام حضور</th></tr></thead><tbody>${nw.map(f =>
-         `<tr><td>${esc(f.site)}</td><td>${esc(f.name)}</td><td dir="ltr">${esc(f.nid)}</td><td>${f.old ? `راجع — ${esc(f.old)}` : "جديد"}</td><td>${esc(f.job)}</td><td>${esc(f.first)}</td><td class="num">${f.present}</td></tr>`).join("")}</tbody></table>` : "")
+         `<tr><td>${esc(f.site)}</td><td>${esc(f.name)}</td><td dir="ltr">${esc(f.nid)}</td><td>${f.active ? `شغال في ${esc(f.active.site || "موقع تاني")} — ${esc(f.active.code)}` : f.old ? `راجع — ${esc(f.old)}` : "جديد"}</td><td>${esc(f.job)}</td><td>${esc(f.first)}</td><td class="num">${f.present}</td></tr>`).join("")}</tbody></table>` : "")
     + (ms.length ? `<div class="msg show err" style="display:block;margin-top:8px;">${ms.length} عامل مش هيترفع حضورهم: الرقم في الشيت مش رقم قومي، ومالقيناش في السجل عامل واحد بنفس الاسم في نفس الموقع. ضيفهم أو صحّح اسمهم في السجل وارفع الشيت تاني.</div>
        <table style="margin-top:6px"><thead><tr><th>الموقع</th><th>الاسم في الشيت</th><th>الرقم في الشيت</th><th>أيام</th></tr></thead><tbody>${ms.map(f =>
          `<tr><td>${esc(f.site)}</td><td>${esc(f.name)}</td><td dir="ltr">${esc(f.raw)}</td><td class="num">${f.days}</td></tr>`).join("")}</tbody></table>` : "")

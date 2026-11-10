@@ -719,6 +719,17 @@ $("back-acc").addEventListener("click", async () => {
 // ===== التأكيد =====
 $("confirm").addEventListener("click", async () => {
   const ai = aiState(), u = auth.currentUser;
+  // البدلاء المختارين: نفس الوظيفة والقسم (الأدمن اتسأل وقت الاختيار)
+  if (!S.admin) {
+    await ensureOrder();
+    let exc = null;
+    for (const [k, rp] of Object.entries(S.rep)) {
+      const pw = poolOf(rp), bad = repMismatch(targetWorker(k), pw);
+      if (!bad) continue;
+      exc = exc || await dayExceptions();
+      if (!exc.has(k + "|" + (pw.nid || pw.code || ""))) return show($("c-msg"), "err", "⚠ " + bad + " شيل البديل ده أو بلّغ الأدمن يستثنيه.");
+    }
+  }
   const entries = {};
   let P = 0, A = 0, Qn = 0;
   // ترتيب الكشف الورقي (زي المطبوع) — الاعتماد بيعرض الأسماء بيه
@@ -915,7 +926,7 @@ $("order").addEventListener("click", async () => {
   const site = S.site;
   const order = await loadOrder(site);
   await openOrderEditor({
-    site, roster: S.rosterNow, subs: restSubs(), order, plan: S.plan, canEdit: true, canAdmin: S.admin, lastChange: orderNote(order),
+    site, roster: S.rosterNow, subs: restSubs(), pool: S.pool || [], order, plan: S.plan, canEdit: true, canAdmin: S.admin, lastChange: orderNote(order),
     onSave: async o => {
       const u = auth.currentUser;
       // آخر حفظ هو اللي بيمشي، ومين غيّر وإمتى بيتسجلوا مع الترتيب
@@ -924,6 +935,7 @@ $("order").addEventListener("click", async () => {
         ...(o.sections ? { sections: o.sections, secNeed: o.secNeed, secOrder: o.secOrder, pageGroups: o.pageGroups } : {}),
         updated_by: u.uid, updated_email: actorEmail(u), updated_at: serverTimestamp(),
       });
+      SORD.site = null;   // الأقسام اتغيرت
     },
   });
 });
@@ -1033,8 +1045,48 @@ function repBlock(w, r, key = w.code) {
     <div class="hits" id="hits-${esc(key)}"></div>
     <button class="btn sec small" data-newrep="${esc(key)}" style="margin-top:4px;">بديل جديد مش في القايمة (بالبطاقة)</button></div>`;
 }
-function pickRep(code, who) {
+// ===== قفل القسم والوظيفة على البدلاء =====
+// البديل (يومية / بديل راحات) بيتسجل مكان غايب من نفس وظيفته ونفس قسمه بس. المواقع اللى مالهاش أقسام: الوظيفة بس.
+// المسجّل بيطلع له تحذير ويتمنع — الأدمن بس يقدر يسجّله. بيسرى من SEC_LOCK_FROM (الأيام اللى قبله زى ما هى).
+const SEC_LOCK_FROM = "2026-12-01";
+let SORD = { site: null, o: null };
+async function ensureOrder() { if (SORD.site !== S.site) SORD = { site: S.site, o: await loadOrder(S.site) }; return SORD.o; }
+const jn = j => String(j ?? "").replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه").replace(/\s+/g, " ").trim();
+const secOfW = w => { const sm = SORD.o?.sections || {}; return w ? (sm[String(w.code || "")] || (w.nid ? sm["N" + w.nid] : "") || "") : ""; };
+// نص المشكلة لو البديل ده مينفعش مكان الغايب ده، وإلا ""
+function repMismatch(t, p) {
+  if (!t || !p || (S.date || "") < SEC_LOCK_FROM) return "";
+  if (p.job && t.job && jn(p.job) !== jn(t.job)) return `${p.name} وظيفته «${p.job}»، و${t.name} وظيفته «${t.job}». البديل لازم يكون على نفس الوظيفة.`;
+  const ts = secOfW(t); if (!ts) return "";   // الغايب مالوش قسم (وظيفة مش متقسمة)
+  const ps = secOfW(p);
+  if (!ps) return `${p.name} مالوش قسم. حدد قسمه الأول من «ترتيب الكشف» (أقسام اليومية وبدلاء الراحات).`;
+  return ps === ts ? "" : `${p.name} على قسم «${ps}»، و${t.name} على قسم «${ts}». البديل لازم يكون من نفس القسم.`;
+}
+const poolOf = rp => (S.pool || []).find(x => (rp.nid && x.nid === rp.nid) || (rp.code && x.code === rp.code));
+// استثناء الأدمن (rep_exceptions): بديل معيّن مكان غايب معيّن في يوم معيّن — بعده المشرف يقدر يسجّله ويأكد اليوم
+async function dayExceptions() {
+  try { const sn = await getDocs(query(collection(db, "rep_exceptions"), where("site", "==", S.site), where("date", "==", S.date)));
+    return new Set(sn.docs.map(d => d.data().target + "|" + d.data().who)); } catch (e) { return new Set(); }
+}
+// true = البديل ده ينفع يتسجل مكان الغايب ده (نفس الوظيفة والقسم، أو عليه استثناء). الأدمن بيتسأل يستثنيه.
+async function repAllowed(key, p) {
+  await ensureOrder();
+  const t = targetWorker(key), bad = repMismatch(t, p);
+  if (!bad) return true;
+  const who = p.nid || p.code || "";
+  if ((await dayExceptions()).has(key + "|" + who)) return true;
+  if (!S.admin) { tell("⚠ " + bad + "\n\nمش مسموح تسجله. لو فيه ضرورة، بلّغ الأدمن يستثنيه."); return false; }
+  if (!await ask("⚠ " + bad + "\n\nتستثنيه في اليوم ده؟ بعد الاستثناء المشرف يقدر يسجّله ويأكد اليوم.", { ok: "استثناء" })) return false;
+  const u = auth.currentUser;
+  try {
+    await addDoc(collection(db, "rep_exceptions"), { site: S.site, date: S.date, target: key, target_name: t?.name || "", who, name: p.name || "",
+      reason: bad.slice(0, 300), by: u.uid, by_email: actorEmail(u), at: serverTimestamp() });
+  } catch (e) { tell("الاستثناء ماتسجلش: " + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules (rep_exceptions)." : e.message)); return false; }
+  return true;
+}
+async function pickRep(code, who) {
   const p = S.pool.find(x => (x.nid || x.code) === who); if (!p) return;
+  if (!await repAllowed(code, p)) return;
   S.rep[code] = { nid: p.nid || "", name: p.name, code: p.code || "" };
   render();
 }
@@ -1448,6 +1500,17 @@ $("idm-ok").addEventListener("click", async () => {
       bt.set(evRef, hireEvent(u, { name: d.name, nid: d.nid, phone, job, type: typ,
         first_day: S.date, check_id: ID.check, card_img: await cardThumb(ID.front) }));
       await bt.commit();
+      // بديل جديد: بياخد قسم الغايب اللى جه مكانه (تحديد لأول مرة)
+      if (ID.purpose === "replacement" && ID.target) {
+        try {
+          await ensureOrder();
+          const sec = secOfW(targetWorker(ID.target));
+          if (sec) { await updateDoc(doc(db, "sheet_order", S.site), { ["sections.N" + d.nid]: sec, updated_by: u.uid, updated_email: actorEmail(u), updated_at: serverTimestamp() }); SORD.site = null; }
+        } catch (e) {}
+      }
+    }
+    if (ID.purpose === "replacement" && ID.target && inPool) {   // موجود في البدلاء أصلاً: نفس قاعدة الاختيار من القايمة
+      if (!await repAllowed(ID.target, inPool)) { $("idm-ok").disabled = false; return; }
     }
     if (ID.purpose === "replacement" && ID.target) S.rep[ID.target] = { nid: d.nid, name: d.name, code: inPool?.code || "" };
     $("idm").classList.add("hidden");

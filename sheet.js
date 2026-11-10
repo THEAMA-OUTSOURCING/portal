@@ -625,7 +625,7 @@ const ORDER_CSS = `
 #so .so-help .muted{line-height:1.7;}
 `;
 
-// opts: { site, roster, subs, order, plan, canEdit, canAdmin (الأقسام ولصق ترتيب جاهز), onSave(doc) → Promise, lastChange: "نص" }
+// opts: { site, roster, subs, pool (اليومية والبدلاء — لأقسامهم), order, plan, canEdit, canAdmin (تغيير القسم أى وقت ولصق ترتيب جاهز), onSave(doc) → Promise, lastChange: "نص" }
 export async function openOrderEditor(opts) {
   if (!document.getElementById("so-style")) {
     const s = document.createElement("style"); s.id = "so-style"; s.textContent = ORDER_CSS; document.head.appendChild(s);
@@ -649,6 +649,24 @@ export async function openOrderEditor(opts) {
       .sort((a, b) => rank(splitJob(a.job).sec) - rank(splitJob(b.job).sec));
   });
   const secNames = sectionList(O);
+  // ===== قفل القسم =====
+  // تغيير قسم عامل ليه قسم محفوظ: من يوم 1 ليوم 5 في الشهر بس. تحديد القسم لأول مرة: أى وقت. الأدمن: أى وقت.
+  const SEC_OPEN_DAYS = 5;
+  const secWindowOpen = new Date().getDate() <= SEC_OPEN_DAYS;
+  const nKey = w => (w?.nid ? "N" + w.nid : "");
+  const savedSec = w => (O.sections || {})[keyOf(w)] || (O.sections || {})[nKey(w)] || "";
+  const curSec = w => state.sections[keyOf(w)] || state.sections[nKey(w)] || "";
+  const secLocked = w => !opts.canAdmin && !secWindowOpen && !!savedSec(w);
+  // أقسام الوظيفة دى (من المطلوب «القسم|الوظيفة»)، ولو مفيش: كل الأقسام
+  const secsOfJob = job => { const l = secNames.filter(x => (O.secNeed || {})[x + SEC_SEP + (job || "")] != null); return l.length ? l : secNames; };
+  const secSelect = (w, cls) => {
+    const cur = curSec(w), lock = secLocked(w), list = cls === "psec" ? secsOfJob(w.job) : secNames;
+    const names = cur && !list.includes(cur) ? [cur, ...list] : list;
+    return `<select class="sec${cls ? " " + cls : ""}" data-sec="1" ${lock ? "disabled" : ""} title="${lock ? `القسم بيتغير من يوم 1 ليوم ${SEC_OPEN_DAYS} في الشهر بس — بعد كده الأدمن بس` : "القسم"}"><option value="">بدون قسم</option>${names.map(x => `<option ${cur === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select>`;
+  };
+  // اليومية وبدلاء الراحات اللى مش مطبوعين في الكشف: قسمهم بس (من غير ترتيب)
+  const poolOnly = sectioned ? (opts.pool || []).filter(w => (w.nid || w.code) && !byKey.has(keyOf(w)) && !(w.nid && base.some(b => b.nid === w.nid))) : [];
+  const poolByKey = new Map(poolOnly.map(w => [keyOf(w), w]));
   let tab = types[0]?.id;
   let dirty = !!opts.startDirty;
   let flash = null, pasteOpen = false;
@@ -674,7 +692,8 @@ export async function openOrderEditor(opts) {
   };
   // تغيير قسم عامل: بيروح آخر نفس الوظيفة في القسم الجديد
   const changeSection = (k, sec) => {
-    const w = byKey.get(k); if (!w) return;
+    const w = byKey.get(k); if (!w || secLocked(w)) return;
+    if (nKey(w) && nKey(w) !== k) delete state.sections[nKey(w)];   // القسم القديم المربوط بالرقم القومى (قبل ما ياخد كود)
     const type = typeOf(w);
     const lists = state.lists[type];
     lists.forEach(j => { const i = j.keys.indexOf(k); if (i >= 0) j.keys.splice(i, 1); });
@@ -736,7 +755,7 @@ export async function openOrderEditor(opts) {
             <span class="h" title="اسحب">☰</span>${opts.canEdit ? `<input class="pos" type="number" inputmode="numeric" min="1" max="${j.keys.length}" value="${i + 1}" aria-label="المكان" title="${printed.has(k) ? "رقمه في الكشف " + (++n) : "مش هيتطبع"}">` : `<span class="i">${printed.has(k) ? ++n : "—"}</span>`}
             <span class="nm"><bdi>${esc(w.name)}</bdi><small dir="ltr">…${esc(String(w.nid || "").slice(-4))}</small></span>
             ${sub ? '<span class="new">بديل راحات</span>' : isNew ? '<span class="new">جديد</span>' : ""}${out ? '<span class="tag">متشال</span>' : over ? '<span class="tag">زيادة — مش هيتطبع</span>' : noRoom ? '<span class="tag">مفيش مكان في المطلوب</span>' : ""}
-            ${opts.canEdit ? `${sectioned && opts.canAdmin ? `<select class="sec" data-sec="1" title="القسم"><option value="">بدون قسم</option>${secNames.map(x => `<option ${state.sections[k] === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select>` : ""}
+            ${opts.canEdit ? `${sectioned ? secSelect(w) : ""}
             ${canCut ? `<button class="rm${out ? " on" : ""}" data-rm="1">${out ? "رجّع" : "شيل"}</button>` : ""}
             <button class="tb" data-to="top" title="أول الوظيفة">⤒</button><button class="tb" data-to="end" title="آخر الوظيفة">⤓</button>
             <button class="mv" data-mv="-1" aria-label="لفوق">▲</button><button class="mv" data-mv="1" aria-label="لتحت">▼</button>
@@ -744,6 +763,11 @@ export async function openOrderEditor(opts) {
           </li>`;
         }).join("")}</ul></div>`;
       }).join("")}
+      ${poolOnly.length ? `<div class="so-job"><div class="so-band">أقسام اليومية وبدلاء الراحات (${poolOnly.length}) — بدون قسم: ${poolOnly.filter(w => !curSec(w)).length}</div>
+        <div class="muted" style="padding:6px 4px;">دول مش مطبوعين في الكشف. حدد قسم كل واحد: من أول ديسمبر مش هيتسجل بديل غير في قسمه ووظيفته.${!opts.canAdmin && !secWindowOpen ? ` تغيير القسم المحفوظ من يوم 1 ليوم ${SEC_OPEN_DAYS} بس.` : ""}</div>
+        <ul>${poolOnly.map(w => `<li data-pk="${esc(keyOf(w))}"><span class="nm"><bdi>${esc(w.name)}</bdi><small dir="ltr">…${esc(String(w.nid || "").slice(-4))}</small></span>
+          <span class="new">${esc(w.type || "بديل")}</span><span class="tag">${esc(w.job || "بدون وظيفة")}</span>
+          ${opts.canEdit ? secSelect(w, "psec") : `<span class="tag">${esc(curSec(w) || "بدون قسم")}</span>`}</li>`).join("")}</ul></div>` : ""}
     </div>`;
     if (flash) {
       const el = [...so.querySelectorAll("li[data-k]")].find(li => li.dataset.k === flash);
@@ -815,6 +839,12 @@ export async function openOrderEditor(opts) {
   };
   so.addEventListener("change", e => {
     if (e.target.matches("input.pos")) posCommit(e.target);
+    if (e.target.matches("select.psec")) {
+      const w = poolByKey.get(e.target.closest("li").dataset.pk); if (!w || secLocked(w)) return render();
+      if (nKey(w) && nKey(w) !== keyOf(w)) delete state.sections[nKey(w)];
+      if (e.target.value) state.sections[keyOf(w)] = e.target.value; else delete state.sections[keyOf(w)];
+      dirty = true; render(); return;
+    }
     if (e.target.matches("select.sec")) { changeSection(e.target.closest("li").dataset.k, e.target.value); render(); }
   });
   so.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.matches("input.pos")) { e.preventDefault(); posCommit(e.target); } });
