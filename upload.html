@@ -276,7 +276,7 @@ function renderPreview() {
   }
   const rows = Object.entries(by);
   $("p-title").textContent = `2. راجع قبل الحفظ — ${COMPANY_LABEL[S.type]} (${S.fileName})`;
-  $("p-sites").innerHTML = rows.length ? rows.map(([s, x]) => `<tr><td>${esc(s)}</td><td class="num">${x.workers.size}</td><td class="num">${x.days}</td><td>${x.from}</td><td>${x.to}</td>
+  $("p-sites").innerHTML = rows.length ? rows.map(([s, x]) => `<tr><td>${esc(s)}</td><td class="num">${x.workers.size}</td><td class="num">${x.days}</td><td>${esc(x.from)}</td><td>${esc(x.to)}</td>
     <td class="num">${Math.round(x.p / x.days)}</td><td class="num">${Math.round(x.a / x.days)}</td><td class="num">${x.l}</td></tr>`).join("")
     : `<tr><td colspan="8" class="muted">مفيش أيام في الفترة دي.</td></tr>`;
   const iss = S.res.issues, fx = S.fixes || [], ms = S.missing || [];
@@ -328,10 +328,10 @@ async function renderOver() {
   const { rows, note } = await overPlan(selected());
   const a = $("p-from").value, b = $("p-to").value, tr = (S.trim || []).filter(t => t.date >= a && t.date <= b);
   const trimHtml = tr.length ? `<div class="msg show info" style="display:block;margin-top:8px;">في ${tr.length} حضور زيادة عن المخطط — البوابة شالتهم من العدد (اليومية الأول، وبعدين البديل، وبعدين آخر حد اتعيّن). هيتسجلوا «ز» = زيادة مش محسوبة.</div>
-       <table style="margin-top:6px"><thead><tr><th>اليوم</th><th>الموقع</th><th>سطر المخطط</th><th>الاسم</th><th>النوع</th><th>الحاضرين / المخطط</th></tr></thead><tbody>${tr.map(t => `<tr><td>${t.date}</td><td>${esc(t.site)}</td><td>${esc(t.job)}</td><td>${esc(t.name)}</td><td>${esc(t.type)}</td><td class="num">${t.n} / ${t.plan}</td></tr>`).join("")}</tbody></table>` : "";
+       <table style="margin-top:6px"><thead><tr><th>اليوم</th><th>الموقع</th><th>سطر المخطط</th><th>الاسم</th><th>النوع</th><th>الحاضرين / المخطط</th></tr></thead><tbody>${tr.map(t => `<tr><td>${esc(t.date)}</td><td>${esc(t.site)}</td><td>${esc(t.job)}</td><td>${esc(t.name)}</td><td>${esc(t.type)}</td><td class="num">${t.n} / ${t.plan}</td></tr>`).join("")}</tbody></table>` : "";
   el.innerHTML = trimHtml + (rows.length
     ? `<div class="msg show warn" style="display:block">في ${rows.length} يوم/وظيفة الحاضرين فيهم أكتر من المخطط (${note}) — تنبيه بس، الحفظ مسموح.</div>
-       <table style="margin-top:6px"><thead><tr><th>اليوم</th><th>الموقع</th><th>الوظيفة</th><th>الحاضرين</th><th>المخطط</th><th>الزيادة</th></tr></thead><tbody>${rows.map(r => `<tr><td>${r.date}</td><td>${esc(r.site)}</td><td>${esc(r.job)}</td><td class="num">${r.c}</td><td class="num">${r.plan}</td><td class="num" style="color:#a32d2d">+${r.c - r.plan}</td></tr>`).join("")}</tbody></table>`
+       <table style="margin-top:6px"><thead><tr><th>اليوم</th><th>الموقع</th><th>الوظيفة</th><th>الحاضرين</th><th>المخطط</th><th>الزيادة</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(r.date)}</td><td>${esc(r.site)}</td><td>${esc(r.job)}</td><td class="num">${r.c}</td><td class="num">${r.plan}</td><td class="num" style="color:#a32d2d">+${r.c - r.plan}</td></tr>`).join("")}</tbody></table>`
     : `<p class="muted" style="margin-top:8px;">✓ مفيش يوم الحاضرين فيه زادوا عن المخطط. ${note}</p>`);
 }
 

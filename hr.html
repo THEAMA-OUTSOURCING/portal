@@ -709,10 +709,10 @@ const tsTxt = t => t?.toDate ? t.toDate().toLocaleDateString("ar-EG") : "";
 const CDEC = { approved: "وافق", modified: "وافق وعدّل المدة", rejected: "رفض", partial: "اعتمد جزء" };
 // المرضي: HR تيما بيكتب السبب والمستشفى وهو بيوافق (لازمين لشيت العميل)، ويقدر يغيّر مرضى ↔ إصابة عمل
 const sickFields = e => e.type !== "sick" ? "" : `<div class="row" style="width:100%;gap:6px;">
-  <select data-sk="${e.id}" style="padding:4px 6px;font-size:12px;"><option value="sick" ${e.sick_kind !== "injury" ? "selected" : ""}>مرضى</option><option value="injury" ${e.sick_kind === "injury" ? "selected" : ""}>إصابة عمل</option></select>
-  <input data-cause="${e.id}" placeholder="سبب الحالة المرضية" value="${esc(e.cause || "")}" style="flex:2;min-width:150px;">
-  <input data-hosp="${e.id}" placeholder="المستشفى" value="${esc(e.hospital || "")}" style="flex:1;min-width:110px;"></div>`;
-const kindSel = e => e.type !== "leave" ? "" : `<select data-kind="${e.id}" style="padding:4px 6px;font-size:12px;"><option value="annual" ${e.kind !== "unpaid" ? "selected" : ""}>ج — إجازة (ليه رصيد)</option><option value="unpaid" ${e.kind === "unpaid" ? "selected" : ""}>خ — بدون أجر (ملوش رصيد)</option></select>`;
+  <select data-sk="${esc(e.id)}" style="padding:4px 6px;font-size:12px;"><option value="sick" ${e.sick_kind !== "injury" ? "selected" : ""}>مرضى</option><option value="injury" ${e.sick_kind === "injury" ? "selected" : ""}>إصابة عمل</option></select>
+  <input data-cause="${esc(e.id)}" placeholder="سبب الحالة المرضية" value="${esc(e.cause || "")}" style="flex:2;min-width:150px;">
+  <input data-hosp="${esc(e.id)}" placeholder="المستشفى" value="${esc(e.hospital || "")}" style="flex:1;min-width:110px;"></div>`;
+const kindSel = e => e.type !== "leave" ? "" : `<select data-kind="${esc(e.id)}" style="padding:4px 6px;font-size:12px;"><option value="annual" ${e.kind !== "unpaid" ? "selected" : ""}>ج — إجازة (ليه رصيد)</option><option value="unpaid" ${e.kind === "unpaid" ? "selected" : ""}>خ — بدون أجر (ملوش رصيد)</option></select>`;
 function render() {
   const st = $("f-st").value, ty = $("f-ty").value, gr = $("f-gr").value, q = $("f-q").value.trim();
   // اللي اتعدل في الشيت بعد القرار بيظهر مع «مستني HR تيما» وفوق خالص، عشان محدش يفوّته
@@ -724,8 +724,8 @@ function render() {
     const toClient = needsClient(e);
     return `
     <div class="ev">
-      <div class="ph" ${e.image ? `data-zoom="${e.id}"` : ""}>${e.image ? `<img src="${esc(e.image)}" alt="">` : `<span class="muted">${e.image_path ? "الصورة اتنقلت لسيرفر الشركة" : e.type === "leave" ? "الإجازة مالهاش صورة" : e.image_missing ? "الصورة مش لاقيها على Drive" : "مفيش صورة"}</span>`}</div>
-      ${e.image2 ? `<div style="display:flex;border-top:1px solid #e5e5e5;">${MAHDAR.filter(f => e[f]).map((f, i) => `<div class="ph" style="height:120px;flex:1;${i ? "border-right:1px solid #e5e5e5;" : ""}" data-zoom2="${e.id}" data-f="${f}" title="المحضر المختوم ${i + 1}"><img src="${esc(e[f])}" alt="المحضر"></div>`).join("")}</div>` : e.sick_kind === "injury" && e.source === "supervisor" ? `<div class="warn" style="margin:6px 12px 0;">مفيش صورة المحضر</div>` : ""}
+      <div class="ph" ${e.image ? `data-zoom="${esc(e.id)}"` : ""}>${e.image ? `<img src="${esc(e.image)}" alt="">` : `<span class="muted">${e.image_path ? "الصورة اتنقلت لسيرفر الشركة" : e.type === "leave" ? "الإجازة مالهاش صورة" : e.image_missing ? "الصورة مش لاقيها على Drive" : "مفيش صورة"}</span>`}</div>
+      ${e.image2 ? `<div style="display:flex;border-top:1px solid #e5e5e5;">${MAHDAR.filter(f => e[f]).map((f, i) => `<div class="ph" style="height:120px;flex:1;${i ? "border-right:1px solid #e5e5e5;" : ""}" data-zoom2="${esc(e.id)}" data-f="${f}" title="المحضر المختوم ${i + 1}"><img src="${esc(e[f])}" alt="المحضر"></div>`).join("")}</div>` : e.sick_kind === "injury" && e.source === "supervisor" ? `<div class="warn" style="margin:6px 12px 0;">مفيش صورة المحضر</div>` : ""}
       <div class="bd">
         <div class="row" style="justify-content:space-between;align-items:center;"><span class="nm">${esc(e.name)}</span><span><span class="pill t-${cls(e.type)}">${tyTxt(e)}${e.kind ? " " + (KINDS[e.kind] || "") : ""}</span> <span class="pill s-${cls(e.status)}">${stTxt(e)}</span></span></div>
         <div style="margin-top:4px;"><span class="pill g">${GROUP_AR[groupOf(e)]}</span> <span class="muted">${SRC[e.source] || ""}</span></div>
@@ -752,20 +752,20 @@ function render() {
         <div class="row"><label class="f">من (أو تاريخ الاستقالة)<input type="date" data-ef value="${esc(e.type === "resign" ? e.entry_date : (e.from || (isInj(e) && prevInjury(e) ? dayAfter(prevInjury(e).to || prevInjury(e).from) : "")))}"></label>
         <label class="f">لحد<input type="date" data-eto value="${esc(e.to || "")}"></label></div>
         <div data-esick${e.type === "sick" ? "" : ' class="hidden"'}><span class="muted" style="font-size:12px;">لو مرضي:</span>${sickFields({ ...e, type: "sick" })}</div>
-        <input placeholder="سبب التعديل" data-note="${e.id}">
-        <div class="row"><button class="btn ok small" data-esave="${e.id}">احفظ و${toClient ? "ابعت للعميل" : "اعتمد"}</button><button class="btn sec small" data-ecancel="1">إلغاء</button></div></div>` : ""}
+        <input placeholder="سبب التعديل" data-note="${esc(e.id)}">
+        <div class="row"><button class="btn ok small" data-esave="${esc(e.id)}">احفظ و${toClient ? "ابعت للعميل" : "اعتمد"}</button><button class="btn sec small" data-ecancel="1">إلغاء</button></div></div>` : ""}
       ${CEDIT === e.id ? `<div class="ft edit" style="flex-direction:column;align-items:stretch;background:#f4f8fd">
         <b style="font-size:13px;">العميل وافق بمدة تانية</b>
         <div class="row"><label class="f">من<input type="date" data-cf value="${esc(e.from)}"></label><label class="f">لحد<input type="date" data-cto value="${esc(e.to)}"></label></div>
-        <input placeholder="ملاحظة العميل (اختياري)" data-cnote="${e.id}">
-        <div class="row"><button class="btn ok small" data-csave="${e.id}">سجّل</button><button class="btn sec small" data-ccancel="1">إلغاء</button></div></div>` : ""}
+        <input placeholder="ملاحظة العميل (اختياري)" data-cnote="${esc(e.id)}">
+        <div class="row"><button class="btn ok small" data-csave="${esc(e.id)}">سجّل</button><button class="btn sec small" data-ccancel="1">إلغاء</button></div></div>` : ""}
       ${VIEW || EDIT === e.id || CEDIT === e.id ? "" : `<div class="ft">${e.status === "pending" || e.changed
-        ? `${kindSel(e)}${sickFields(e)}<input placeholder="ملاحظة (إجبارية لو هترفض)" data-note="${e.id}" style="flex:1;min-width:120px;"><button class="btn ok small" data-ap="${e.id}">${toClient && e.type !== "resign" ? "موافقة ← للعميل" : "اعتماد"}</button><button class="btn sec small" data-ed="${e.id}">تعديل</button><button class="btn danger small" data-rj="${e.id}">رفض</button>`
+        ? `${kindSel(e)}${sickFields(e)}<input placeholder="ملاحظة (إجبارية لو هترفض)" data-note="${esc(e.id)}" style="flex:1;min-width:120px;"><button class="btn ok small" data-ap="${esc(e.id)}">${toClient && e.type !== "resign" ? "موافقة ← للعميل" : "اعتماد"}</button><button class="btn sec small" data-ed="${esc(e.id)}">تعديل</button><button class="btn danger small" data-rj="${esc(e.id)}">رفض</button>`
         : e.status === "client_wait" && e.type === "sick"
-        ? `<input placeholder="ملاحظة العميل (اختياري)" data-note="${e.id}" style="flex:1;min-width:110px;"><label class="f" style="flex-direction:row;align-items:center;gap:4px;">الأيام المعتمدة<input type="number" min="0" max="${esc(e.days)}" value="${esc(e.days)}" data-sa="${e.id}" style="width:64px;padding:4px 6px;"></label><button class="btn ok small" data-sok="${e.id}">سجّل رد العميل</button><button class="btn danger small" data-back="${e.id}">رجّعها لتيما</button>`
+        ? `<input placeholder="ملاحظة العميل (اختياري)" data-note="${esc(e.id)}" style="flex:1;min-width:110px;"><label class="f" style="flex-direction:row;align-items:center;gap:4px;">الأيام المعتمدة<input type="number" min="0" max="${esc(e.days)}" value="${esc(e.days)}" data-sa="${esc(e.id)}" style="width:64px;padding:4px 6px;"></label><button class="btn ok small" data-sok="${esc(e.id)}">سجّل رد العميل</button><button class="btn danger small" data-back="${esc(e.id)}">رجّعها لتيما</button>`
         : e.status === "client_wait"
-        ? `<input placeholder="ملاحظة العميل (إجبارية لو رفض)" data-note="${e.id}" style="flex:1;min-width:120px;"><button class="btn ok small" data-cok="${e.id}">العميل وافق</button><button class="btn sec small" data-ced="${e.id}">وافق بمدة تانية</button><button class="btn danger small" data-crj="${e.id}">العميل رفض</button><button class="btn danger small" data-back="${e.id}">رجّعها لتيما</button>`
-        : `<button class="btn danger small" data-back="${e.id}">رجّعها مستنية</button>`}</div>`}
+        ? `<input placeholder="ملاحظة العميل (إجبارية لو رفض)" data-note="${esc(e.id)}" style="flex:1;min-width:120px;"><button class="btn ok small" data-cok="${esc(e.id)}">العميل وافق</button><button class="btn sec small" data-ced="${esc(e.id)}">وافق بمدة تانية</button><button class="btn danger small" data-crj="${esc(e.id)}">العميل رفض</button><button class="btn danger small" data-back="${esc(e.id)}">رجّعها لتيما</button>`
+        : `<button class="btn danger small" data-back="${esc(e.id)}">رجّعها مستنية</button>`}</div>`}
     </div>`; }).join("") : `<div class="card muted">مفيش حالات.</div>`;
 }
 // بيانات المرضي من الكارت: النوع والسبب والمستشفى — السبب والمستشفى لازمين لو الحالة رايحة للعميل
@@ -986,14 +986,14 @@ function wqFields(e, edit) {
 function wqCard(e) {
   const edit = !VIEW && (e.status === "pending" || e.status === "error");
   const retEdit = !VIEW && e.status === "returned";   // المشرف ماستكملش: الـ HR يقدر يرفضه نهائي
-  const img = e.kind === "hire" ? `<div class="ph" style="height:170px;" ${e.card_img ? `data-wqzoom="${e.id}"` : ""}>${e.card_img
+  const img = e.kind === "hire" ? `<div class="ph" style="height:170px;" ${e.card_img ? `data-wqzoom="${esc(e.id)}"` : ""}>${e.card_img
     ? `<img src="${esc(e.card_img)}" alt="البطاقة">` : `<span class="muted">${e.check_id ? "صورة البطاقة اتحفظت على سيرفر الشركة" : "من غير بطاقة"}</span>`}</div>` : "";
   const notes = [e.note && `ملاحظة: ${e.note}`, e.status === "error" && e.error && `السيرفر: ${e.error}`,
     e.status === "rejected" && e.decision_note && `سبب الرفض: ${e.decision_note}`,
     e.status === "returned" && `تم رده للمشرف: ${e.decision_note || WQ_RET[e.return_reason] || ""}`,
     e.completed_at && e.status !== "returned" && `المشرف استكمل (${wqDate(e.completed_at)}) — كان ناقص: ${WQ_RET[e.return_reason] || e.return_reason || ""}${e.completion_note ? "\nرد المشرف: " + e.completion_note : ""}`].filter(Boolean);
   const src = e.source === "page" ? "" : e.source === "sharqia_attendance_2026_10" ? " — من حضور الشرقية 2 أكتوبر" : e.source === "excel" ? ` — من إكسيل ${e.company === "chipsy" ? "شيبسي" : e.company === "sharqia" ? "الشرقية" : "الإمداد"} (اكتب التليفون)` : " — من التعديلات القديمة";
-  return `<div class="ev" data-wq="${e.id}">${img}
+  return `<div class="ev" data-wq="${esc(e.id)}">${img}
     <div class="bd">
       <div class="row" style="justify-content:space-between;align-items:center;"><span class="nm">${esc(e.name || e.code || "")}</span>
         <span><span class="pill t-${cls(e.kind)}">${WQ_KIND[e.kind] || esc(e.kind)}</span> <span class="pill s-${cls(e.status)}">${WQ_ST[e.status] || esc(e.status)}</span></span></div>
@@ -1002,26 +1002,26 @@ function wqCard(e) {
       ${notes.map(n => `<div class="warn" style="white-space:pre-line;">${esc(n)}</div>`).join("")}
     </div>
     ${edit ? `<div class="ft" style="flex-wrap:wrap;">
-      <button class="btn ok small" data-wqok="${e.id}">اعتماد</button>
-      <button class="btn sec small" data-wqsave="${e.id}">حفظ التعديل</button>
+      <button class="btn ok small" data-wqok="${esc(e.id)}">اعتماد</button>
+      <button class="btn sec small" data-wqsave="${esc(e.id)}">حفظ التعديل</button>
       <select data-wqr style="padding:4px 6px;font-size:12px;border:1px solid #ddd;border-radius:8px;">
         <option value="">— السبب (إجباري للرفض أو الإرجاع) —</option>
         ${e.kind === "hire" ? `<optgroup label="رجّع للمشرف يستكمل">${Object.entries(WQ_RET).map(([k, t]) => `<option value="ret:${k}">${esc(t)}</option>`).join("")}</optgroup>` : ""}
         <optgroup label="رفض نهائي">${WQ_REJ.map(t => `<option value="rej:${esc(t)}">${esc(t)}</option>`).join("")}</optgroup>
       </select>
       <input data-wqwhy placeholder="ملاحظة للمشرف (إجباري لو «أخرى»)" style="flex:1;min-width:140px;padding:4px 6px;font-size:12px;">
-      ${e.kind === "hire" ? `<button class="btn sec small" data-wqret="${e.id}">رجّع للمشرف يستكمل</button>` : ""}
-      <button class="btn small" data-wqno="${e.id}">رفض</button></div>` : retEdit ? `<div class="ft" style="flex-wrap:wrap;">
+      ${e.kind === "hire" ? `<button class="btn sec small" data-wqret="${esc(e.id)}">رجّع للمشرف يستكمل</button>` : ""}
+      <button class="btn small" data-wqno="${esc(e.id)}">رفض</button></div>` : retEdit ? `<div class="ft" style="flex-wrap:wrap;">
       <span class="muted" style="font-size:12px;">مستني المشرف يستكمل. لو مش هيستكمل:</span>
       <select data-wqr style="padding:4px 6px;font-size:12px;border:1px solid #ddd;border-radius:8px;"><option value="">— سبب الرفض —</option>
         ${WQ_REJ.map(t => `<option value="rej:${esc(t)}">${esc(t)}</option>`).join("")}</select>
       <input data-wqwhy placeholder="ملاحظة للمشرف" style="flex:1;min-width:140px;padding:4px 6px;font-size:12px;">
-      <button class="btn small" data-wqno="${e.id}">رفض نهائي</button></div>` : ""}
+      <button class="btn small" data-wqno="${esc(e.id)}">رفض نهائي</button></div>` : ""}
   </div>`;
 }
 function wqRow(e) {
   const src = e.source === "page" ? "" : e.source === "sharqia_attendance_2026_10" ? " — من حضور الشرقية 2 أكتوبر" : e.source === "excel" ? ` — من إكسيل ${e.company === "chipsy" ? "شيبسي" : e.company === "sharqia" ? "الشرقية" : "الإمداد"} (اكتب التليفون)` : " — من التعديلات القديمة";
-  return `<button type="button" class="wq-row ${WQ.sel === e.id ? "on" : ""}" data-wqopen="${e.id}">
+  return `<button type="button" class="wq-row ${WQ.sel === e.id ? "on" : ""}" data-wqopen="${esc(e.id)}">
     <div class="row" style="justify-content:space-between;align-items:center;gap:6px;"><span class="nm">${esc(e.name || e.code || "")}</span>
       <span><span class="pill t-${cls(e.kind)}">${WQ_KIND[e.kind] || esc(e.kind)}</span> <span class="pill s-${cls(e.status)}">${WQ_ST[e.status] || esc(e.status)}</span></span></div>
     <div class="muted">${esc(e.site || e.branch || "")}${e.branch && e.branch !== e.site ? " — " + esc(e.branch) : ""} — ${wqDate(e.created_at)}${src}</div></button>`;

@@ -44,7 +44,7 @@ export function applySections(workers, order, plan) {
   ws.forEach(w => { if (isSecJob(w.job)) split.add(splitJob(w.job).job); });
   const p = {};
   Object.entries(plan).forEach(([j, n]) => { if (!split.has(j)) p[j] = n; });
-  Object.entries(need).forEach(([k, n]) => { p[k] = n; });
+  Object.entries(need).forEach(([k, n]) => { p[k] = Number(n) || 0; });   // رقم بس (المشرف بيكتب secNeed)
   return { workers: ws, plan: p };
 }
 // Firestore مابيقبلش array جوه array: المجموعة بتتحفظ نص «قسم|قسم» (وبنقبل الشكلين)
@@ -354,7 +354,7 @@ export function sheetsHtml({ site, roster, subs, order, plan, month, year }) {
   return html;
 }
 
-const needTxt = n => (n != null ? `<span class="scr"> — المطلوب ${n}</span>` : "");
+const needTxt = n => (n != null ? `<span class="scr"> — المطلوب ${esc(n)}</span>` : "");
 
 function pageHtml(s, p, total, site, typeTitle, monthName, month, year) {
   const content = contentRows(s);
@@ -380,7 +380,7 @@ function pageHtml(s, p, total, site, typeTitle, monthName, month, year) {
   const jobs = [...new Set(s.jobs.map(j => splitJob(j).job))];
   const jl = jobs.length > 1 ? "الوظائف" : "الوظيفة";
   const part = s.parts > 1 && (s.secs ? s.secs.length === 1 : s.jobs.length === 1) ? ` (${s.part} من ${s.parts})` : "";
-  const need = s.jobs.length === 1 && s.need != null ? `<span class="scr"> &nbsp; المطلوب للوظيفة: <b>${s.need}</b></span>` : "";
+  const need = s.jobs.length === 1 && s.need != null ? `<span class="scr"> &nbsp; المطلوب للوظيفة: <b>${esc(s.need)}</b></span>` : "";
   const secLine = s.secs ? `${s.secs.length > 1 ? "الأقسام" : "القسم"}: <b>${esc(s.secs.map(x => x || "بدون قسم").join("، "))}</b> &nbsp;·&nbsp; ` : "";
   return `<section class="page${(s.uniform ? s.rows.length : content) > AUTO_ROWS || rh < ROW_MM - 0.01 ? " dense" : ""}${s.uniform ? " uni" : ""}" style="--rh:${rh.toFixed(2)}mm">
     <div class="head"><div><div class="title">كشف حضور ${esc(site)}${typeTitle}</div>
@@ -723,7 +723,7 @@ export async function openOrderEditor(opts) {
         const L = info.get(j.job) || { names: [], extra: [], spare: [], need: null, blanks: 0 };
         const printed = new Set(L.names.map(keyOf)), extra = new Set(L.extra.map(keyOf)), spare = new Set(L.spare.map(keyOf));
         const subsIn = L.names.filter(isSub).length;
-        const needLine = L.need != null ? ` — المطلوب ${L.need}، هيتطبع ${L.names.length} اسم${subsIn ? ` (منهم ${subsIn} بديل راحات)` : ""}${L.blanks ? ` + ${L.blanks} خانة فاضية` : ""}` : "";
+        const needLine = L.need != null ? ` — المطلوب ${esc(L.need)}، هيتطبع ${L.names.length} اسم${subsIn ? ` (منهم ${subsIn} بديل راحات)` : ""}${L.blanks ? ` + ${L.blanks} خانة فاضية` : ""}` : "";
         let n = 0;
         return `<div class="so-job"><div class="so-band">${esc(jobLabel(j.job) || "بدون وظيفة")} (${j.keys.length})${needLine}</div>
         <ul data-job="${ji}">${j.keys.map((k, i) => {

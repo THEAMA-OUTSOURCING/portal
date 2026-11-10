@@ -340,7 +340,7 @@ $("list").onclick = async e => {
   const kv = rows => `<dl class="kv">${rows.filter(([, v]) => v !== undefined && v !== null && v !== "").map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>`;
   const so = socTxt(r), he = hlTxt(r);
   const hist = (x.history || []).slice().reverse().map(h => {
-    const what = h.kind === "change" ? Object.entries(h.to || {}).map(([k, v]) => `${FL[k] || k}: ${esc((h.from || {})[k] || "—")} ← ${esc(v)}`).join("، ")
+    const what = h.kind === "change" ? Object.entries(h.to || {}).map(([k, v]) => `${FL[k] || esc(k)}: ${esc((h.from || {})[k] || "—")} ← ${esc(v)}`).join("، ")
       : h.kind === "leave" ? esc(h.reason || "") : h.kind === "insurance" ? esc(INS_H[h.ins]?.[h.move] || "") : h.rehire ? "رجع بكوده" : "";
     return `<li><b>${HK[h.kind] || esc(h.kind)}</b> ${esc(h.on || "")}${what ? " — " + what : ""} <span class="muted">(${esc(h.by_email || "")})</span></li>`;
   }).join("");

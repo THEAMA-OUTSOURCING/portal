@@ -366,7 +366,7 @@ async function loadHolidays() {
   const m = $("h-month").value; if (!m) return;
   const h = await holidaysFor([m]);
   const rows = Object.entries(h).sort();
-  $("h-list").innerHTML = rows.length ? rows.map(([d, n]) => `<tr><td>${DAYN[new Date(d + "T00:00").getDay()]} ${d}</td><td>${esc(n)}</td><td>${S.role === "admin" ? `<button class="btn danger small" data-hdel="${d}">شيل</button>` : ""}</td></tr>`).join("") : `<tr><td colspan="3" class="muted">مفيش عطلات متسجلة للشهر ده.</td></tr>`;
+  $("h-list").innerHTML = rows.length ? rows.map(([d, n]) => `<tr><td>${DAYN[new Date(d + "T00:00").getDay()] || ""} ${esc(d)}</td><td>${esc(n)}</td><td>${S.role === "admin" ? `<button class="btn danger small" data-hdel="${esc(d)}">شيل</button>` : ""}</td></tr>`).join("") : `<tr><td colspan="3" class="muted">مفيش عطلات متسجلة للشهر ده.</td></tr>`;
 }
 $("h-month").onchange = loadHolidays;
 $("h-add").onclick = async () => {
@@ -532,7 +532,7 @@ async function leaveReport(from, to, sel, jobF, kind) {
     rows.sort((a, b) => a.site.localeCompare(b.site) || a.name.localeCompare(b.name) || a.from.localeCompare(b.from));
     const multi = site === "*";
     let h = `<thead><tr><th>م</th>${multi ? "<th>الموقع</th>" : ""}<th>الاسم</th><th>الرقم القومي / الكود</th><th>الوظيفة</th><th>من</th><th>لحد</th><th>أيام في الفترة</th><th>أيام الحالة</th><th>السبب / ملاحظة</th></tr></thead><tbody>`;
-    rows.forEach((r, i) => h += `<tr data-i="${i}"><td>${i + 1}</td>${multi ? `<td>${esc(r.site)}</td>` : ""}<td class="nm">${esc(r.name)}</td><td>${esc(r.nid || r.code)}</td><td>${esc(r.job)}</td><td>${r.from}</td><td>${r.to}</td><td><b>${r.inP}</b></td><td>${r.days}</td><td class="nm">${esc([r.reason, r.note].filter(Boolean).join(" — "))}${r.flag ? ` <b style="color:#a32d2d">(${esc(r.flag)})</b>` : ""}</td></tr>`);
+    rows.forEach((r, i) => h += `<tr data-i="${i}"><td>${i + 1}</td>${multi ? `<td>${esc(r.site)}</td>` : ""}<td class="nm">${esc(r.name)}</td><td>${esc(r.nid || r.code)}</td><td>${esc(r.job)}</td><td>${esc(r.from)}</td><td>${esc(r.to)}</td><td><b>${esc(r.inP)}</b></td><td>${esc(r.days)}</td><td class="nm">${esc([r.reason, r.note].filter(Boolean).join(" — "))}${r.flag ? ` <b style="color:#a32d2d">(${esc(r.flag)})</b>` : ""}</td></tr>`);
     const tot = rows.reduce((a, r) => a + r.inP, 0), ppl = new Set(rows.map(r => r.nid || r.code || r.name)).size;
     h += `<tr class="foot"><td colspan="${multi ? 7 : 6}" style="text-align:right">الإجمالي</td><td><b>${tot}</b></td><td></td><td></td></tr></tbody>`;
     $("r-table").innerHTML = h;
@@ -829,7 +829,7 @@ $("a-go").onclick = async () => {
     A = (await fetchDays(from, to, site)).filter(d => !st || d.status === st).sort((a, b) => a.date.localeCompare(b.date) || a.site.localeCompare(b.site));
     $("a-list").innerHTML = A.length ? A.map((d, i) => {
       const e = Object.values(d.entries || {}), reps = e.filter(x => x.rep).length, sup = e.filter(x => x.by === "sup").length;
-      return `<tr><td>${esc(d.site)}</td><td>${DAYN[new Date(d.date + "T00:00").getDay()]} ${d.date}</td><td>${d.counts?.present ?? ""}</td><td>${d.counts?.absent ?? ""}</td><td>${reps}</td><td>${sup}</td>
+      return `<tr><td>${esc(d.site)}</td><td>${DAYN[new Date(d.date + "T00:00").getDay()]} ${d.date}</td><td>${esc(d.counts?.present ?? "")}</td><td>${esc(d.counts?.absent ?? "")}</td><td>${reps}</td><td>${sup}</td>
         <td class="muted">${esc(d.confirmed_email || "")}${d.late ? ` <span class="pill p-late">متأخر</span>` : ""}${d.reviewed_email ? `<br>راجعه: ${esc(d.reviewed_email)}${d.review_late ? ` <span class="pill p-late">متأخر</span>` : ""}` : ""}</td>
         <td>${apState(d)}</td>
         <td><button class="btn sec small" data-view="${i}">تفاصيل</button> ${!S.canApprove ? "" : d.status === "approved" ? `<button class="btn danger small" data-un="${i}">إلغاء الاعتماد</button>` : (d.status === "reviewed" || S.role === "admin") ? (tIssues(d) ? `<button class="btn small" data-view="${i}">راجع الأوقات (${tIssues(d)})</button>` : `<button class="btn ok small" data-ap="${i}">اعتماد</button>`) : ""}</td></tr>`;
