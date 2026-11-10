@@ -1,0 +1,1792 @@
+// page-attendance.js — سكريبت صفحة attendance.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
+import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, isBasic, nearWorkers, ask, tell } from './shared.js?v=20261104e';
+import { openPrintView, openOrderEditor, printOrder } from './sheet.js?v=20261104e';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261104e';
+
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = n => Number(n || 0).toLocaleString("ar-EG");
+function show(el, type, text) { el.className = "msg show " + type; el.textContent = text; }
+function hide(el) { el.className = "msg"; el.textContent = ""; }
+const pad = n => String(n).padStart(2, "0");
+const ymd = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+
+const S = { regional: false, admin: false, office: false, timed: false, prevIn: {}, prevOut: {}, sites: [], site: null, date: null, roster: [], pages: [], day: null, choice: {}, unsubPages: null, unsubDay: null, plan: {}, lateCount: 0, pool: [], rep: {}, removals: [], unsubRoster: null, unsubPool: null, unsubRem: null, newWorkers: [], unsubNew: null, xpick: {} };
+
+// ===== العدد المطلوب من شيت الاحتياج (الحساب نفسه في shared.js — نفس حساب صفحة الإدارة) =====
+async function loadPlan() {
+  const site = S.site, date = S.date;   // الموقع واليوم وقت الطلب (لو اتغيروا قبل ما الرد يرجع، الرد القديم يتساب)
+  let plan = {};
+  try { plan = planBySite(await fetchPlanBase(date.slice(0, 7)), date)[site] || {}; }
+  catch (e) { plan = {}; }
+  // شيبسي مالهاش شيت احتياج على البوابة: المخطط الثابت (HC CFI)
+  if (!Object.keys(plan).length && CHIPSY_SITE_PLAN[site]) plan = { ...CHIPSY_SITE_PLAN[site] };
+  if (site === S.site && date === S.date) S.plan = plan;
+}
+// أيام موقع في فترة بس (بدل كل أيام الموقع من البداية) — محتاج index على att_days: site + date.
+// لو الـ index لسه مااتعملش، بيرجع للطريقة القديمة عشان الصفحة متقفش.
+async function siteDays(site, from, to) {
+  try {
+    const sn = await getDocs(query(collection(db, "att_days"), where("site", "==", site), where("date", ">=", from), where("date", "<=", to)));
+    return sn.docs;
+  } catch (e) {
+    if (e.code !== "failed-precondition") throw e;
+    console.warn("att_days محتاج index (site + date):", e.message);
+    const sn = await getDocs(query(collection(db, "att_days"), where("site", "==", site)));
+    return sn.docs.filter(d => { const x = d.data().date || ""; return x >= from && x <= to; });
+  }
+}
+async function loadLate() {
+  S.lateCount = 0;
+  const site = S.site, date = S.date; let n = 0;
+  try {
+    const month = date.slice(0, 7);
+    const days = await siteDays(site, month + "-01", month + "-31");
+    days.forEach(d => { const x = d.data(); if ((S.regional ? x.review_late : x.late) && x.date !== date) n++; });
+  } catch (e) { n = 0; }
+  if (site === S.site && date === S.date) S.lateCount = n;
+}
+const ORD = ["الأولى", "التانية", "التالتة", "الرابعة", "الخامسة", "السادسة", "السابعة", "التامنة", "التاسعة", "العاشرة"];
+const ordinal = n => ORD[n - 1] || `رقم ${n}`;
+
+// ===== الدخول =====
+$("l-btn").addEventListener("click", async () => {
+  hide($("l-err"));
+  try { await signInWithEmailAndPassword(auth, $("l-email").value.trim(), $("l-pass").value); }
+  catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); }
+});
+$("l-pass").addEventListener("keydown", e => { if (e.key === "Enter") $("l-btn").click(); });
+$("logout").addEventListener("click", () => signOut(auth).finally(() => location.reload()));
+$("d-out").addEventListener("click", () => signOut(auth).finally(() => location.reload()));
+
+onAuthStateChanged(auth, async user => {
+  ["login", "denied", "app"].forEach(id => $(id).classList.add("hidden"));
+  if (!user) { $("login").classList.remove("hidden"); return; }
+  let claims = {};
+  try { claims = (await user.getIdTokenResult()).claims || {}; } catch (e) {}
+  S.admin = claims.role === "admin";
+  // الإقليمي: المستند config/regionals الـ Rules بتسمح بقرايته للإقليميين بس، فلو اتقري يبقى الحساب إقليمي.
+  // (لو النت فصل، بنحاول مرة كمان قبل ما نعتبره مشرف عادي)
+  S.regional = false;
+  if (claims.role === "supervisor") {
+    for (let i = 0; i < 2 && !S.regional; i++) {
+      try { S.regional = (await getDoc(doc(db, "config", "regionals"))).exists(); break; }
+      catch (e) { if (e.code === "permission-denied") break; }
+    }
+  }
+  // المحاسب والـ HR: الكشف بس (طباعة وترتيب وإضافة وشيل) في حدود فروعهم، من غير تصوير ولا تأكيد ولا طلبات
+  S.office = claims.role === "hr" || claims.role === "accountant";
+  if (claims.role === "admin") S.sites = SUP_SITES;
+  else if (S.office) S.sites = Array.isArray(claims.sites) && claims.sites.length ? SUP_SITES.filter(s => claims.sites.includes(s)) : SUP_SITES;
+  else if (claims.role === "supervisor" && Array.isArray(claims.sites) && claims.sites.length) S.sites = claims.sites;
+  else { $("denied").classList.remove("hidden"); return; }
+  $("who").textContent = user.email;
+  $("site").innerHTML = S.sites.map(s => `<option>${esc(s)}</option>`).join("");
+  const y = new Date(); y.setDate(y.getDate() - 1);
+  $("date").max = ymd(new Date());
+  $("date").value = ymd(y);
+  $("app").classList.remove("hidden");
+  $("lv-card").classList.toggle("hidden", S.office);
+  if (S.office) $("m-add").innerHTML = '<i class="ti ti-user-plus"></i> إضافة عامل جديد';
+  syncResign();
+  await openDay();
+  if (!S.office) lvWatch();
+});
+$("site").addEventListener("change", openDay);
+$("date").addEventListener("change", openDay);
+
+// ===== فتح يوم =====
+function deadlineOf(date) {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(y, m - 1, d + 2, 9, 0, 0);
+}
+async function openDay() {
+  S.site = $("site").value; S.date = $("date").value;
+  if (!S.site || !S.date) return;
+  // لو الموقع أو اليوم اتغير تاني قبل ما ده يخلص تحميل: النسخة القديمة توقف بعد أي await
+  // (من غيرها كانت listeners الموقع القديم بتفضل شغالة وتكتب بياناته فوق الموقع الجديد)
+  const tok = S.openTok = (S.openTok || 0) + 1;
+  S.unsubPages?.(); S.unsubDay?.();
+  S.unsubPages = S.unsubDay = null;
+  S.pages = []; S.day = null; S.plan = {}; S.choice = {}; S.xpick = {}; S.xq = {}; S.xunpick = new Set(); S.mpick = {}; S.munpick = new Set(); S.mwarn = {};
+  hide($("up-msg")); hide($("c-msg"));
+  // مواقع شيبسي والإمداد: حضورها إكسيل من الأدمن، فالمشرف ليه الكشف والبطايق والطلبات بس (من غير تصوير ولا تأكيد)
+  S.photo = ATT_SITES.includes(S.site) && !S.office;
+  S.timed = S.photo && TIME_SITES.includes(S.site);   // حضور وانصراف بالساعة
+  $("upload-card").classList.toggle("hidden", !S.photo);
+  $("force-card").classList.toggle("hidden", S.photo);
+  $("app").querySelector("h1").textContent = S.photo ? "تسجيل الحضور" : S.office ? "الكشف" : "الكشف والطلبات";
+  $("date").previousElementSibling.textContent = S.photo ? "يوم الحضور" : "اليوم";
+  const dl = deadlineOf(S.date);
+  if (new Date() > dl) show($("deadline"), "err", `المهلة خلصت (${dl.toLocaleString("ar-EG", { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" })}). الرفع متاح، بس هيتسجل متأخر.`);
+  else show($("deadline"), "info", `آخر ميعاد للرفع: ${dl.toLocaleString("ar-EG", { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" })}`);
+  if (!S.photo) hide($("deadline"));   // مالوش ميعاد رفع
+
+  S.unsubRoster?.(); S.unsubPool?.(); S.unsubRem?.(); S.rep = {}; $("refresh-box").classList.add("hidden"); hide($("refresh-msg"));
+  let rosterErr = null, rosterNow = [];
+  try {
+    const r = await getDoc(doc(db, "rosters", S.site));
+    rosterNow = r.exists() ? (r.data().workers || []) : [];
+  } catch (e) { rosterErr = e; }
+  if (tok !== S.openTok) return;
+  S.rosterNow = S.roster = rosterNow;
+  if (rosterErr) show($("day-state"), "err", rosterErr.code === "permission-denied"
+    ? "الحساب ده مالوش صلاحية على كشف الموقع ده."
+    : "مش قادر أحمّل كشف الموقع — اتأكد إن النت شغال وجرّب تاني.");
+  else if (!S.rosterNow.length) show($("day-state"), "err", "كشف الموقع مش موجود لسه. الأدمن لازم يعمل مزامنة من لوحة الإدارة.");
+  else hide($("day-state"));
+  S.unsubRoster?.(); S.unsubPool?.(); S.unsubRem?.();
+  S.unsubRoster = onSnapshot(doc(db, "rosters", S.site), snap => { if (snap.exists()) { S.rosterNow = snap.data().workers || []; render(); renderManage(); renderForce(); } }, () => {});
+  S.unsubPool = onSnapshot(doc(db, "pools", S.site), snap => { S.pool = snap.exists() ? (snap.data().workers || []) : []; render(); }, () => {});
+  S.unsubNew?.();
+  S.unsubNew = onSnapshot(query(collection(db, "new_workers"), where("site", "==", S.site)), snap => {
+    // المرفوض والمردود للمشرف (لحد ما يستكمل والـ HR يعتمد) مش في الكشف
+    S.newWorkers = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(x => x.status !== "rejected" && x.status !== "returned");
+    renderFiche(); render();
+  }, () => {});
+  S.unsubRem = onSnapshot(query(collection(db, "sheet_removals"), where("site", "==", S.site)), snap => {
+    S.removals = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderManage();
+  }, () => {});
+  if (!S.photo) { await loadPlan(); if (tok !== S.openTok) return; render(); renderForce(); return; }
+  await Promise.all([loadPlan(), loadLate(), loadPrev()]);
+  if (tok !== S.openTok) return;
+  S.unsubPages?.(); S.unsubDay?.();
+
+  S.unsubDay = onSnapshot(doc(db, "att_days", S.site + "__" + S.date), snap => {
+    S.day = snap.exists() ? snap.data() : null;
+    if (S.day) {
+      const fromSaved = {};
+      Object.entries(S.day.entries || {}).forEach(([c, e]) => { fromSaved[c] = e.s === "L" && e.c === "ق" ? "Q" : e.s; if (e.rep && !S.rep[c]) S.rep[c] = e.rep;
+        // بديل متسجل قبل كده بمفتاح تاني (كوده بدل R+الرقم القومي): الصفحة بتعرضه بـ R+الرقم القومي، فحالته المحفوظة تتنقل عليه
+        if (e.sub && e.nid && c !== "R" + e.nid && !(("R" + e.nid) in (S.day.entries || {}))) fromSaved["R" + e.nid] = fromSaved[c];
+        if (e.rep_for && !S.rep[e.rep_for]) S.rep[e.rep_for] = { nid: e.nid || "", name: e.name, code: e.code || "" };
+        if (e.moved && e.nid && !(e.nid in S.mpick) && !S.munpick.has(e.nid)) S.mpick[e.nid] = { name: e.name, code: e.code || "", job: e.job || "", type: e.type || "", site: e.now_site || "" };
+        // صف بخط اليد المشرف اختار صاحبه بنفسه: الاختيار بيرجع زي ما اتحفظ
+        if (e.xk && !(e.xk in S.xpick) && !S.xunpick.has(e.xk)) S.xpick[e.xk] = e.moved ? "M:" + e.nid : e.sub ? (e.nid || e.code) : c; });
+      S.choice = { ...fromSaved, ...S.choice };
+      const t = S.day.confirmed_at?.toDate ? S.day.confirmed_at.toDate().toLocaleString("ar-EG") : "";
+      const rt = S.day.reviewed_at?.toDate ? S.day.reviewed_at.toDate().toLocaleString("ar-EG") : "";
+      if (S.day.status === "approved") show($("day-state"), "ok", S.admin ? "اليوم ده تم اعتماده من المحاسب. تقدر تعدّل فيه كأدمن، والاعتماد هيفضل زي ما هو." : "اليوم ده تم اعتماده من المحاسب، ومينفعش يتعدل.");
+      else if (S.day.status === "reviewed") show($("day-state"), "ok", `الإقليمي راجع اليوم ده (${esc(S.day.reviewed_email || "")}${rt ? " — " + rt : ""})${S.day.review_late ? " (متأخر)" : ""}. ` + (S.admin ? "تقدر تعدّل فيه كأدمن، ومراجعة الإقليمي هتفضل زي ما هي." : S.regional ? "تقدر تعدّل وتراجع تاني لحد ما المحاسب يعتمده." : "مستني اعتماد المحاسب، ولو فيه تعديل كلّم الإقليمي."));
+      else show($("day-state"), "ok", `المشرف أكد اليوم ده${t ? " — " + t : ""}${S.day.late ? " (متأخر)" : ""}. ` + (S.regional ? "راجعه وأكد عشان يروح للمحاسب." : "مستني مراجعة الإقليمي، وتقدر تعدّل لحد ما يراجعه."));
+    }
+    $("refresh-box").classList.toggle("hidden", !(S.admin && S.timed && S.day));
+    render();
+  }, () => {});
+  S.unsubPages = onSnapshot(query(collection(db, "att_pages"), where("site", "==", S.site), where("date", "==", S.date)), snap => {
+    S.pages = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (a.created_at?.seconds || 0) - (b.created_at?.seconds || 0));
+    render();
+  }, err => show($("up-msg"), "err", "مش قادر أقرا الصور: " + err.message));
+}
+
+// ===== رفع الصور =====
+async function compress(file) {
+  const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+  const maxSide = 1800;
+  const k = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+  for (const q of [0.82, 0.72, 0.62, 0.5]) {
+    const data = c.toDataURL("image/jpeg", q).split(",")[1];
+    if (data.length < 900000) return data;
+  }
+  throw new Error("الصورة كبيرة جداً");
+}
+async function onFiles(e) {
+  const files = [...e.target.files]; e.target.value = "";
+  if (!files.length) return;
+  if (lockedForMe()) return show($("up-msg"), "err", S.day?.status === "approved" ? "اليوم ده تم اعتماده، مينفعش يترفعله صور." : "الإقليمي راجع اليوم ده، مينفعش يترفعله صور. كلّمه لو فيه تعديل.");
+  const u = auth.currentUser;
+  let ok = 0;
+  for (let i = 0; i < files.length; i++) {
+    show($("up-msg"), "info", `بيرفع صورة ${i + 1} من ${files.length}...`);
+    try {
+      const image = await compress(files[i]);
+      await addDoc(collection(db, "att_pages"), {
+        site: S.site, date: S.date, image, uploaded_by: u.uid, uploaded_email: actorEmail(u),
+        status: "pending", created_at: serverTimestamp()
+      });
+      ok++;
+    } catch (err) {
+      show($("up-msg"), "err", `صورة ${i + 1} ماترفعتش: ` + (err.code === "permission-denied" ? "مش مسموح للحساب ده." : err.message));
+      return;
+    }
+  }
+  show($("up-msg"), "ok", `اترفع ${fmt(ok)} صورة. القراءة بتاخد حوالي دقيقة لكل صورة، والنتيجة هتظهر لوحدها.`);
+}
+$("file").addEventListener("change", onFiles);
+$("cam").addEventListener("change", onFiles);
+$("pages").addEventListener("click", async e => {
+  const del = e.target.closest("[data-del]");
+  if (del) {
+    const pg = S.pages.find(x => x.id === del.dataset.del); if (!pg) return;
+    if (!await ask("تمسح الصورة دي؟ نتيجتها هتتشال من الحضور، والمسح بيتسجل باسمك.", { ok: "امسح", danger: true })) return;
+    // المسح بيتسجل في att_page_deletions (الـ Rules مابتسمحش بمسح صورة من غير السجل ده في نفس العملية)
+    try {
+      const u = auth.currentUser, b = writeBatch(db);
+      b.set(doc(db, "att_page_deletions", pg.id), { site: pg.site, date: pg.date, page: pg.id,
+        uploaded_email: pg.uploaded_email || "", uploaded_at: pg.created_at || null, rows: (pg.result?.rows || []).length,
+        archived_path: pg.archived_path || "", deleted_by: u.uid, deleted_email: actorEmail(u), deleted_at: serverTimestamp() });
+      b.delete(doc(db, "att_pages", pg.id));
+      await b.commit();
+    }
+    catch (err) { show($("up-msg"), "err", "مااتمسحتش: " + (err.code === "permission-denied" ? "اليوم اتأكد خلاص — المسح بقى للأدمن بس. لو الصورة غلط ارفع الصح وبلّغ الإدارة." : err.message)); }
+    return;
+  }
+  const img = e.target.closest("img[data-view]");
+  if (img) { $("viewer-cap").textContent = ""; $("viewer-img").src = img.src; $("viewer").classList.remove("hidden"); }
+});
+$("viewer").addEventListener("click", () => $("viewer").classList.add("hidden"));
+// تكبير صور البطاقة والفيش قبل الإرسال، مع اسم العامل فوق الصورة
+document.addEventListener("click", e => {
+  const img = e.target.closest("img[data-zoom]"); if (!img || !img.src) return;
+  const box = img.closest(".box");
+  const title = box?.querySelector("h2")?.textContent || "";
+  const who = box?.id === "idm" || img.id.startsWith("idm") ? ($("idm-name")?.textContent || "") : "";
+  $("viewer-cap").textContent = [title, who, img.alt].filter(Boolean).join(" — ");
+  $("viewer-img").src = img.src; $("viewer").classList.remove("hidden");
+});
+
+// ===== العرض =====
+// صف مكتوب بخط اليد: هل هو عامل موجود في الكشف؟ (بالرقم القومي أو بالاسم)
+// كود مكتوب جنب الاسم بخط اليد (T1234): أسهل في القراية من الاسم والرقم القومي
+const codeIn = x => { const m = [x.code, x.name, x.note].map(v => String(v || "")).join(" ").match(/[Tt]\s?(\d{2,6})(?!\d)/); return m ? "T" + m[1] : ""; };
+function matchExtra(x) {
+  const xc = codeIn(x);
+  if (xc) { const w = S.roster.find(q => String(q.code || "").toUpperCase() === xc); if (w) return w; }
+  const nid = String(x.nid || "").replace(/\D/g, "");
+  if (nid.length >= 10) {
+    const hits = S.roster.filter(w => w.nid && w.nid.length === 14 && nid.length === 14
+      ? [...w.nid].filter((c, i) => c !== nid[i]).length <= 2
+      : w.nid && w.nid.endsWith(nid.slice(-6)));
+    if (hits.length === 1) return hits[0];
+  }
+  if (x.name) {
+    const sc = S.roster.map(w => ({ w, s: nameScore(x.name, w.name) })).sort((a, b) => b.s - a.s);
+    if (sc[0] && sc[0].s >= 0.85 && (!sc[1] || sc[0].s - sc[1].s >= 0.1)) return sc[0].w;
+  }
+  return null;
+}
+// كود العامل لصف مطبوع: السيرفر بيطابق بالرقم القومي مرة واحدة وقت القراءة ويحفظ الكود.
+// لو الكود ده مش في الكشف دلوقتي (اتغير بعد القراءة — مثلاً جديد بالبطاقة N… وبعدين خد كود T، أو اتعدّل/اتنقل)
+// أو الصف اتقرا من غير عامل، بنعيد المطابقة بالرقم القومي على الكشف الحالي بنفس قاعدة السيرفر (_match):
+// مطابق بالظبط، أو فرق رقمين بالكتير لو عامل واحد بس قريب ومفيش بديل قريب.
+const nidNear = (a, b) => /^\d{14}$/.test(String(a || "")) && [...a].filter((c, i) => c !== b[i]).length <= 2;
+function rowMatch(r) {
+  if (r.code && S.roster.some(w => w.code === r.code)) return { code: r.code, how: r.match };
+  const nid = String(r.nid || "").replace(/\D/g, "");
+  if (nid.length !== 14) return null;
+  const ex = S.roster.find(w => w.nid === nid);
+  if (ex) return { code: ex.code, how: "exact" };
+  const pool = S.pool || [];
+  if (pool.some(p => String(p.nid || "") === nid)) return null;
+  const close = S.roster.filter(w => nidNear(w.nid, nid));
+  return close.length === 1 && !pool.some(p => nidNear(String(p.nid || ""), nid)) ? { code: close[0].code, how: "fuzzy" } : null;
+}
+const rowCode = r => rowMatch(r)?.code || "";
+// عامل اشتغل في الموقع ده اليوم ده واتنقل بعدها لموقع تاني: الأدمن/المشرف يسجّله حاضر هنا من كارت الصفوف المش متطابقة.
+// بيتسجل كبديل حاضر (R+الرقم القومي، moved: true) بساعاته من الورقة، ومكانه الحالي مابيتغيرش.
+// قبل ما يتسجل هنا: هل متسجل في نفس اليوم في موقع تاني (حاضر، توقف، أو بديل مكان حد)؟
+// بيدوّر في كل المواقع اللي الحساب يقدر يقرا أيامها (الأدمن والمكتب كلها، المشرف مواقعه بس)
+async function otherSitesSameDay(nid) {
+  const found = [];
+  await Promise.all(SUP_SITES.filter(s => s !== S.site).map(async site => {
+    try {
+      const d = await getDoc(doc(db, "att_days", site + "__" + S.date)); if (!d.exists()) return;
+      Object.values(d.data().entries || {}).forEach(e => {
+        if (e.nid === nid && (e.s === "P" || e.s === "L")) found.push(`${site} — ${e.s === "P" ? "حاضر" : (e.c || "")}${e.rep_for_name ? ` (بديل مكان ${e.rep_for_name})` : ""}`);
+        if (e.rep?.nid === nid && e.s === "A") found.push(`${site} — بديل مكان ${e.name}`);
+      });
+    } catch (e) {}
+  }));
+  return found;
+}
+function movedRows() {
+  const out = {};
+  livePages().forEach(p => (p.result?.rows || []).forEach(r => {
+    const nid = String(r.nid || "").replace(/\D/g, "");
+    if (S.mpick[nid] && !out[nid] && !rowCode(r) && !subOf(r)) out[nid] = { r: { ...r, page: p.id }, w: { ...S.mpick[nid], nid } };
+  }));
+  // مكتوب بخط اليد ومن موقع تاني: اتختار من خانة البحث (S.xpick = "M:"+الرقم القومي)
+  livePages().forEach(p => (p.result?.extra || []).forEach((x, i) => {
+    const pk = S.xpick[p.id + "|" + i] || "";
+    const nid = pk.startsWith("M:") ? pk.slice(2) : "";
+    if (nid && S.mpick[nid] && !out[nid]) out[nid] = { r: { ...x, s: "P", match: "handwritten", page: p.id, xk: p.id + "|" + i }, w: { ...S.mpick[nid], nid } };
+  }));
+  // محفوظ قبل كده ومالوش صف دلوقتي (مثلاً الصورة اتمسحت): بيفضل زي ما اتحفظ
+  Object.keys(S.mpick).forEach(nid => { if (!out[nid] && S.day?.entries?.["R" + nid]) out[nid] = { saved: S.day.entries["R" + nid], w: { ...S.mpick[nid], nid } }; });
+  return out;
+}
+// رقم قومي مش في كشف الموقع ولا بدلائه: بندوّر عليه في كشوف وبدلاء كل المواقع اللي الحساب يقدر يقراها
+// (مرة واحدة لكل فتحة للصفحة، وبس لو فيه صفوف مش متطابقة) — عشان نقول مين ده ومكانه دلوقتي فين
+let ELSE = null, ELSE_LIST = [], ELSE_LOADING = false;
+function elsewhere(nid) {
+  const here = [...S.roster, ...(S.pool || [])].find(w => w.nid === nid);
+  if (here) return { ...here, site: S.site };
+  if (!ELSE) return undefined;   // لسه بيتحمل
+  return ELSE[nid] || null;
+}
+async function loadElsewhere() {
+  if (ELSE || ELSE_LOADING) return;
+  ELSE_LOADING = true;
+  const map = {}; ELSE_LIST = [];
+  await Promise.all(SUP_SITES.flatMap(site => ["rosters", "pools"].map(async col => {
+    try {
+      const d = await getDoc(doc(db, col, site));
+      (d.exists() ? d.data().workers || [] : []).forEach(w => {
+        if (w.nid && !map[w.nid]) map[w.nid] = { ...w, site };
+        ELSE_LIST.push({ ...w, site, col });
+      });
+    } catch (e) {}
+  })));
+  ELSE = map; ELSE_LOADING = false;
+  render();
+}
+function aiState() {
+  // آخر قراءة لكل عامل من الصور اللي خلصت
+  const map = {};
+  livePages().forEach(p => {
+    (p.result?.rows || []).forEach(r => { const m = rowMatch(r); if (m && m.code === r.code) map[m.code] = { ...r, page: p.id }; });
+  });
+  // اللي اتطابقوا من جديد بالرقم القومي: بعد اللي متطابقين من السيرفر، ومن غير ما ياخدوا مكان حد اتقرا فعلاً
+  livePages().forEach(p => {
+    (p.result?.rows || []).forEach(r => { const m = rowMatch(r); if (m && m.code !== r.code && !map[m.code]) map[m.code] = { ...r, code: m.code, match: m.how, page: p.id }; });
+  });
+  livePages().forEach(p => {
+    (p.result?.extra || []).forEach((x, i) => {
+      const w = matchExtra(x);
+      if (w && !map[w.code]) map[w.code] = { s: "P", conf: "M", match: "handwritten", note: x.note || "", code: w.code, page: p.id };
+      // مااتطابقش لوحده والمشرف اختاره بنفسه من عمال الكشف
+      const pk = !w && !poolOfExtra(x) ? S.xpick[p.id + "|" + i] : "";
+      if (pk && S.roster.some(q => q.code === pk) && !map[pk]) map[pk] = { s: "P", conf: "M", match: "handwritten", note: x.note || "", code: pk, page: p.id, xk: p.id + "|" + i };
+    });
+  });
+  return map;
+}
+function needsReview(r) { return !r || r.s === "U" || r.conf === "L" || r.match === "fuzzy" || r.match === "handwritten"; }
+
+// بدلاء الراحات المطبوعين في الكشف: مش في قائمة عمال الموقع، فالسيرفر بيرجّع صفهم من غير code.
+// بنطابق رقمهم القومي على قائمة البدلاء (pools) — مطابق تمام، أو فرق رقمين بالكتير لو عامل واحد بس قريب.
+// اليومية مش بيتطبعوا في الكشف، بس ممكن يبقوا في ورقة قديمة اتطبعت قبل التعديل: بيتطابقوا بالرقم القومي بالظبط بس.
+const subKey = p => "R" + (p.nid || p.code);
+function subOf(r) {
+  const nid = String(r.nid || "").replace(/\D/g, "");
+  if (nid.length !== 14) return null;
+  const exact = (S.pool || []).find(p => String(p.nid || "") === nid);
+  if (exact) return { p: exact, fuzzy: false };
+  const pool = (S.pool || []).filter(p => /راحات/.test(p.type || "") && /^\d{14}$/.test(String(p.nid || "")));
+  const near = pool.filter(p => [...p.nid].filter((c, i) => c !== nid[i]).length <= 2);
+  return near.length === 1 ? { p: near[0], fuzzy: true } : null;
+}
+// صف مكتوب بخط اليد مش في الكشف: هل هو بديل (راحات أو يومية) في قايمة البدلاء؟ بالرقم القومي أو بالاسم
+function poolOfExtra(x) {
+  const pool = S.pool || [];
+  const xc = codeIn(x);
+  if (xc) { const c = pool.find(p => String(p.code || "").toUpperCase() === xc); if (c) return c; }
+  const nid = String(x.nid || "").replace(/\D/g, "");
+  if (nid.length === 14) {
+    const ex = pool.find(p => p.nid === nid); if (ex) return ex;
+    const near = pool.filter(p => /^\d{14}$/.test(String(p.nid || "")) && [...p.nid].filter((c, i) => c !== nid[i]).length <= 2);
+    if (near.length === 1) return near[0];
+  }
+  for (const nm of [x.name, x.note]) {
+    if (!nm) continue;
+    const sc = pool.map(p => ({ p, s: nameScore(nm, p.name) })).sort((a, b) => b.s - a.s);
+    if (sc[0] && sc[0].s >= 0.85 && (!sc[1] || sc[0].s - sc[1].s >= 0.1)) return sc[0].p;
+  }
+  return null;
+}
+function aiSubs() {
+  // آخر قراءة لكل بديل من الصور اللي خلصت
+  const map = {};
+  livePages().forEach(pg => {
+    (pg.result?.rows || []).filter(r => !rowCode(r)).forEach(r => {
+      const m = subOf(r); if (!m) return;
+      map[subKey(m.p)] = { ...r, page: pg.id, w: m.p, match: m.fuzzy ? "fuzzy" : r.match };
+    });
+    // المكتوبين بخط اليد: مكتوب = حاضر، بس لازم المشرف يأكد
+    (pg.result?.extra || []).forEach((x, i) => {
+      if (matchExtra(x)) return;
+      const pk = S.xpick[pg.id + "|" + i];
+      const p = poolOfExtra(x) || (pk ? (S.pool || []).find(q => (q.nid || q.code) === pk) : null);
+      if (!p || map[subKey(p)]) return;
+      map[subKey(p)] = { s: "P", conf: "M", match: "handwritten", note: x.note || "", nid: x.nid || "", page: pg.id, w: p, ...(pk ? { xk: pg.id + "|" + i } : {}) };
+    });
+  });
+  return map;
+}
+
+// اليوم مقفول عليّا؟ بعد اعتماد المحاسب على الكل، وبعد مراجعة الإقليمي على المشرف
+function lockedForMe() {
+  if (S.admin) return false;   // الأدمن يعدّل أي يوم، حتى المعتمد
+  const st = S.day?.status;
+  return st === "approved" || (st === "reviewed" && !S.regional && !S.admin);
+}
+// ===== الساعات (مواقع الحضور والانصراف) =====
+// وقت حضور كل عامل في اليوم اللي قبله (لو كان متأكد): بيحسم «8 → 8» صبح ولا مسا
+async function loadPrev() {
+  S.prevIn = {}; S.prevOut = {};
+  if (!S.timed) return;
+  const site = S.site, date = S.date, pin = {}, pout = {};
+  const d = new Date(date + "T00:00:00"); d.setDate(d.getDate() - 1);
+  try {
+    const p = await getDoc(doc(db, "att_days", site + "__" + ymd(d)));
+    Object.entries(p.exists() ? p.data().entries || {} : {}).forEach(([k, e]) => { if (e.s === "P" && e.in && e.min != null && !e.t_issue) { pin[k] = e.in; pout[k] = e.out || ""; } });
+  } catch (e) {}
+  if (site === S.site && date === S.date) { S.prevIn = pin; S.prevOut = pout; }
+}
+// بديل الراحات (اسمه مكتوب قدام الغايب من غير ساعة): ساعة مقترحة، والمحاسب بيأكدها أو يعدّلها في الاعتماد.
+// 1) وردية العامل الأصلي امبارح  2) الأكتر بين زمايله في نفس الوظيفة النهارده  3) الوردية العادية للوظيفة (Code&time)
+function repTimes(entries) {
+  const mode = {};
+  Object.values(entries).forEach(e => {
+    if (e.s !== "P" || e.t_issue || e.mission || e.min == null || !e.in) return;
+    const k = (e.in) + "|" + (e.out || ""); ((mode[e.job] = mode[e.job] || {})[k] = (mode[e.job][k] || 0) + 1);
+  });
+  const top = job => { const m = mode[job]; if (!m) return null; const [k] = Object.entries(m).sort((a, b) => b[1] - a[1])[0]; const [i, o] = k.split("|"); return { in: i, out: o }; };
+  Object.entries(entries).forEach(([code, e]) => {
+    // بديل اتسجل مكان بديل راحات غايب (rep_for): ساعة مقترحة بنفس الترتيب، والوردية من بتاعة البديل الغايب امبارح
+    if (e.rep_for && e.s === "P" && !e.in) {
+      const helper = isHelperJob(e.job), k = e.rep_for;
+      let t, src;
+      if (S.prevIn[k] && (helper || S.prevOut[k])) { t = { in: S.prevIn[k], out: S.prevOut[k] }; src = "وردية البديل الغايب امبارح"; }
+      else if ((t = top(e.job))) src = "زي زمايله في الوظيفة النهارده";
+      else { t = { in: MISSION_SHIFT.in, out: MISSION_SHIFT.out }; src = "الوردية العادية (Code&time)"; }
+      Object.assign(e, { in: t.in, out: helper ? "" : t.out, t_src: src, t_issue: "ساعة مقترحة — اتأكد" });
+      return;
+    }
+    if (e.s !== "A" || !e.rep) return;
+    const helper = isHelperJob(e.job);
+    let t, src;
+    if (S.prevIn[code] && (helper || S.prevOut[code])) { t = { in: S.prevIn[code], out: S.prevOut[code] }; src = "وردية الأصلي امبارح"; }
+    else if ((t = top(e.job))) src = "زي زمايله في الوظيفة النهارده";
+    else { t = { in: MISSION_SHIFT.in, out: MISSION_SHIFT.out }; src = "الوردية العادية (Code&time)"; }
+    const h = calcHours(t.in, helper ? "" : t.out, e.job);
+    e.rep = { ...e.rep, in: t.in, out: helper ? "" : t.out, t_src: src, t_issue: "ساعة مقترحة — اتأكد",
+      ...(h ? { min: h.min, dmin: h.dmin, nmin: h.nmin, ot: h.ot, otd: h.otd, otn: h.otn } : {}) };
+  });
+}
+// الحالة: اختيار المشرف، وإلا القراية. في مواقع الساعات: المشطوب وفي ملاحظاته «مأمورية» = حاضر، و«توقف» = ق (Q)
+function defOf(k, r) {
+  if (S.choice[k] != null) return S.choice[k];
+  const sp = S.timed ? specialOf(r) : "";
+  if (r && sp && r.s !== "P") return sp === "stop" ? "Q" : "P";
+  return r && r.s !== "U" && !needsReview(r) ? r.s : null;
+}
+// المشرف بيأكد حاضر/غايب بس زي باقي المواقع. الوقت المقروء من الورقة بيتحفظ مع اليوم بتخمين البوابة (صبح ولا مسا)،
+// والمحاسب هو اللي بيراجعه ويصححه في صفحة الاعتماد. الساعات بتتحفظ بس لو الوقت واضح (t_issue = محتاج مراجعة)
+// tq: السيرفر شاكك في رقم من الوقت (٢/٣، ٦/٨) — بيتعلّم «راجع الوقت مع الورقة» لحد ما حد يصححه
+function timeEntry(r, job, prevIn) {
+  const helper = isHelperJob(job);
+  // مأمورية: الوردية العادية من جدول Code&time
+  if (specialOf(r) === "mission" && r?.s !== "P") { const m = calcHours(MISSION_SHIFT.in, MISSION_SHIFT.out, job);
+    return { tin: r?.tin || "", tout: r?.tout || "", in: MISSION_SHIFT.in, out: helper ? "" : MISSION_SHIFT.out, mission: true, min: m.min, dmin: m.dmin, nmin: m.nmin, ot: m.ot, otd: m.otd, otn: m.otn }; }
+  const t = guessTimes(r?.tin, r?.tout, helper, prevIn), h = calcHours(t.in, t.out, job);
+  const issue = !t.in ? "مفيش وقت حضور" : !helper && !t.out ? "مفيش وقت انصراف" : r?.tq ? "راجع الوقت مع الورقة" : h && h.min > MAX_SHIFT_MIN ? "أكتر من 12 ساعة — راجع الوقت مع الورقة" : t.swapped ? "الحضور والانصراف كانوا معكوسين واتعدلوا — اتأكد" : t.fixed23 ? "اتقرا ٢ واتصلح ٣ (أو العكس) على ميعاد الوردية — اتأكد من الورقة" : t.unsure ? "نهار ولا ليل؟" : "";
+  return { tin: r?.tin || "", tout: r?.tout || "", in: t.in, out: helper ? "" : t.out, ...(t.prev ? { t_prev: true } : {}),
+    ...(issue ? { t_issue: issue } : {}), ...(h && (!issue || (t.swapped || t.fixed23) && h.min <= MAX_SHIFT_MIN) ? { min: h.min, dmin: h.dmin, nmin: h.nmin, ot: h.ot, otd: h.otd, otn: h.otn } : {}) };
+}
+
+// الصفحات اللي بتتقري: اللي خلصت، ومن غير الصور اللي اتصورت تاني (السيرفر علّمها superseded_by بصورة أحدث لنفس الصفحة)
+// صورة اتقرت ومعظم أساميها مش من كشف الموقع ده = غالباً اترفعت على الموقع الغلط (الحساب فيه أكتر من موقع)
+function wrongSite(p) {
+  const rows = p.result?.rows || [];
+  if (p.status !== "done" || rows.length < 5) return null;
+  const hit = rows.filter(r => r.code).length;
+  return hit / rows.length < 0.3 ? { hit, n: rows.length, other: p.result?.wrong_site || null } : null;
+}
+function wrongSiteNote(p) {
+  const w = wrongSite(p); if (!w) return "";
+  const o = w.other;
+  return `<div class="pill p-err" style="white-space:normal;margin-bottom:4px;">⚠️ ${o
+    ? `الكشف ده شكله بتاع «${esc(o.site)}» (${fmt(o.matched)} اسم من ${fmt(w.n)} من كشفه) — امسح الصورة وارفعها على الموقع الصح`
+    : `${fmt(w.hit)} اسم بس من ${fmt(w.n)} من كشف ${esc(S.site)} — اتأكد إنك اخترت الموقع الصح قبل ما تكمل`}</div> `;
+}
+function livePages() {
+  const ids = new Set(S.pages.map(p => p.id));
+  return S.pages.filter(p => p.status === "done" && !(p.superseded_by && ids.has(p.superseded_by)));
+}
+// كشف اليوم: لو اليوم اتأكد قبل كده، بيتبني من اللي كانوا على الكشف يومها (المحفوظ) مش من الكشف الحالي —
+// اللي مشي أو اتحول بديل/يومية بعد اليوم ده بيفضل بكوده وحالته المحفوظة، واللي اتضاف للكشف بعده مابيتطلبش له قرار
+// (إلا لو له صف مقروء في صور اليوم). الكشف الحالي نفسه (S.rosterNow) للإدارة والطباعة والطلبات.
+function readOnDay(w) {
+  return livePages().some(p => (p.result?.rows || []).some(r => (r.code && r.code === w.code) || (w.nid && String(r.nid || "").replace(/\D/g, "") === w.nid)));
+}
+function dayRoster() {
+  const now = S.rosterNow || [], E = S.day?.entries;
+  if (!E) return now;
+  const saved = Object.entries(E).filter(([, e]) => !e.sub && !e.rep_for);
+  const byNid = {}; saved.forEach(([k, e]) => { if (e.nid && !byNid[e.nid]) byNid[e.nid] = k; });
+  const used = new Set(), out = [];
+  now.forEach(w => {
+    if (E[w.code] && !E[w.code].sub) { out.push(w); used.add(w.code); return; }
+    const k = w.nid && byNid[w.nid];
+    if (k && !used.has(k)) { out.push({ ...w, code: k }); used.add(k); return; }   // نفس العامل بكود قديم (مثلاً N… وبقى T…)
+    if (readOnDay(w)) out.push(w);
+  });
+  saved.forEach(([k, e]) => { if (!used.has(k)) out.push({ code: k, name: e.name || "", nid: e.nid || "", job: e.job || "", type: e.type || "", past: true }); });
+  return out;
+}
+function render() {
+  S.roster = dayRoster();
+  const busy = S.pages.filter(p => p.status === "pending" || p.status === "reading").length;
+  $("pages").innerHTML = S.pages.map((p, pi) => {
+    const res = p.result || {};
+    const rows = res.rows || [];
+    const pres = rows.filter(r => r.s === "P").length, abs = rows.filter(r => r.s === "A").length;
+    const reps = rows.filter(r => r.s === "A" && r.note).length, extra = (res.extra || []).length;
+    const calc = pres + reps + extra;
+    let st;
+    if (p.status === "pending") st = `<span class="pill p-wait">مستني السيرفر</span>`;
+    else if (p.status === "reading") st = `<span class="pill p-wait">بيقرا...</span>`;
+    else if (p.status === "error") st = `<span class="pill p-err">فشلت</span><div class="muted">${esc(p.error || "")}</div>`;
+    else if (p.superseded_by && S.pages.some(x => x.id === p.superseded_by)) st = `<span class="pill p-warn">اتصورت تاني</span><div class="muted">فيه صورة أحدث لنفس الصفحة، والقراية من الأحدث</div>`;
+    else st = wrongSiteNote(p) + `<span class="pill p-ok">${fmt(rows.length)} صف</span> ` +
+      (res.count == null ? `<span class="pill p-warn">العدد المكتوب مااتقراش</span>`
+        : res.count === calc ? `<span class="pill p-ok">العدد ${fmt(calc)} ✓</span>`
+        : `<span class="pill p-warn">مكتوب ${fmt(res.count)} / محسوب ${fmt(calc)}</span>`);
+    // المشرف/الإقليمي يمسح صورته بس قبل ما اليوم يتأكد، والأدمن في أي وقت — وكل مسح بيتسجل
+    const mine = p.status !== "reading" && (S.admin || (p.uploaded_by === auth.currentUser?.uid && !S.day));
+    return `<div class="pg"><img src="data:image/jpeg;base64,${esc(p.image)}" data-view alt="صفحة">
+      <div class="b"><b>صورة ${fmt(pi + 1)}</b> ${st}${mine ? `<div style="margin-top:6px;"><button class="btn danger small" data-del="${esc(p.id)}">مسح</button></div>` : ""}</div></div>`;
+  }).join("");
+
+  const hasDone = S.pages.some(p => p.status === "done") || S.day;
+  $("review").classList.toggle("hidden", !hasDone || !S.roster.length);
+  if (!hasDone || !S.roster.length) return;
+
+  const ai = aiState();
+  // ترتيب المراجعة زي الصور المرفوعة مش زي الكشف الحالي: الصفحات بترتيب رفعها، وجوّا كل صفحة من فوق لتحت.
+  // المكتوب بخط اليد بعد المطبوع في نفس الصفحة، واللي مالوش صف في أي صورة في آخر مجموعته.
+  const at = {};
+  livePages().forEach((p, pi) => {
+    (p.result?.rows || []).forEach((r, i) => { const c = rowCode(r); if (c) at[c] = pi * 10000 + i; });
+    (p.result?.extra || []).forEach((x, i) => { const w = matchExtra(x); if (w && at[w.code] == null) at[w.code] = pi * 10000 + 5000 + i; });
+  });
+  const ordered = S.roster.map((w, i) => ({ w, k: at[w.code] ?? 1e9 + i })).sort((a, b) => a.k - b.k).map(x => x.w);
+  const groups = {};
+  ordered.forEach(w => { const g = w.job; (groups[g] = groups[g] || []).push(w); });
+  let P = 0, A = 0, Q = 0, open = 0, flagged = 0;
+  const html = Object.entries(groups).map(([g, ws]) => `<div class="grp">${esc(g)} (${fmt(ws.length)})</div>` + ws.map(w => {
+    const r = ai[w.code];
+    const blocked = isBlocked(w);
+    if (blocked) S.choice[w.code] = "A";
+    const def = defOf(w.code, r), sp = S.timed ? specialOf(r) : "";
+    if (def === "P") P++; else if (def === "A") A++; else if (def === "Q") Q++; else open++;
+    const flag = r && needsReview(r) && !(sp && def);
+    if (flag) flagged++;
+    const why = !r ? "مش موجود في أي صورة"
+      : r.s === "U" ? "القراءة مش واضحة"
+      : r.match === "fuzzy" ? "الرقم القومي اتقرا بفرق بسيط"
+      : r.match === "handwritten" ? "اتكتب بخط اليد تحت الكشف — اتأكد"
+      : r.conf === "L" ? "القراءة مش أكيدة" : "";
+    const aiTxt = r ? (sp === "mission" && r.s !== "P" ? "قرا: مأمورية (بتتحسب بالوردية العادية)" : sp === "stop" && r.s !== "P" ? "قرا: توقف (ق)" : r.s === "P" ? "قرا: حاضر" : r.s === "A" ? `قرا: غايب${r.word ? " (" + esc(r.word) + ")" : ""}` : "قرا: مش واضح") : "";
+    const note = r?.note ? ` — ملاحظة: ${esc(r.note)}` : "";
+    const ro = lockedForMe() ? "disabled" : "";
+    const roP = ro || (blocked ? "disabled" : "");
+    return `<div class="w ${!r ? "missing" : flag ? "flag" : ""}">
+      <div class="nm"><b>${esc(w.name)}</b><small>${w.past ? `<span style="color:#6b6b6b">مش على الكشف دلوقتي (${esc(w.type || "")}) · </span>` : ""}${esc(aiTxt)}${note}${why ? ` · <span style="color:#8a5a10">${esc(why)}</span>` : ""}${blocked ? ` · <span style="color:#a32d2d">الحضور مقفول لحد ما الفيش يترفع</span>` : ""}</small></div>
+      <div class="seg"><button class="p" data-c="${w.code}" data-v="P" aria-pressed="${def === "P"}" ${roP}>حاضر</button><button class="a" data-c="${w.code}" data-v="A" aria-pressed="${def === "A"}" ${ro}>غايب</button>${S.timed ? `<button class="q" data-c="${w.code}" data-v="Q" aria-pressed="${def === "Q"}" ${ro}>توقف</button>` : ""}</div></div>` +
+      (def === "A" ? repBlock(w, r) : "");
+  }).join("")).join("");
+  const subs = aiSubs();
+  const subHtml = Object.keys(subs).length ? `<div class="grp">بدلاء حاضرين من الكشف (مطبوعين أو بخط اليد) (${fmt(Object.keys(subs).length)})</div>` + Object.entries(subs).map(([k, r]) => {
+    const w = r.w;
+    const def = defOf(k, r);   // زي الأساسي: لو مكتوب «توقف» في مواقع الساعات بيتقري توقف
+    if (def === "P") P++; else if (def === "A") A++; else if (def === "Q") Q++; else open++;
+    const flag = needsReview(r); if (flag) flagged++;
+    const why = r.s === "U" ? "القراءة مش واضحة" : r.match === "handwritten" ? "اتكتب بخط اليد — اتأكد" : r.match === "fuzzy" ? "الرقم القومي اتقرا بفرق بسيط" : r.conf === "L" ? "القراءة مش أكيدة" : "";
+    const aiTxt = r.s === "P" ? "قرا: حاضر" : r.s === "A" ? "قرا: غايب" : "قرا: مش واضح";
+    const ro = lockedForMe() ? "disabled" : "";
+    return `<div class="w ${flag ? "flag" : ""}">
+      <div class="nm"><b>${esc(w.name)}</b><small>${esc(w.type || "بديل")} — ${esc(w.job || "")} · ${esc(aiTxt)}${why ? ` · <span style="color:#8a5a10">${esc(why)}</span>` : ""}</small></div>
+      <div class="seg"><button class="p" data-c="${esc(k)}" data-v="P" aria-pressed="${def === "P"}" ${ro}>حاضر</button><button class="a" data-c="${esc(k)}" data-v="A" aria-pressed="${def === "A"}" ${ro}>غايب</button>${S.timed ? `<button class="q" data-c="${esc(k)}" data-v="Q" aria-pressed="${def === "Q"}" ${ro}>توقف</button>` : ""}</div></div>` +
+      (def === "A" ? repBlock(w, r, k) : "");
+  }).join("") : "";
+  $("workers").innerHTML = html + subHtml;
+
+  // العدد المطلوب لكل وظيفة (الأساسي — الموسمي اتلغى من 1 نوفمبر 2026)
+  const perJob = {};
+  S.roster.forEach(w => {
+    const r = ai[w.code];
+    const def = defOf(w.code, r);
+    perJob[w.job] = perJob[w.job] || 0; if (def === "P" || def === "Q") perJob[w.job]++;   // ق بيتحسب في عدد اليوم
+    if (def === "A" && S.rep[w.code]) perJob[w.job]++;
+  });
+  Object.entries(subs).forEach(([k, r]) => {
+    const def = defOf(k, r);
+    if (def === "P" || def === "Q" || (def === "A" && S.rep[k])) { perJob[r.w.job] = perJob[r.w.job] || 0; perJob[r.w.job]++; }   // ق بيتحسب في عدد اليوم
+  });
+  Object.values(movedRows()).forEach(({ w }) => { perJob[w.job] = (perJob[w.job] || 0) + 1; P++; });
+  S.over = Object.entries(perJob).filter(([j, n]) => S.plan[j] != null && n > S.plan[j]).map(([job, n]) => ({ job, n, plan: S.plan[job] }));
+  const planRows = Object.keys(perJob).map(j => `<tr><td>${esc(j)}</td><td class="n">${fmt(perJob[j])}</td><td class="n">${S.plan[j] != null ? fmt(S.plan[j]) : "—"}</td>
+    <td class="n">${S.plan[j] == null ? "" : perJob[j] > S.plan[j] ? `<span class="pill p-err">زيادة ${fmt(perJob[j] - S.plan[j])}</span>` : perJob[j] < S.plan[j] ? `<span class="pill p-grey">ناقص ${fmt(S.plan[j] - perJob[j])}</span>` : `<span class="pill p-ok">مطابق</span>`}</td></tr>`).join("");
+  $("plan-box").innerHTML = Object.keys(S.plan).length ? `<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr><th style="text-align:right">الوظيفة</th><th>الحاضرين</th><th>المطلوب</th><th></th></tr></thead><tbody>${planRows}</tbody></table>
+    <p class="muted" style="margin-top:6px;">المطلوب = الأساسي، من شيت الاحتياج بتاع الشهر.</p>` : `<p class="muted">مفيش عدد مطلوب متسجل للموقع ده.</p>`;
+
+  $("stats").innerHTML = [[P, "حاضر"], [A, "غايب"], ...(Q ? [[Q, "توقف"]] : []), [open, "محتاج قرار"], [flagged, "اتعلّم للمراجعة"]]
+    .map(([v, l]) => `<div class="stat"><div class="v">${fmt(v)}</div><div class="l">${l}</div></div>`).join("");
+
+  // صفوف من غير عامل معروف + المكتوبة بخط اليد
+  // الغايب في صف مطبوع لعامل مش في الكشف دلوقتي (غالباً مشي، والورقة اتطبعت قبل التعديل): مش محتاج حاجة، فبيتعدّ بس
+  const loose = [];
+  let goneAbs = 0, needLookup = false;
+  const picNo = p => S.pages.findIndex(x => x.id === p.id) + 1;
+  livePages().forEach(p => {
+    (p.result?.rows || []).filter(r => !rowCode(r) && !subOf(r)).forEach(r => {
+      if (r.s === "A" && /^\d{14}$/.test(String(r.nid || "").replace(/\D/g, ""))) { goneAbs++; return; }
+      const nid = String(r.nid || "").replace(/\D/g, "");
+      const who = nid.length === 14 ? elsewhere(nid) : null;
+      if (nid.length === 14 && who === undefined) needLookup = true;
+      loose.push(`صورة ${fmt(picNo(p))}، صف ${esc(r.n)}: رقم قومي ${esc(r.nid || "مش مقروء")} — ${r.s === "P" ? "حاضر" : r.s === "A" ? "غايب" : "مش واضح"}`
+        + (who ? `<div style="margin-top:3px;color:#8a5a10;">ده <b>${esc(who.name)}</b>${who.code && !who.code.startsWith("N") ? ` (${esc(who.code)})` : ""} — ${esc(who.type || "")}${who.job ? "، " + esc(who.job) : ""} — ${who.site === S.site ? "في قايمة البدلاء هنا" : `مكانه دلوقتي <b>${esc(who.site)}</b> (اتنقل بعد اليوم ده)`}</div>`
+            + (who.site !== S.site && r.s === "P" ? (S.mpick[nid]
+                ? `<div style="margin-top:4px;"><span class="pill p-ok">✓ متسجل حاضر هنا (${esc(who.job || "")})</span>${lockedForMe() ? "" : ` <button class="btn sec small" data-munpick="${esc(nid)}">إلغاء</button>`}</div>`
+                : S.mwarn[nid] ? `<div style="margin-top:4px;color:#a32d2d;"><b>مينفعش يتسجل هنا:</b> متسجل يوم ${esc(S.date)} في ${S.mwarn[nid].map(esc).join("، ")}. شيله من هناك الأول، وبعدين اعمل تحديث للصفحة.</div>`
+                : lockedForMe() ? "" : `<div style="margin-top:4px;"><button class="btn small" data-mpick="${esc(nid)}">سجّله حاضر هنا</button></div>`) : "")
+          : who === null ? `<div class="muted" style="margin-top:3px;">الرقم ده مش في كشف ولا بدلاء أي موقع تقدر تشوفه — يا إما اتقرا غلط، يا إما مشي.</div>` : ""));
+    });
+    (p.result?.extra || []).forEach((x, i) => {
+      if (matchExtra(x) || poolOfExtra(x)) return;
+      const key = p.id + "|" + i, ro = lockedForMe();
+      const read = x.name ? `«${esc(x.name)}»` : "اسم مش مقروء";
+      if (S.xpick[key]) {
+        const w = xpickWho(S.xpick[key]);
+        loose.push(`بخط اليد في صورة ${fmt(picNo(p))}: ${read} — اتسجل حاضر: <b>${esc(w?.name || "")}</b>${w?.where ? ` (من ${esc(w.where)})` : ""}${ro ? "" : ` <button class="btn sec small" data-xunpick="${esc(key)}">تغيير</button>`}`);
+        return;
+      }
+      if (ro) { loose.push(`بخط اليد في صورة ${fmt(picNo(p))}: ${read} — مااتسجلش على حد.`); return; }
+      if (!ELSE) needLookup = true;   // البحث بيدوّر في باقي المواقع كمان
+      const sug = extraCands(x, key);
+      const head = sug.length
+        ? `بخط اليد في صورة ${fmt(picNo(p))}: ${read}${x.nid ? " — " + esc(x.nid) : ""} — <b>ممكن يكون:</b>`
+        : `<b>فيه حد حاضر مكتوب بخط اليد في صورة ${fmt(picNo(p))}</b>${x.name ? ` (اتقرا ${read})` : ""} ومش قادرين نحدده — دوّر عليه واختاره:`;
+      const q = S.xq?.[key] || "";
+      loose.push(head
+        + (sug.length ? `<div style="margin-top:4px;">${sug.map(c => `<span class="chip" data-xpick="${esc(key)}" data-who="${esc(c.id)}">${candLabel(c)} ✓</span>`).join(" ")}</div>` : "")
+        + `<div style="margin-top:6px;"><input type="text" placeholder="${sug.length ? "مش حد من دول؟ " : ""}اكتب الاسم أو الكود أو الرقم القومي..." data-xq="${esc(key)}" value="${esc(q)}"></div>`
+        + `<div class="hits" data-xhits="${esc(key)}">${q ? xHitsHtml(q, key) : ""}</div>`
+        + `<div style="margin-top:4px;">عامل جديد خالص مش موجود في أي مكان؟ <button class="btn sec small" data-addnew="1">ضيفه بالبطاقة</button></div>`);
+    });
+  });
+  if (needLookup) loadElsewhere();
+  $("extra-card").classList.toggle("hidden", !loose.length && !goneAbs);
+  const fk = document.activeElement?.dataset?.xq;
+  $("extras").innerHTML = loose.map(t => `<div class="muted" style="padding:4px 0;border-bottom:1px solid #f0efe9;">${t}</div>`).join("")
+    + (goneAbs ? `<div class="muted" style="padding:6px 0;">${fmt(goneAbs)} صف غايب لناس مش في الكشف دلوقتي (غالباً مشيوا). مش محتاجين أي حاجة، والورقة دي قديمة: اطبع الكشف من جديد.</div>` : "");
+  if (fk) { const el = [...$("extras").querySelectorAll("[data-xq]")].find(i => i.dataset.xq === fk); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }
+
+  const msgs = [];
+  if (busy) msgs.push(`فيه ${fmt(busy)} صورة لسه بتتقري.`);
+  const missing = S.roster.filter(w => !ai[w.code]).length;
+  if (missing && S.pages.some(p => p.status === "done")) msgs.push(`${fmt(missing)} عامل مالهمش صف في أي صورة — اتأكد إنك صوّرت كل الصفحات، أو حدد حالتهم بإيدك.`);
+  if (S.over.length) msgs.push("الحاضرين عدّوا العدد المطلوب: " + S.over.map(o => `${o.job} ${fmt(o.n)} والمطلوب ${fmt(o.plan)}`).join("، ") + ". حدد مين اللي مش هيتحسب (علّم عليه غياب).");
+  if (msgs.length) show($("checks"), "warn", msgs.join("\n")); else hide($("checks"));
+  const btn = $("confirm");
+  btn.disabled = open > 0 || busy > 0 || lockedForMe();
+  $("back-acc").classList.toggle("hidden", !(S.admin && S.day?.status === "approved"));
+  btn.textContent = open > 0 ? `فاضل ${fmt(open)} عامل محتاجين قرار` : busy ? "استنى لحد ما الصور تتقري" : S.over.length ? "العدد أكتر من المطلوب" : S.regional ? "مراجعة الإقليمي وتأكيد" : (S.day ? "تأكيد التعديل" : "تأكيد الحضور");
+}
+
+$("workers").addEventListener("click", e => {
+  const b = e.target.closest("button[data-c]"); if (!b) return;
+  S.choice[b.dataset.c] = b.dataset.v;
+  if (b.dataset.v !== "A") delete S.rep[b.dataset.c];   // البديل للغايب بس
+  render();
+});
+
+// ===== الأدمن: يرجّع يوم معتمد للمحاسب =====
+// اليوم بيرجع «مستني اعتماد» (reviewed) بنفس حالاته وبدلائه، والمحاسب يراجعه من «اعتماد الحضور» ويعتمده تاني.
+// الـ Rules بتسمح بده للأدمن (الحالة بس بتتغير، من غير ما يتمسح مين أكد أو راجع)
+$("back-acc").addEventListener("click", async () => {
+  if (!S.admin || S.day?.status !== "approved") return;
+  if (!await ask(`ترجّع ${S.site} يوم ${S.date} للمحاسب؟\nاليوم هيبقى «مستني اعتماد» لحد ما المحاسب يراجعه ويعتمده تاني.`, { ok: "رجّعه للمحاسب", danger: true })) return;
+  $("back-acc").disabled = true;
+  try {
+    await updateDoc(doc(db, "att_days", S.site + "__" + S.date), { status: "reviewed" });
+    show($("c-msg"), "ok", "اليوم رجع للمحاسب ✓ — هيظهر عنده في «اعتماد الحضور» كـ«مستني اعتماد».");
+  } catch (err) {
+    show($("c-msg"), "err", "مارجعش: " + (err.code === "permission-denied" ? "مفيش صلاحية." : err.message));
+  }
+  $("back-acc").disabled = false;
+});
+
+// ===== التأكيد =====
+$("confirm").addEventListener("click", async () => {
+  const ai = aiState(), u = auth.currentUser;
+  const entries = {};
+  let P = 0, A = 0, Qn = 0;
+  // ترتيب الكشف الورقي (زي المطبوع) — الاعتماد بيعرض الأسماء بيه
+  let ordMap = new Map();
+  try { ordMap = printOrder({ roster: S.roster, subs: restSubs(), order: await loadOrder(S.site), plan: S.plan }); } catch (e) {}
+  for (const w of S.roster) {
+    const r = ai[w.code];
+    const s = defOf(w.code, r);
+    if (s !== "P" && s !== "A" && s !== "Q") return show($("c-msg"), "err", "فيه عمال لسه محتاجين قرار.");
+    if (s === "P") P++; else if (s === "A") A++; else Qn++;
+    entries[w.code] = { name: w.name, nid: w.nid || "", job: w.job, type: w.type, s, ai: r ? r.s : "", by: S.choice[w.code] && (!r || S.choice[w.code] !== r.s) ? "sup" : "ai", note: r?.note || "", page: r?.page || "" };
+    if (r?.xk) entries[w.code].xk = r.xk;
+    if (ordMap.has(w.code)) entries[w.code].ord = ordMap.get(w.code);
+    if (s === "A" && S.rep[w.code]) entries[w.code].rep = S.rep[w.code];
+    if (s === "Q") Object.assign(entries[w.code], { s: "L", c: "ق" });   // توقف: بيترفع ق على البصمة
+    if (S.timed && s === "P") Object.assign(entries[w.code], timeEntry(r, w.job, S.prevIn[w.code]));
+  }
+  // بدلاء الراحات المطبوعين: بيتسجلوا لو حاضرين بس (البدلاء برّه نظام الغياب)
+  const usedRep = new Set(Object.values(S.rep).map(x => x.nid).filter(Boolean));
+  let subsP = 0;
+  for (const [k, r] of Object.entries(aiSubs())) {
+    const s = defOf(k, r);
+    if (s !== "P" && s !== "A" && s !== "Q") return show($("c-msg"), "err", "فيه بدلاء لسه محتاجين قرار.");
+    if (s === "Q") {   // بديل الراحات في يوم توقف: زي الأساسي، بيترفع ق على البصمة
+      if (usedRep.has(r.w.nid)) return show($("c-msg"), "err", `${r.w.name} متسجل توقف في صفه، ومختار كمان بديل لعامل غايب. شيله من واحد منهم.`);
+      entries[k] = { name: r.w.name, nid: r.w.nid || "", code: r.w.code || "", job: r.w.job || "", type: r.w.type || "بديل", sub: true, s: "L", c: "ق", ai: r.s,
+        by: S.choice[k] && S.choice[k] !== r.s ? "sup" : "ai", note: r.note || "", page: r.page || "" };
+      if (ordMap.has(k)) entries[k].ord = ordMap.get(k);
+      Qn++; subsP++;
+      continue;
+    }
+    if (s !== "P") {
+      const rp = s === "A" && S.rep[k];
+      if (rp) {   // بديل مكان بديل راحات غايب: بيتسجل حاضر في صفه هو، وrep_for بيقول مكان مين
+        const rk = "R" + (rp.nid || rp.code);
+        if (entries[rk]) return show($("c-msg"), "err", `${rp.name} متسجل حاضر في صفه، ومختار كمان بديل مكان ${r.w.name}. شيله من واحد منهم.`);
+        const pw = (S.pool || []).find(q => (q.nid || q.code) === (rp.nid || rp.code)) || {};
+        entries[rk] = { name: rp.name, nid: rp.nid || "", code: rp.code || "", job: r.w.job || "", type: pw.type || "بديل", sub: true, s: "P", ai: "",
+          by: "sup", note: r.note || "", page: r.page || "", rep_for: k, rep_for_name: r.w.name };
+        P++; subsP++;
+      }
+      continue;
+    }
+    if (usedRep.has(r.w.nid)) return show($("c-msg"), "err", `${r.w.name} متسجل حاضر في صفه، ومختار كمان بديل لعامل غايب. شيله من واحد منهم.`);
+    entries[k] = { name: r.w.name, nid: r.w.nid || "", code: r.w.code || "", job: r.w.job || "", type: r.w.type || "بديل", sub: true, s: "P", ai: r.s,
+      by: S.choice[k] && S.choice[k] !== r.s ? "sup" : "ai", note: r.note || "", page: r.page || "", ...(r.xk ? { xk: r.xk } : {}) };
+    if (ordMap.has(k)) entries[k].ord = ordMap.get(k);
+    if (S.timed) Object.assign(entries[k], timeEntry(r, r.w.job, S.prevIn[k]));
+    P++; subsP++;
+  }
+  // اللي اشتغلوا هنا اليوم ده واتنقلوا بعدها (اتسجلوا من كارت الصفوف المش متطابقة)
+  for (const [nid, m] of Object.entries(movedRows())) {
+    const k = "R" + nid;
+    if (entries[k]) continue;
+    if (usedRep.has(nid)) return show($("c-msg"), "err", `${m.w.name} متسجل حاضر في صفه، ومختار كمان بديل لعامل غايب. شيله من واحد منهم.`);
+    entries[k] = m.saved ? { ...m.saved } : { name: m.w.name, nid, code: m.w.code && !m.w.code.startsWith("N") ? m.w.code : "", job: m.w.job || "", type: m.w.type || "بديل",
+      sub: true, moved: true, now_site: m.w.site || "", s: "P", ai: m.r.s, by: "sup", note: m.r.note || "", page: m.r.page || "", ...(m.r.xk ? { xk: m.r.xk } : {}),
+      ...(S.timed ? timeEntry(m.r, m.w.job, S.prevIn[k]) : {}) };
+    P++; subsP++;
+  }
+  if (S.timed) repTimes(entries);
+  if (S.over.length) {
+    try {
+      await addDoc(collection(db, "att_alerts"), { type: "over_plan", site: S.site, date: S.date,
+        detail: S.over.map(o => `${o.job}: ${o.n} / ${o.plan}`).join("، "), by: u.uid, by_email: actorEmail(u), at: serverTimestamp() });
+    } catch (e) {}
+    return show($("c-msg"), "err", "مينفعش تأكد: الحاضرين أكتر من العدد المطلوب. " + S.over.map(o => `${o.job}: ${o.n} والمطلوب ${o.plan}`).join("، "));
+  }
+  const wrong = livePages().filter(wrongSite);
+  if (wrong.length && !await ask(`فيه ${fmt(wrong.length)} صورة معظم أساميها مش من كشف ${S.site} — غالباً اترفعت على الموقع الغلط.\nتأكد الحضور برضه؟`)) return;
+  if (S.admin && S.day) {
+    const stName = { confirmed: "مستني مراجعة الإقليمي", reviewed: "مستني الاعتماد", approved: "معتمد" }[S.day.status] || S.day.status;
+    if (!await ask(`تعديل أدمن على ${S.site} يوم ${S.date}:\nحاضر ${P} — غايب ${A}${Qn ? ` — توقف ${Qn}` : ""}\n\nحالة اليوم هتفضل «${stName}».`)) return;
+    $("confirm").disabled = true;
+    try {
+      await updateDoc(doc(db, "att_days", S.site + "__" + S.date), {
+        entries, counts: { present: P, absent: A, ...(Qn ? { stop: Qn } : {}), total: S.roster.length + subsP },
+        pages: livePages().map(p => p.id), admin_edited_by: u.uid, admin_edited_at: serverTimestamp() });
+      show($("c-msg"), "ok", `اتحفظ التعديل ✓ — اليوم لسه «${stName}».`);
+    } catch (err) {
+      show($("c-msg"), "err", "ماتحفظش: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (تعديل الأدمن على att_days)." : err.message));
+    }
+    $("confirm").disabled = false;
+    return;
+  }
+  const late = new Date() > deadlineOf(S.date);
+  const nth = S.lateCount + 1;
+  if (late && !(S.regional ? S.day?.review_late : S.day?.late) && !await ask(`اتأخرت في رفع حضور يوم ${S.date}.\nدي المرة ${ordinal(nth)} الشهر ده.\nالتأخير بيتسجل وبيأثر على تقييمك وراتبك.\n\nتأكد الحضور؟`)) return;
+  if (!late && !await ask(`تأكيد حضور ${S.site} يوم ${S.date}:\nحاضر ${P} — غايب ${A}${Qn ? ` — توقف ${Qn}` : ""}`, { ok: "أكّد الحضور" })) return;
+  $("confirm").disabled = true;
+  try {
+    const base = {
+      site: S.site, date: S.date, entries,
+      counts: { present: P, absent: A, ...(Qn ? { stop: Qn } : {}), total: S.roster.length + subsP },
+      pages: livePages().map(p => p.id),
+    };
+    if (S.regional) {
+      // الإقليمي: مراجعة (لو المشرف مارفعش، الإقليمي بيرفع ويراجع مرة واحدة)
+      const sup = S.day?.confirmed_at ? { late: !!S.day.late, confirmed_by: S.day.confirmed_by, confirmed_email: S.day.confirmed_email || "", confirmed_at: S.day.confirmed_at }
+        : { late, confirmed_by: u.uid, confirmed_email: actorEmail(u), confirmed_at: serverTimestamp() };
+      await setDoc(doc(db, "att_days", S.site + "__" + S.date), { ...base, ...sup, status: "reviewed",
+        review_late: late || !!S.day?.review_late, reviewed_by: u.uid, reviewed_email: actorEmail(u), reviewed_at: serverTimestamp() });
+    } else {
+      await setDoc(doc(db, "att_days", S.site + "__" + S.date), { ...base, status: "confirmed",
+        late: late || !!S.day?.late, confirmed_by: u.uid, confirmed_email: actorEmail(u), confirmed_at: serverTimestamp() });
+    }
+    show($("c-msg"), "ok", "اتأكد الحضور ✓");
+  } catch (err) {
+    show($("c-msg"), "err", "ماتأكدش: " + (err.code === "permission-denied" ? "مش مسموح (يمكن اليوم اتراجع أو تم اعتماده)." : err.message));
+  }
+  $("confirm").disabled = false;
+});
+// ===== تحديث الساعات من القراءة (الأدمن، مواقع الساعات، يوم لسه ماتمش اعتماده) =====
+// بعد ما الصور تتقري تاني (reread_pages.py على السيرفر): الساعات المحفوظة بتتحسب من جديد من آخر قراءة،
+// والبدلاء الحاضرين اللي القراءة الجديدة لقيتهم ومش متسجلين بيتضافوا. حالة كل عامل وقرارات المشرف/الإقليمي مابتتغيرش.
+const TIME_KEYS = ["tin", "tout", "in", "out", "min", "dmin", "nmin", "ot", "otd", "otn", "t_issue", "t_prev", "t_src", "mission"];
+$("refresh-times").addEventListener("click", async () => {
+  if (!S.admin || !S.day) return;
+  if (S.pages.some(p => p.status === "pending" || p.status === "reading")) return show($("refresh-msg"), "warn", "فيه صور لسه بتتقري — استنى لحد ما تخلص.");
+  const ai = aiState(), subs = aiSubs();
+  const entries = JSON.parse(JSON.stringify(S.day.entries || {}));
+  const clearT = e => TIME_KEYS.forEach(k => delete e[k]);
+  let nT = 0; const added = [], diff = [];
+  // عامل من الكشف اتنقل بعدين لقايمة البدلاء (اتغير نوعه): القراءة الجديدة بتلاقيه «بديل» بنفس الرقم القومي.
+  // ده نفس العامل — ساعاته تروح على سطره الأصلي، ومايتضافش تاني. والمتكرر اللي اتضاف قبل كده بيتشال.
+  const mainN = new Set(Object.values(entries).filter(e => !e.sub && e.nid).map(e => String(e.nid)));
+  const subByNid = {}; Object.values(subs).forEach(r => { if (r.w?.nid) subByNid[String(r.w.nid)] = r; });
+  const dups = Object.keys(entries).filter(k => entries[k].sub && entries[k].added_by_refresh && mainN.has(String(entries[k].nid || "")));
+  dups.forEach(k => delete entries[k]);
+  for (const [c, e] of Object.entries(entries)) {
+    if (e.s === "A" && e.rep) { e.rep = { nid: e.rep.nid || "", name: e.rep.name, code: e.rep.code || "" }; continue; }   // repTimes بيحسبها تاني
+    if (e.s !== "P") continue;
+    if (e.rep_for) { clearT(e); continue; }
+    const r = e.sub ? subs[c] : (ai[c] || (e.nid ? subByNid[String(e.nid)] : null));
+    if (!r) continue;   // الصف مش في الصور دلوقتي: الساعات زي ما هي
+    clearT(e); Object.assign(e, timeEntry(r, e.job, S.prevIn[c])); nT++;
+  }
+  // البدلاء الحاضرين في القراءة الجديدة ومش متسجلين (ولا مختارين بديل لحد)
+  const usedN = new Set(Object.values(entries).flatMap(e => [e.rep?.nid, e.nid]).filter(Boolean).map(String));
+  for (const [k, r] of Object.entries(subs)) {
+    if (entries[k] || r.s !== "P" || needsReview(r) || usedN.has(String(r.w.nid || ""))) continue;
+    entries[k] = { name: r.w.name, nid: r.w.nid || "", code: r.w.code || "", job: r.w.job || "", type: r.w.type || "بديل", sub: true, s: "P", ai: r.s,
+      by: "ai", note: r.note || "", page: r.page || "", added_by_refresh: true, ...timeEntry(r, r.w.job, S.prevIn[k]) };
+    added.push(r.w.name + " — " + (r.w.job || ""));
+  }
+  // فرق في الحالة بين القراءة الجديدة والمحفوظ (القراءة كانت هي اللي قررت): بيتعرض بس
+  S.roster.forEach(w => {
+    const e = entries[w.code], r = ai[w.code];
+    if (!e || !r || e.by !== "ai" || needsReview(r) || r.s === e.s || (e.s === "L" && specialOf(r))) return;
+    diff.push(`${w.name}: محفوظ ${e.s === "P" ? "حاضر" : e.s === "A" ? "غايب" : "توقف"} والقراءة الجديدة ${r.s === "P" ? "حاضر" : "غايب"}`);
+  });
+  repTimes(entries);
+  const v = Object.values(entries);
+  const counts = { present: v.filter(e => e.s === "P").length, absent: v.filter(e => e.s === "A").length, total: v.length };
+  const stop = v.filter(e => e.s === "L" && e.c === "ق").length; if (stop) counts.stop = stop;
+  const msg = `هيتحدث ساعات ${nT} عامل` + (added.length ? `، وهيتضاف ${added.length} بديل حاضر:\n${added.join("\n")}` : "")
+    + (dups.length ? `\nوهيتشال ${dups.length} اسم متكرر (نفس العامل اتسجل مرتين)` : "") + ".\nتكمل؟";
+  if (!await ask(msg)) return;
+  $("refresh-times").disabled = true;
+  try {
+    await updateDoc(doc(db, "att_days", S.site + "__" + S.date), { entries, counts, times_refreshed_at: serverTimestamp(), times_refreshed_by: auth.currentUser.uid });
+    show($("refresh-msg"), "ok", `اتحدث ✓ — ساعات ${nT} عامل${added.length ? `، واتضاف ${added.length} بديل: ${added.join("، ")}` : ""}${dups.length ? `، واتشال ${dups.length} اسم متكرر` : ""}.`
+      + (diff.length ? `\n\nفرق في الحالة (ماتغيرش — راجعه بنفسك):\n${diff.join("\n")}` : ""));
+  } catch (err) {
+    show($("refresh-msg"), "err", "ماتحدثش: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (att_days — تحديث الساعات للأدمن)." : err.message));
+  }
+  $("refresh-times").disabled = false;
+});
+// ===== طباعة الكشف اليومي وترتيبه (التفاصيل في sheet.js) =====
+// الترتيب محفوظ على الموقع في sheet_order/{الموقع}. بيأثر على الكشف المطبوع بس.
+async function loadOrder(site) {
+  try { const s = await getDoc(doc(db, "sheet_order", site)); return s.exists() ? s.data() : null; }
+  catch (e) { return null; }   // من غير ترتيب محفوظ: الكشف بيطلع بالترتيب العادي
+}
+const orderNote = o => {
+  if (!o?.updated_at) return "";
+  const t = o.updated_at.toDate ? o.updated_at.toDate() : null;
+  return "آخر تعديل: " + (o.updated_email || "") + (t ? " — " + t.toLocaleString("ar-EG", { day: "numeric", month: "long", hour: "numeric", minute: "2-digit" }) : "");
+};
+// بدلاء الراحات اللي بياناتهم كاملة (اسم، رقم قومي 14 رقم، وظيفة، ومش متأخر في الورق) — بيتطبعوا في الأماكن الفاضية بس
+function restSubs() {
+  const overdue = new Set((S.newWorkers || []).filter(x => ficheState(x).st === "overdue").map(x => x.id));
+  return (S.pool || []).filter(p => /راحات/.test(p.type || "") && String(p.name || "").trim() && /^\d{14}$/.test(String(p.nid || ""))
+    && String(p.job || "").trim() && !overdue.has(p.nid));
+}
+$("print").addEventListener("click", async () => {
+  if (!S.rosterNow.length) return show($("deadline"), "err", "كشف الموقع مش موجود لسه.");
+  const [year, month] = (S.date || ymd(new Date())).split("-").map(Number);
+  const order = await loadOrder(S.site);
+  await openPrintView({ site: S.site, roster: S.rosterNow, subs: restSubs(), order, plan: S.plan, month, year });
+});
+$("order").addEventListener("click", async () => {
+  if (!S.rosterNow.length) return show($("deadline"), "err", "كشف الموقع مش موجود لسه.");
+  const site = S.site;
+  const order = await loadOrder(site);
+  await openOrderEditor({
+    site, roster: S.rosterNow, subs: restSubs(), order, plan: S.plan, canEdit: true, canAdmin: S.admin, lastChange: orderNote(order),
+    onSave: async o => {
+      const u = auth.currentUser;
+      // آخر حفظ هو اللي بيمشي، ومين غيّر وإمتى بيتسجلوا مع الترتيب
+      await setDoc(doc(db, "sheet_order", site), {
+        site, groups: o.groups, breaks: o.breaks, excluded: o.excluded,
+        ...(o.sections ? { sections: o.sections, secNeed: o.secNeed, secOrder: o.secOrder, pageGroups: o.pageGroups } : {}),
+        updated_by: u.uid, updated_email: actorEmail(u), updated_at: serverTimestamp(),
+      });
+    },
+  });
+});
+// ===== البدلاء =====
+const anorm = s => String(s ?? "").replace(/[\u064B-\u0652]/g, "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/عبد\s+/g, "عبد").replace(/\s+/g, " ").trim();
+function lev(a, b) {
+  const m = a.length, n = b.length; if (!m || !n) return Math.max(m, n);
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) { const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; }
+  return prev[n];
+}
+// «عبد» بتتلزق في اللي بعدها (عبد الرحمن = عبدالرحمن)، بس لو القراءة غلطت (عيد اتقرت عبد) اللزق بيبوّظ المقارنة،
+// فبنقارن بالطريقتين وناخد الأعلى
+const anormSep = s => anorm(s).replace(/عبد(?=\S)/g, "عبد ");
+function nameScore(q, name) {
+  const sc = f => {
+    const a = f(q).split(" ").filter(Boolean), b = f(name).split(" ");
+    if (!a.length) return 0;
+    let tot = 0;
+    a.forEach((t, i) => { const u = b[i] || ""; tot += 1 - lev(t, u) / Math.max(t.length, u.length, 1); });
+    return tot / a.length;
+  };
+  return Math.max(sc(anorm), sc(anormSep));
+}
+// مطابقة مرنة للاقتراحات: كلمة ناقصة أو زيادة أو في غير مكانها مابتبوّظش المقارنة
+// (كل كلمة من المقروء بتتقارن بأقرب كلمة في الاسم). للاقتراح بس — المطابقة الأوتوماتيك فاضلة بالترتيب.
+function nameFlex(q, name) {
+  const tw = f => {
+    const a = f(q).split(" ").filter(Boolean), b = f(name).split(" ").filter(Boolean);
+    if (a.length < 2 || !b.length) return 0;
+    let tot = 0;
+    a.forEach(t => { tot += Math.max(...b.map(u => 1 - lev(t, u) / Math.max(t.length, u.length, 1))); });
+    return tot / a.length * 0.95;
+  };
+  return Math.max(nameScore(q, name), tw(anorm), tw(anormSep));
+}
+function usedReps(except) {
+  return new Set(Object.entries(S.rep).filter(([c]) => c !== except).map(([, r]) => r.nid || r.code));
+}
+function candidates(q, except, limit = 6) {
+  const used = usedReps(except);
+  const overdue = new Set(S.newWorkers.filter(x => ficheState(x).st === "overdue").map(x => x.id));
+  return S.pool.filter(p => !used.has(p.nid || p.code) && !overdue.has(p.nid))
+    .map(p => ({ p, sc: nameFlex(q, p.name) })).filter(x => x.sc >= 0.6)
+    .sort((a, b) => b.sc - a.sc).slice(0, limit).map(x => x.p);
+}
+// ===== الصفوف المكتوبة بخط اليد ومش متطابقة: اقتراح أو بحث =====
+// مين اتاخد خلاص (اتقرا في صورة، أو اتختار لصف تاني، أو بديل لحد غايب) عشان مايتقترحش تاني
+function takenIds(exceptKey) {
+  const t = new Set(Object.keys(aiStateBase()));
+  Object.values(aiSubs()).forEach(r => t.add(r.w.nid || r.w.code));
+  Object.entries(S.xpick).forEach(([k, v]) => { if (k !== exceptKey) t.add(v.startsWith("M:") ? v.slice(2) : v); });
+  usedReps().forEach(v => t.add(v));
+  return t;
+}
+// حضور العمال المقروء (من غير اختيارات خط اليد) — للاقتراحات بس
+function aiStateBase() {
+  const map = {};
+  livePages().forEach(p => (p.result?.rows || []).forEach(r => { const c = rowCode(r); if (c) map[c] = 1; }));
+  livePages().forEach(p => (p.result?.extra || []).forEach(x => { const w = matchExtra(x); if (w) map[w.code] = 1; }));
+  return map;
+}
+const idOf = w => w.nid || w.code;
+const overdueSet = () => new Set(S.newWorkers.filter(x => ficheState(x).st === "overdue").map(x => x.id));
+// اقتراحات لحد ٣ من بدلاء الموقع وعمال كشفه، بالاسم المقروء أو الملاحظة
+function extraCands(x, key, limit = 3) {
+  const taken = takenIds(key), od = overdueSet();
+  const here = [...S.roster.map(w => ({ w, id: w.code })), ...(S.pool || []).filter(p => !od.has(p.nid)).map(w => ({ w, id: idOf(w) }))]
+    .filter(c => c.id && !taken.has(c.id) && !taken.has(c.w.nid));
+  return here.map(c => ({ ...c, sc: Math.max(...[x.name, x.note].filter(Boolean).map(t => nameFlex(t, c.w.name)), 0) }))
+    .filter(c => c.sc >= 0.6).sort((a, b) => b.sc - a.sc).slice(0, limit);
+}
+// بحث بالاسم أو الكود أو الرقم القومي: الموقع ده الأول (كشفه وبدلاؤه)، وبعدين باقي المواقع
+function xSearch(qRaw, key) {
+  const q = rmNorm(qRaw), dig = q.replace(/\D/g, ""), code = /^[Tt]?\s?\d{2,6}$/.test(q) ? "T" + dig : "";
+  const words = q.split(" ").filter(Boolean);
+  const hit = w => (code && String(w.code || "").toUpperCase() === code) || (dig.length >= 4 && String(w.nid || "").includes(dig))
+    || (!dig && words.length && words.every(t => rmNorm(w.name).includes(t)));
+  const taken = takenIds(key), od = overdueSet();
+  const here = [...S.roster.map(w => ({ w, id: w.code, site: S.site })), ...(S.pool || []).filter(p => !od.has(p.nid)).map(w => ({ w, id: idOf(w), site: S.site }))]
+    .filter(c => c.id && hit(c.w));
+  const seen = new Set(here.map(c => c.w.nid || c.id));
+  const far = ELSE_LIST.filter(w => w.site !== S.site && hit(w) && !seen.has(w.nid || w.code) && (seen.add(w.nid || w.code), true))
+    .map(w => ({ w, id: "M:" + (w.nid || ""), site: w.site }));
+  return [...here, ...far].slice(0, 8).map(c => ({ ...c, taken: taken.has(c.id) || (c.w.nid && taken.has(c.w.nid)) }));
+}
+// الاختيار المحفوظ لصف بخط اليد: مين ده
+function xpickWho(v) {
+  if (v.startsWith("M:")) { const m = S.mpick[v.slice(2)]; return m ? { ...m, where: m.site } : null; }
+  return S.roster.find(w => w.code === v) || (S.pool || []).find(q => idOf(q) === v) || null;
+}
+const candLabel = c => `${esc(c.w.name)}<small style="opacity:.75"> · ${esc([c.w.code && !String(c.w.code).startsWith("N") ? c.w.code : "", c.w.type || "", c.site && c.site !== S.site ? c.site : ""].filter(Boolean).join(" · "))}</small>`;
+// key = كود العامل الأساسي، أو R+الرقم القومي لبديل راحات مطبوع غايب (بديل مكان البديل)
+function repBlock(w, r, key = w.code) {
+  const ro = lockedForMe();
+  const cur = S.rep[key];
+  if (cur) return `<div class="rep">البديل: <span class="chip sel">✓ ${esc(cur.name)}</span>${ro ? "" : ` <button class="btn sec small" data-repclear="${esc(key)}">تغيير</button>`}</div>`;
+  if (ro) return "";
+  let sug = "";
+  if (r?.note) {
+    const best = candidates(r.note, key, 1)[0];
+    sug = best ? `<div class="muted">مكتوب في الملاحظات: "${esc(r.note)}" — تقصد:</div><span class="chip" data-pick="${esc(key)}" data-who="${esc(best.nid || best.code)}">${esc(best.name)} ✓</span>`
+      : `<div class="muted">مكتوب في الملاحظات: "${esc(r.note)}" — مش لاقيه في قايمة البدلاء.</div>`;
+  }
+  return `<div class="rep" data-rep="${esc(key)}">${sug}
+    <input type="text" placeholder="لو فيه بديل، اكتب أول اسمه..." data-search="${esc(key)}">
+    <div class="hits" id="hits-${esc(key)}"></div>
+    <button class="btn sec small" data-newrep="${esc(key)}" style="margin-top:4px;">بديل جديد مش في القايمة (بالبطاقة)</button></div>`;
+}
+function pickRep(code, who) {
+  const p = S.pool.find(x => (x.nid || x.code) === who); if (!p) return;
+  S.rep[code] = { nid: p.nid || "", name: p.name, code: p.code || "" };
+  render();
+}
+$("workers").addEventListener("input", e => {
+  const code = e.target.dataset.search; if (!code) return;
+  const q = e.target.value.trim(), box = $("hits-" + code);
+  if (q.length < 2) { box.innerHTML = ""; return; }
+  const hits = candidates(q, code);
+  box.innerHTML = hits.length ? hits.map(p => `<span class="chip" data-pick="${code}" data-who="${esc(p.nid || p.code)}">${esc(p.name)}</span>`).join(" ")
+    : `<span class="muted">مفيش حد بالاسم ده في البدلاء — لو جديد، استخدم "بديل جديد".</span>`;
+});
+$("workers").addEventListener("click", e => {
+  const pick = e.target.closest("[data-pick]"); if (pick) return pickRep(pick.dataset.pick, pick.dataset.who);
+  const clr = e.target.closest("[data-repclear]"); if (clr) { delete S.rep[clr.dataset.repclear]; return render(); }
+  const nr = e.target.closest("[data-newrep]"); if (nr) return openId("replacement", nr.dataset.newrep);
+});
+function xHitsHtml(q, key) {
+  if (rmNorm(q).length < 2) return "";
+  const hits = xSearch(q, key);
+  if (!hits.length) return `<span class="muted">${ELSE ? "مفيش حد بالشكل ده في الكشوف ولا البدلاء. لو جديد خالص، ضيفه بالبطاقة." : "بيدوّر في باقي المواقع..."}</span>`;
+  return hits.map(c => c.taken ? `<span class="chip" style="opacity:.5" title="متسجل خلاص النهارده">${candLabel(c)} (متسجل)</span>`
+    : c.id === "M:" ? `<span class="chip" style="opacity:.5" title="مالوش رقم قومي في البوابة">${candLabel(c)} (من غير رقم قومي)</span>`
+    : `<span class="chip" data-xpick="${esc(key)}" data-who="${esc(c.id)}" data-site="${esc(c.site)}">${candLabel(c)}</span>`).join(" ");
+}
+$("extras").addEventListener("input", e => {
+  const key = e.target.dataset.xq; if (!key) return;
+  S.xq = S.xq || {}; S.xq[key] = e.target.value;
+  const box = [...$("extras").querySelectorAll("[data-xhits]")].find(b => b.dataset.xhits === key);
+  if (box) box.innerHTML = xHitsHtml(e.target.value, key);
+});
+$("extras").addEventListener("click", e => {
+  const pk = e.target.closest("[data-xpick]");
+  if (pk) {
+    const key = pk.dataset.xpick, who = pk.dataset.who;
+    if (!who.startsWith("M:")) { S.xpick[key] = who; if (S.xq) delete S.xq[key]; render(); return; }
+    // من موقع تاني: زي العمال اللي اتنقلوا — نتأكد إنه مش متسجل اليوم ده في موقع تاني
+    const nid = who.slice(2), w = ELSE_LIST.find(q => q.nid === nid && q.site === pk.dataset.site) || elsewhere(nid); if (!w) return;
+    pk.style.opacity = ".5"; pk.textContent = "بيدوّر عليه في باقي المواقع...";
+    otherSitesSameDay(nid).then(found => {
+      if (found.length) { tell(`${w.name} مينفعش يتسجل هنا: متسجل يوم ${S.date} في ${found.join("، ")}.\nشيله من هناك الأول.`); render(); return; }
+      delete S.mwarn[nid]; S.munpick.delete(nid);
+      S.mpick[nid] = { name: w.name, code: w.code || "", job: w.job || "", type: w.type || "بديل", site: w.site };
+      S.xpick[key] = who; if (S.xq) delete S.xq[key];
+      render();
+    });
+    return;
+  }
+  const un = e.target.closest("[data-xunpick]");
+  if (un) {
+    const k = un.dataset.xunpick, v = S.xpick[k] || "";
+    if (v.startsWith("M:")) { delete S.mpick[v.slice(2)]; S.munpick.add(v.slice(2)); }
+    delete S.xpick[k]; S.xunpick = S.xunpick || new Set(); S.xunpick.add(k); render(); return;
+  }
+  const mp = e.target.closest("[data-mpick]");
+  if (mp) {
+    const nid = mp.dataset.mpick, w = elsewhere(nid); if (!w) return;
+    mp.disabled = true; mp.textContent = "بيدوّر عليه في باقي المواقع...";
+    otherSitesSameDay(nid).then(found => {
+      if (found.length) { S.mwarn[nid] = found; render(); return; }
+      delete S.mwarn[nid]; S.munpick.delete(nid);
+      S.mpick[nid] = { name: w.name, code: w.code || "", job: w.job || "", type: w.type || "بديل", site: w.site };
+      render();
+    });
+    return;
+  }
+  const mu = e.target.closest("[data-munpick]");
+  if (mu) { delete S.mpick[mu.dataset.munpick]; S.munpick.add(mu.dataset.munpick); render(); return; }
+  if (e.target.closest("[data-addnew]")) openId("roster");
+});
+
+// ===== إدارة الكشف =====
+// قوة الفرع: الأسماء بالوظيفة والنوع، وعدد كل وظيفة قصاد المطلوب
+function renderForce() {
+  if (S.photo !== false) return;
+  const perJob = {};
+  S.rosterNow.forEach(w => { perJob[w.job] = (perJob[w.job] || 0) + 1; });
+  const jobsAll = [...new Set([...Object.keys(perJob), ...Object.keys(S.plan || {})])];
+  $("force-plan").innerHTML = jobsAll.length ? `<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr><th style="text-align:right">الوظيفة</th><th>على الكشف</th><th>المطلوب</th><th></th></tr></thead><tbody>` +
+    jobsAll.map(j => { const n = perJob[j] || 0, p = S.plan?.[j];
+      return `<tr><td>${esc(j)}</td><td class="n">${fmt(n)}</td><td class="n">${p != null ? fmt(p) : "—"}</td><td class="n">${p == null ? "" : n > p ? `<span class="pill p-err">زيادة ${fmt(n - p)}</span>` : n < p ? `<span class="pill p-grey">ناقص ${fmt(p - n)}</span>` : `<span class="pill p-ok">مطابق</span>`}</td></tr>`; }).join("") +
+    `</tbody></table>` + (Object.keys(S.plan || {}).length ? "" : `<p class="muted" style="margin-top:6px;">مفيش عدد مطلوب متسجل للفرع ده.</p>`) : `<p class="muted">الكشف فاضي.</p>`;
+}
+function renderManage() {
+  renderRmHits();
+  $("m-removed").innerHTML = S.removals.length ? `<div class="muted" style="margin-bottom:4px;">اتشالوا من الكشف:</div>` + S.removals.map(r =>
+    `<div class="w"><div class="nm"><b>${esc(r.name)}</b><small>${esc(r.reason)}${r.note ? " — " + esc(r.note) : ""}</small></div><button class="btn sec small" data-restore="${esc(r.id)}">رجّعه</button></div>`).join("") : "";
+}
+// بحث عن اسم للشيل: كل ما يكتب حرف القايمة تقرب لحد ما يختار
+const rmNorm = s => enDigits(s).replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/\s+/g, " ").trim();
+function renderRmHits() {
+  const q = rmNorm($("m-q").value); if (!q || $("m-who").value) { $("m-hits").innerHTML = ""; return; }
+  const words = q.split(" ");
+  const hits = S.rosterNow.filter(w => { const n = rmNorm(w.name); return words.every(x => n.includes(x)) || String(w.nid || "").includes(q) || String(w.code || "") === q; })
+    .sort((a, b) => rmNorm(a.name).indexOf(words[0]) - rmNorm(b.name).indexOf(words[0])).slice(0, 30);
+  $("m-hits").innerHTML = hits.length ? hits.map(w => `<button type="button" data-rmpick="${esc(w.code)}"><b>${esc(w.name)}</b><small>${esc(w.job || "")}</small></button>`).join("")
+    : `<div class="muted" style="padding:8px;">مفيش اسم في الكشف بالشكل ده.</div>`;
+}
+function rmPick(code) {
+  const w = S.rosterNow.find(x => x.code === code);
+  $("m-who").value = w ? code : "";
+  $("m-picked").innerHTML = w ? `<div><b>${esc(w.name)}</b> <small class="muted">${esc(w.job || "")}</small></div><button type="button" class="btn sec small" data-rmclear>غيّر</button>` : "";
+  $("m-picked").classList.toggle("hidden", !w); $("m-q").classList.toggle("hidden", !!w); renderRmHits();
+}
+$("m-q").addEventListener("input", renderRmHits);
+$("m-hits").addEventListener("click", e => { const b = e.target.closest("[data-rmpick]"); if (b) rmPick(b.dataset.rmpick); });
+$("m-picked").addEventListener("click", e => { if (e.target.closest("[data-rmclear]")) { rmPick(""); $("m-q").focus(); } });
+$("m-remove").addEventListener("click", () => {
+  const f = $("m-remove-form"); f.classList.toggle("hidden");
+  if (!f.classList.contains("hidden")) { $("m-q").value = ""; rmPick(""); $("m-q").focus(); }
+});
+const RS = { img: null };
+// صورة الاستقالة على المشرف بس، المحاسب والـ HR بيشيلوا من غيرها (زي الأدمن)
+const resignOn = () => $("m-reason").value === "استقالة" && !S.office;
+function syncResign() { $("m-resign").classList.toggle("hidden", !resignOn()); }
+$("m-reason").addEventListener("change", syncResign);
+syncResign();
+async function onResign(e) {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try { RS.img = await compressCard(f, FICHE_LIMIT, FICHE_SIDE); const im = $("m-resign-img"); im.src = "data:image/jpeg;base64," + RS.img; im.classList.remove("hidden"); hide($("m-msg")); }
+  catch (err) { show($("m-msg"), "err", err.message); }
+}
+["m-resign-cam", "m-resign-file"].forEach(id => $(id).addEventListener("change", onResign));
+$("m-remove-save").addEventListener("click", async () => {
+  const code = $("m-who").value, w = S.rosterNow.find(x => x.code === code); if (!w) return show($("m-msg"), "err", "اختار العامل من القايمة الأول.");
+  const resign = resignOn();
+  if (resign && !RS.img) return show($("m-msg"), "err", "صوّر الاستقالة الأول.");
+  if (resign && !/^\d{14}$/.test(String(w.nid || ""))) return show($("m-msg"), "err", "الرقم القومي للعامل ده ناقص في الكشف — ابعت الاستقالة للإدارة.");
+  if (!await ask(`تشيل ${w.name} من الكشف؟ (السبب: ${$("m-reason").value})`, { ok: "شيله", danger: true })) return;
+  const u = auth.currentUser;
+  try {
+    // الاستقالة الأول: لو الصورة مارفعتش، الاسم ميتشالش
+    if (resign) await addDoc(collection(db, "doc_uploads"), { site: S.site, nid: String(w.nid), kind: "resignation", images: [RS.img],
+      uploaded_by: u.uid, uploaded_email: actorEmail(u), status: "pending", created_at: serverTimestamp() });
+    // الاسم بيتشال من الكشف المطبوع على طول، والخروج نفسه بيروح طلب للـ HR يعتمده (لو اترفض بيرجع للكشف)
+    const reason = $("m-reason").value, note = $("m-note").value.trim();
+    const bt = writeBatch(db), evRef = doc(collection(db, "worker_events"));
+    const tcode = w.tcode || (/^T\d+$/.test(code) ? code : "");
+    bt.set(doc(db, "sheet_removals", S.site + "__" + code), { site: S.site, code, name: w.name, reason,
+      note, ...(tcode ? { event_id: evRef.id } : {}), by: u.uid, by_email: actorEmail(u), at: serverTimestamp() });
+    if (tcode) bt.set(evRef, { kind: "leave", status: "pending", source: "page", branch: S.site, site: S.site,
+      code: tcode, roster_code: code, name: w.name, nid: String(w.nid || ""), job: w.job || "", type: w.type || "",
+      left_date: ymd(new Date()), reason, ...(note ? { note: note.slice(0, 300) } : {}),
+      by: u.uid, by_email: actorEmail(u), created_at: serverTimestamp() });
+    await bt.commit();
+    // عامل جديد لسه بكود مؤقت: طلب إضافته (لو المشرف ده اللي بعته) بيتلغي
+    if (!tcode && w.nid) await cancelMine("hire", "nid", String(w.nid));
+    show($("m-msg"), "ok", (resign ? "اتشال، وصورة الاستقالة اترفعت." : "اتشال.")
+      + (tcode ? " طلب الخروج راح للـ HR يعتمده — لو اترفض هيرجع للكشف." : "") + " الكشف هيتحدّث خلال ثواني.");
+    RS.img = null; $("m-resign-img").classList.add("hidden"); $("m-note").value = ""; $("m-q").value = ""; rmPick(""); $("m-remove-form").classList.add("hidden");
+  } catch (err) { show($("m-msg"), "err", "ماتشالش: " + err.message); }
+});
+$("m-removed").addEventListener("click", async e => {
+  const id = e.target.dataset.restore; if (!id) return;
+  const nm = e.target.closest("div")?.querySelector("b")?.textContent || "العامل ده";
+  if (!(await ask(`ترجّع ${nm} للكشف؟ الشيل هيتلغي.`, { ok: "رجّعه" }))) return;
+  try {
+    await deleteDoc(doc(db, "sheet_removals", id));
+    // طلب الخروج المستني بيتلغي (لو المشرف ده اللي بعته)، غير كده الـ HR يرفضه
+    const n = await cancelMine("leave", "roster_code", id.split("__").slice(1).join("__"));
+    show($("m-msg"), "ok", n ? "رجع للكشف، وطلب الخروج اتلغى." : "رجع للكشف. لو كان فيه طلب خروج مستني من حد تاني، بلّغ الـ HR يرفضه.");
+  }
+  catch (err) { show($("m-msg"), "err", "مارجعش: " + err.message); }
+});
+$("m-add").addEventListener("click", () => S.office ? openNc() : openId("roster"));
+
+// ===== إضافة من غير بطاقة (المحاسب والـ HR) =====
+// نفس إضافة الإدارة في «بيانات العمال»: new_workers بـ no_card، والمشرف يرفع البطاقة بعدين
+function nidAge(nid) {
+  if (!/^[23]\d{13}$/.test(nid)) return null;
+  const y = (nid[0] === "2" ? 1900 : 2000) + +nid.slice(1, 3), m = +nid.slice(3, 5), d = +nid.slice(5, 7);
+  const b = new Date(y, m - 1, d);
+  if (b.getFullYear() !== y || b.getMonth() !== m - 1 || b.getDate() !== d) return null;
+  const t = new Date(); let a = t.getFullYear() - y;
+  if (t.getMonth() < m - 1 || (t.getMonth() === m - 1 && t.getDate() < d)) a--;
+  return a;
+}
+// كل العمال اللي الصفحة تعرفهم: كشف الموقع وقايمة البدلاء والجداد، ومواقع الحساب التانية لو اتحمّلت
+function knownWorkers() {
+  return [...(S.rosterNow || []), ...(S.roster || []), ...(S.pool || []),
+    ...(S.newWorkers || []).map(x => ({ ...x, nid: x.nid || x.id })), ...(ELSE_LIST || [])];
+}
+function openNc() {
+  const jobs = [...new Set([...S.rosterNow.map(x => x.job), ...Object.keys(S.plan || {})].filter(Boolean))];
+  $("nc-job").innerHTML = jobs.map(j => `<option>${esc(j)}</option>`).join("");
+  ["nc-name", "nc-nid", "nc-phone"].forEach(id => $(id).value = ""); $("nc-type").value = "";
+  hide($("nc-msg")); $("ncm").classList.remove("hidden"); $("nc-name").focus();
+}
+$("ncm-close").addEventListener("click", () => $("ncm").classList.add("hidden"));
+$("nc-ok").addEventListener("click", async () => {
+  const name = cleanName($("nc-name").value), nid = enDigits($("nc-nid").value).replace(/\D/g, ""), job = $("nc-job").value, typ = $("nc-type").value;
+  const phone = cleanPhone($("nc-phone").value);
+  const bad = typedProblem(name, nid, phone);
+  if (bad) return show($("nc-msg"), "err", bad);
+  if (!job) return show($("nc-msg"), "err", "اختار الوظيفة.");
+  if (!typ) return show($("nc-msg"), "err", "اختار نوع العامل.");
+  if (S.rosterNow.some(x => x.nid === nid)) return show($("nc-msg"), "err", "العامل ده موجود في الكشف أصلاً.");
+  if (S.pool.some(x => x.nid === nid)) return show($("nc-msg"), "err", "العامل ده موجود في قايمة البدلاء أصلاً.");
+  const near = nearWorkers(nid, name, knownWorkers());
+  if (near.length) return show($("nc-msg"), "err", `فيه عامل بنفس الاسم «${near[0].name}» برقم ${near[0].nid} — فرق ${near[0].diff === 1 ? "رقم واحد" : "رقمين"} بس عن اللي اتكتب. راجع الرقم من البطاقة.`);
+  const toRoster = typ === "اساسي";
+  const u = auth.currentUser;
+  $("nc-ok").disabled = true;
+  try {
+    const first_day = ymd(new Date()), bt = writeBatch(db), evRef = doc(collection(db, "worker_events"));
+    bt.set(doc(db, "new_workers", nid), { nid, name, site: S.site, job, type: typ, role: toRoster ? "roster" : "replacement",
+      no_card: true, first_day, event_id: evRef.id, added_by: u.uid, added_email: actorEmail(u), at: serverTimestamp() });
+    bt.set(evRef, hireEvent(u, { name, nid, phone, job, type: typ, first_day }));
+    await bt.commit();
+    $("ncm").classList.add("hidden");
+    show($("m-msg"), "ok", `${name} اتبعت للـ HR يعتمده، وهيظهر ${toRoster ? "على الكشف" : "في قايمة البدلاء"} بكود مؤقت لحد ما ياخد كود.`);
+  } catch (err) {
+    show($("nc-msg"), "err", err.code === "permission-denied" ? "مااتضافش: يا إما العامل ده متسجل قبل كده، يا إما ممنوع تشغيله في تيما (البلاك ليست)." : err.message);
+  }
+  $("nc-ok").disabled = false;
+});
+
+// إلغاء طلب مستني بعته الحساب ده (إضافة بالرقم القومي، أو خروج بكود الكشف) — بيرجّع عدد اللي اتلغى
+async function cancelMine(kind, field, value) {
+  const u = auth.currentUser;
+  const snap = await getDocs(query(collection(db, "worker_events"), where("branch", "==", S.site), where(field, "==", value)));
+  let n = 0;
+  for (const d of snap.docs) {
+    const e = d.data();
+    if (e.kind !== kind || e.status !== "pending" || e.source !== "page" || e.by !== u.uid) continue;
+    try { await updateDoc(d.ref, { status: "cancelled", cancelled_at: serverTimestamp() }); n++; } catch (e) {}
+  }
+  return n;
+}
+// ===== طلب إضافة للـ HR (السجل الموحد) =====
+// العامل الجديد بيظهر على الكشف بكود مؤقت (new_workers) لحد ما الـ HR يعتمد ويطلع له كود T
+const PHONE_RE = /^01[0125][0-9]{8}$/;
+const cleanPhone = v => { let p = enDigits(v).replace(/\D/g, ""); if (p.length === 10 && p[0] === "1") p = "0" + p; return p; };
+const cleanName = v => String(v || "").replace(/\s+/g, " ").trim();
+// المشكلة في البيانات اللي اتكتبت (أو "" لو تمام)
+function typedProblem(name, nid, phone) {
+  if (name.split(" ").length < 4) return "اكتب الاسم رباعي على الأقل زي البطاقة.";
+  const age = nidAge(nid);
+  if (age == null) return "الرقم القومى لازم 14 رقم وصحيح.";
+  if (age < 18) return "تيما مبتشغلش حد تحت السن القانونى (18 سنة).";
+  if (!PHONE_RE.test(phone)) return "رقم التليفون لازم 11 رقم ويبدأ بـ 01.";
+  return "";
+}
+// صورة صغيرة من وش البطاقة للـ HR وهو بيعتمد (السيرفر بيمسحها بعد القرار — الأصل محفوظ على سيرفر الشركة)
+async function cardThumb(b64) {
+  if (!b64) return "";
+  try {
+    const bmp = await createImageBitmap(await (await fetch("data:image/jpeg;base64," + b64)).blob());
+    const k = Math.min(1, 720 / Math.max(bmp.width, bmp.height)), c = document.createElement("canvas");
+    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    for (const q of [0.7, 0.55, 0.4]) { const d = c.toDataURL("image/jpeg", q); if (d.length < 140000) return d; }
+  } catch (e) {}
+  return "";
+}
+function hireEvent(u, w) {
+  return { kind: "hire", status: "pending", source: "page", branch: S.site, site: S.site, name: w.name, nid: w.nid, phone: w.phone,
+    job: w.job, type: w.type, first_day: w.first_day, ...(w.check_id ? { check_id: w.check_id } : {}), ...(w.card_img ? { card_img: w.card_img } : {}),
+    by: u.uid, by_email: actorEmail(u), created_at: serverTimestamp() };
+}
+
+// ===== البطاقة =====
+const ID = { purpose: null, target: null, check: null, result: null, unsub: null, front: null, back: null, typed: null };
+// limit = أقصى طول للصورة (base64). البطاقة: صورتين × 460 ألف (حد الـ Rules 470 ألف).
+// الفيش: صورة واحدة بس في المستند (حد Firestore 1 ميجا) → لحد 800 ألف وبدقة أعلى عشان الكلام يتقري.
+const FICHE_LIMIT = 800000, FICHE_SIDE = 1800;
+async function compressCard(file, limit = 460000, maxSide = 1400) {
+  const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+  // لو الجودة لوحدها مانزلتش الحجم، نصغّر الأبعاد خطوة خطوة بدل ما نرفض الصورة
+  for (const side of [maxSide, maxSide * 0.8, maxSide * 0.65]) {
+    const k = Math.min(1, side / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas"); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    for (const q of [0.85, 0.75, 0.65, 0.55, 0.45, 0.35]) { const d = c.toDataURL("image/jpeg", q).split(",")[1]; if (d.length < limit) return d; }
+  }
+  throw new Error("الصورة كبيرة جداً");
+}
+// صاحب الصف اللي هيتسجل له بديل: عامل في القوة، أو صف قديم في الكشف (S.roster)، أو بديل راحات مطبوع (مفتاحه R+الرقم القومي)
+function targetWorker(target) {
+  return S.rosterNow.find(x => x.code === target) || S.roster.find(x => x.code === target)
+    || (S.pool || []).find(p => subKey(p) === target) || null;
+}
+function openId(purpose, target) {
+  ID.purpose = purpose; ID.target = target || null; ID.check = null; ID.result = null; ID.unsub?.();
+  const w = target ? targetWorker(target) : null;
+  $("idm-title").textContent = purpose === "complete" ? "استكمال — صورة البطاقة" : purpose === "roster" ? "إضافة عامل جديد للكشف" : "بديل جديد";
+  $("idm-sub").textContent = purpose === "complete" ? `${RT.ev?.name || ""}: صوّر البطاقة وش وضهر في نور كويس، واتأكد إن الاسم والرقم القومي اللي مكتوبين زي البطاقة بالظبط.`
+    : (purpose === "roster" ? "اكتب بيانات العامل وصوّر بطاقته وش وضهر."
+    : `بديل لـ ${w?.name || ""}. اكتب بياناته وصوّر بطاقته، وبعدها هيفضل في قايمة البدلاء.`)
+    + " اللي هتكتبه لازم يطابق البطاقة، والطلب بيروح للـ HR يعتمده.";
+  const jobs = [...new Set(S.rosterNow.map(x => x.job).filter(Boolean))];
+  $("idm-job").innerHTML = jobs.map(j => `<option>${esc(j)}</option>`).join("");
+  if (w) $("idm-job").value = w.job;
+  $("idm-job-wrap").classList.toggle("hidden", purpose !== "roster");
+  $("idm-type-wrap").classList.toggle("hidden", purpose === "complete");
+  // النوع للاتنين: البديل الجديد يومية أو بديل راحات بس
+  $("idm-type").querySelector('option[value="اساسي"]').disabled = purpose !== "roster";
+  $("idm-type").value = purpose === "roster" ? "" : "يومية";
+  ["idm-in-name", "idm-in-nid", "idm-in-phone"].forEach(id => $(id).value = ""); ID.typed = null;
+  if (purpose === "complete" && RT.ev) { $("idm-in-name").value = RT.ev.name || ""; $("idm-in-nid").value = RT.ev.nid || ""; $("idm-in-phone").value = RT.ev.phone || ""; }
+  $("idm-ok").textContent = purpose === "complete" ? "ابعت للـ HR" : "تأكيد الإضافة";
+  hide($("idm-msg")); $("idm-result").classList.add("hidden");
+  ID.front = ID.back = null; $("idm-send").disabled = true;
+  ["front", "back"].forEach(sd => $("idm-" + sd + "-img").classList.add("hidden"));
+  $("idm").classList.remove("hidden");
+}
+$("idm-close").addEventListener("click", () => { ID.unsub?.(); $("idm").classList.add("hidden"); });
+async function onSide(e) {
+  const f = e.target.files[0], side = e.target.dataset.side; e.target.value = ""; if (!f) return;
+  try {
+    ID[side] = await compressCard(f);
+    const im = $("idm-" + side + "-img"); im.src = "data:image/jpeg;base64," + ID[side]; im.classList.remove("hidden");
+    $("idm-send").disabled = !(ID.front && ID.back);
+    $("idm-result").classList.add("hidden"); hide($("idm-msg"));
+  } catch (err) { show($("idm-msg"), "err", err.message); }
+}
+["idm-front-cam", "idm-front-file", "idm-back-cam", "idm-back-file"].forEach(id => $(id).addEventListener("change", onSide));
+$("idm-send").addEventListener("click", async () => {
+  if (!ID.front || !ID.back) return;
+  const t = { name: cleanName($("idm-in-name").value), nid: enDigits($("idm-in-nid").value).replace(/\D/g, ""), phone: cleanPhone($("idm-in-phone").value) };
+  const bad = typedProblem(t.name, t.nid, t.phone);
+  if (bad) return show($("idm-msg"), "err", bad);
+  if (ID.purpose !== "complete" && !$("idm-type").value) return show($("idm-msg"), "err", "اختار نوع العامل الأول.");
+  ID.typed = t;
+  $("idm-send").disabled = true; $("idm-result").classList.add("hidden");
+  show($("idm-msg"), "info", "بيرفع صور البطاقة...");
+  try {
+    const u = auth.currentUser;
+    const ref = await addDoc(collection(db, "id_checks"), { site: S.site, date: S.date, image: ID.front, image_back: ID.back, purpose: ID.purpose === "complete" ? "roster" : ID.purpose,
+      typed_name: ID.typed.name, typed_nid: ID.typed.nid, typed_phone: ID.typed.phone,
+      uploaded_by: u.uid, uploaded_email: actorEmail(u), status: "pending", created_at: serverTimestamp() });
+    ID.check = ref.id;
+    show($("idm-msg"), "info", "بيقرا البطاقة... (حوالي نص دقيقة)");
+    ID.unsub?.();
+    ID.unsub = onSnapshot(ref, snap => {
+      const d = snap.data(); if (!d || d.status === "pending" || d.status === "reading") return;
+      ID.unsub?.(); ID.result = d; $("idm-send").disabled = false;
+      if (d.status === "ok") {
+        hide($("idm-msg"));
+        $("idm-name").textContent = d.name; $("idm-nid").textContent = d.nid; $("idm-age").textContent = d.age + " سنة";
+        if (d.warnings?.length) show($("idm-warn"), "warn", d.warnings.join("\n")); else hide($("idm-warn"));
+        $("idm-result").classList.remove("hidden");
+      } else {
+        show($("idm-msg"), "err", (d.reasons || ["القراءة فشلت"]).join("\n"));
+      }
+    }, err => show($("idm-msg"), "err", err.message));
+  } catch (err) { $("idm-send").disabled = false; show($("idm-msg"), "err", "ماترفعتش: " + (err.code === "permission-denied" ? "مش مسموح للحساب ده." : err.message)); }
+});
+$("idm-ok").addEventListener("click", async () => {
+  const d = ID.result; if (!d || d.status !== "ok") return;
+  if (ID.purpose === "complete") {   // بطاقة لطلب الـ HR رده: الاسم والرقم من البطاقة نفسها
+    const ev = RT.ev; if (!ev) return;
+    let banned = false; try { banned = (await getDoc(doc(db, "blacklist", d.nid))).exists(); } catch (e) {}
+    if (banned) return show($("idm-msg"), "err", "العامل ده ممنوع تشغيله في تيما. راجع الإدارة.");
+    $("idm-ok").disabled = true;
+    try {
+      const phone = cleanPhone($("idm-in-phone").value);
+      await rtComplete(ev.id, { check_id: ID.check, name: d.name, nid: d.nid, ...(PHONE_RE.test(phone) ? { phone } : {}) });
+      $("idm").classList.add("hidden");
+    } catch (err) { show($("idm-msg"), "err", "ماتبعتش: " + (err.code === "permission-denied" ? "مش مسموح للحساب ده." : err.message)); }
+    $("idm-ok").disabled = false;
+    return;
+  }
+  // النوع: أساسي بيدخل الكشف، بديل راحات/يومية بيروحوا قايمة البدلاء (السيرفر بيقسّمهم بالنوع)
+  const typ = $("idm-type").value;
+  if (!typ) return show($("idm-msg"), "err", "اختار نوع العامل الأول.");
+  const toRoster = typ === "اساسي";
+  const inRoster = S.rosterNow.find(x => x.nid === d.nid), inPool = S.pool.find(x => x.nid === d.nid);
+  const u = auth.currentUser;
+  $("idm-ok").disabled = true;
+  try {
+    if (ID.purpose === "replacement" && (inPool || inRoster)) {
+      if (inRoster) throw new Error("ده عامل في الكشف أصلاً، مينفعش يبقى بديل.");
+    } else if (ID.purpose === "roster" && inRoster) {
+      const nw = S.newWorkers.find(x => x.id === d.nid);
+      if (!nw?.no_card) throw new Error("العامل ده موجود في الكشف أصلاً.");
+      // بطاقة لعامل اتضاف من غير بطاقة: السيرفر حفظها خلاص
+      $("idm").classList.add("hidden");
+      show($("m-msg"), "ok", `بطاقة ${d.name} اتحفظت.`);
+      $("idm-ok").disabled = false;
+      return;
+    } else {
+      // رقم قريب من عامل موجود بنفس الاسم (فرق رقم أو اتنين) = غالباً قراية البطاقة غلطت، مش عامل جديد
+      try { await loadElsewhere(); } catch (e) {}   // مواقع الحساب التانية (مرة واحدة)
+      const near = nearWorkers(d.nid, d.name, knownWorkers());
+      if (near.length) {
+        const w = near[0];
+        if (ID.purpose === "replacement" && ID.target && near.length === 1 && !S.rosterNow.some(x => x.nid === w.nid)
+          && await ask(`البطاقة اتقرت برقم ${d.nid}\nوفيه «${w.name}» برقم ${w.nid} — فرق ${w.diff === 1 ? "رقم واحد" : "رقمين"} بس.\n\nغالباً القراية غلطت. نسجّل الموجود (${w.nid}) بديل؟`)) {
+          S.rep[ID.target] = { nid: w.nid, name: w.name, code: w.code || "" };
+          $("idm").classList.add("hidden"); show($("m-msg"), "ok", `${w.name} اتسجل بديل (برقمه المتسجل ${w.nid}).`);
+          $("idm-ok").disabled = false; render(); return;
+        }
+        throw new Error(`البطاقة اتقرت برقم ${d.nid}، وفيه عامل بنفس الاسم «${w.name}» برقم ${w.nid}${w.site && w.site !== S.site ? ` في ${w.site}` : ""} — فرق ${w.diff === 1 ? "رقم واحد" : "رقمين"} بس.\nغالباً القراية غلطت: اختاره من البحث بدل ما تضيفه جديد. لو متأكد إنه شخص تاني بلّغ الإدارة.`);
+      }
+      // شغال فعلاً في السجل (في موقع تاني): مش عامل جديد — نقله بيبقى طلب نقل من الإدارة
+      const active = (d.warnings || []).find(x => x.startsWith("شغال فعلاً في السجل"));
+      if (active) throw new Error(active.replace(" — اختاره من البحث بدل ما تضيفه جديد", "") + ".\nلو اتنقل لموقعك، بلّغ الإدارة تعمل طلب نقل.");
+      // البلاك ليست: ممنوع يتضاف (زي اللي تحت السن)
+      let banned = false; try { banned = (await getDoc(doc(db, "blacklist", d.nid))).exists(); } catch (e) {}
+      if (banned) {
+        try { await addDoc(collection(db, "att_alerts"), { type: "blacklist", site: S.site, date: S.date, detail: `${d.name} — ${d.nid}`, by: u.uid, by_email: actorEmail(u), at: serverTimestamp() }); } catch (e) {}
+        throw new Error("العامل ده ممنوع تشغيله في تيما. راجع الإدارة.");
+      }
+      const job = ID.purpose === "roster" ? $("idm-job").value : (targetWorker(ID.target)?.job || "");
+      const bt = writeBatch(db), evRef = doc(collection(db, "worker_events"));
+      bt.set(doc(db, "new_workers", d.nid), { nid: d.nid, name: d.name, site: S.site, job, type: typ, event_id: evRef.id,
+        role: ID.purpose === "roster" && !toRoster ? "replacement" : ID.purpose, check_id: ID.check, first_day: S.date, added_by: u.uid, added_email: actorEmail(u), at: serverTimestamp() });
+      // طلب إضافة للـ HR: الاسم والرقم من البطاقة (اتطابقوا مع اللي اتكتب)، والتليفون اللي اتكتب
+      const phone = cleanPhone($("idm-in-phone").value);
+      if (!PHONE_RE.test(phone)) throw new Error("رقم التليفون لازم 11 رقم ويبدأ بـ 01.");
+      bt.set(evRef, hireEvent(u, { name: d.name, nid: d.nid, phone, job, type: typ,
+        first_day: S.date, check_id: ID.check, card_img: await cardThumb(ID.front) }));
+      await bt.commit();
+    }
+    if (ID.purpose === "replacement" && ID.target) S.rep[ID.target] = { nid: d.nid, name: d.name, code: inPool?.code || "" };
+    $("idm").classList.add("hidden");
+    show($("m-msg"), "ok", (ID.purpose !== "roster" ? `${d.name} اتسجل بديل.`
+      : toRoster ? `${d.name} اتضاف للكشف (أساسي) بكود مؤقت.` : `${d.name} اتضاف لقايمة البدلاء (${typ}) بكود مؤقت.`)
+      + " الطلب راح للـ HR يعتمده وياخد كود.");
+    render();
+  } catch (err) {
+    show($("idm-msg"), "err", err.code === "permission-denied" ? "مااتضافش: يمكن العامل ده اتضاف قبل كده — دوّر عليه في قايمة البدلاء." : err.message);
+  }
+  $("idm-ok").disabled = false;
+});
+// ===== الفيش =====
+const FICHE_DAYS = 5;
+function workingDaysAfter(iso, n) {
+  const d = new Date(iso + "T00:00:00");
+  while (n > 0) { d.setDate(d.getDate() + 1); if (d.getDay() !== 5) n--; }
+  return d;
+}
+function ficheState(nw) {
+  if (nw.fiche) return { st: "ok" };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(nw.first_day || "")) return { st: "waiting" };
+  const due = workingDaysAfter(nw.first_day, FICHE_DAYS);
+  if (nw.fiche_exception) return { st: "exception", due };
+  const ref = new Date((S.date || ymd(new Date())) + "T00:00:00");
+  return { st: ref > due ? "overdue" : "waiting", due };
+}
+function isBlocked(w) {
+  if (!String(w.code).startsWith("N")) return false;
+  const nw = S.newWorkers.find(x => x.id === w.nid);
+  return !!nw && ficheState(nw).st === "overdue";
+}
+function renderFiche() {
+  const list = S.newWorkers.filter(x => !x.fiche || x.no_card);
+  $("fiche-card").classList.toggle("hidden", !list.length || S.office);
+  $("fiche-list").innerHTML = list.map(x => {
+    const f = ficheState(x);
+    const dueTxt = f.due ? f.due.toLocaleDateString("ar-EG", { weekday: "long", day: "numeric", month: "long" }) : "";
+    const st = x.fiche ? `<span class="pill p-ok">الفيش اترفع</span>`
+      : f.st === "overdue" ? `<span class="pill p-err">المهلة خلصت ${esc(dueTxt)}</span>`
+      : f.st === "exception" ? `<span class="pill p-wait">استثناء من الإدارة</span>`
+      : `<span class="pill p-warn">آخر ميعاد ${esc(dueTxt)}</span>`;
+    return `<div class="w"><div class="nm"><b>${esc(x.name)}</b><small>${esc(x.job || "")} · ${x.role === "roster" ? "في الكشف" : "بديل"}</small>
+      <div style="margin-top:4px;">${st}${x.no_card ? ` <span class="pill p-err">البطاقة ناقصة</span>` : ""}</div></div>
+      <div class="row" style="gap:4px;flex-direction:column;align-items:stretch;">
+        ${x.fiche ? "" : `<button class="btn sec small" data-fiche="${esc(x.id)}">رفع الفيش</button>`}
+        ${x.no_card ? `<button class="btn sec small" data-card="${esc(x.id)}">رفع البطاقة</button>` : ""}</div></div>`;
+  }).join("");
+}
+// ===== طلبات الإضافة اللي الـ HR ردها للمشرف يستكمل =====
+// المشرف يستكمل الناقص (الفيش / البطاقة / التليفون / رد) ← الطلب يرجع «مستني» للـ HR ومكتوب عليه «المشرف استكمل»
+const RT = { list: [], ev: null };
+const RT_WHAT = { fiche: "الفيش ناقص", card: "صورة البطاقة مش واضحة أو ناقصة", phone: "التليفون غلط", nid: "الاسم أو الرقم القومي غلط", other: "أخرى" };
+function renderRet() {
+  $("ret-card").classList.toggle("hidden", !RT.list.length || S.office);
+  $("ret-list").innerHTML = RT.list.map(e => {
+    const r = e.return_reason || "other", id = esc(e.id);
+    const act = r === "fiche" ? `<button class="btn small" data-rtfiche="${id}">رفع الفيش</button>`
+      : r === "card" || r === "nid" ? `<button class="btn small" data-rtcard="${id}">صوّر البطاقة تاني</button>`
+      : r === "phone" ? `<input data-rtphone="${id}" dir="ltr" maxlength="11" inputmode="numeric" placeholder="التليفون الصح" style="width:130px;padding:4px 6px;"><button class="btn small" data-rtsend="${id}">ابعت للـ HR</button>`
+      : `<input data-rtnote="${id}" placeholder="اكتب ردك على الملاحظة" style="flex:1;min-width:150px;padding:4px 6px;"><button class="btn small" data-rtsend="${id}">ابعت للـ HR</button>`;
+    return `<div class="w" style="flex-wrap:wrap;"><div class="nm"><b>${esc(e.name)}</b><small>${esc(e.job || "")} · ${esc(e.type || "")} · ${esc(e.nid || "")}</small>
+      <div style="margin-top:4px;"><span class="pill p-err">الناقص: ${esc(e.decision_note || RT_WHAT[r] || "")}</span></div></div>
+      <div class="row" style="gap:4px;align-items:center;">${act}</div></div>`;
+  }).join("");
+}
+async function rtComplete(id, extra) {
+  const u = auth.currentUser;
+  await updateDoc(doc(db, "worker_events", id), { ...extra, status: "pending", completed_at: serverTimestamp(),
+    completed_by: u.uid, completed_email: actorEmail(u) });
+  show($("ret-msg"), "ok", "اتبعت للـ HR تاني ✓ — العامل هيدخل الكشف أول ما يعتمده.");
+}
+$("ret-list").addEventListener("click", async e => {
+  const ds = e.target.dataset, ev = RT.list.find(x => x.id === (ds.rtfiche || ds.rtcard || ds.rtsend)); if (!ev) return;
+  hide($("ret-msg")); RT.ev = ev;
+  if (ds.rtfiche) {
+    FM.nid = ev.nid; FM.imgs = []; FM.complete = ev.id; $("fm-thumbs").innerHTML = ""; $("fm-send").disabled = true; hide($("fm-msg"));
+    $("fm-title").textContent = "رفع الفيش — " + ev.name; return $("fm").classList.remove("hidden");
+  }
+  if (ds.rtcard) return openId("complete");
+  const box = e.target.closest(".w"), extra = {};
+  if (ev.return_reason === "phone") {
+    const p = cleanPhone(box.querySelector("[data-rtphone]").value);
+    if (!PHONE_RE.test(p)) return show($("ret-msg"), "err", "رقم التليفون لازم 11 رقم ويبدأ بـ 01.");
+    extra.phone = p;
+  } else {
+    const n = box.querySelector("[data-rtnote]").value.replace(/\s+/g, " ").trim();
+    if (!n) return show($("ret-msg"), "err", "اكتب ردك على ملاحظة الـ HR.");
+    extra.completion_note = n.slice(0, 300);
+  }
+  e.target.disabled = true;
+  try { await rtComplete(ev.id, extra); }
+  catch (err) { e.target.disabled = false; show($("ret-msg"), "err", "ماتبعتش: " + (err.code === "permission-denied" ? "مش مسموح للحساب ده." : err.message)); }
+});
+const FM = { nid: null, imgs: [], complete: null };
+$("fiche-list").addEventListener("click", e => {
+  const f = e.target.dataset.fiche, c = e.target.dataset.card;
+  if (c) return openId("roster");
+  if (!f) return;
+  const nw = S.newWorkers.find(x => x.id === f);
+  FM.nid = f; FM.imgs = []; FM.complete = null; $("fm-thumbs").innerHTML = ""; $("fm-send").disabled = true; hide($("fm-msg"));
+  $("fm-title").textContent = "رفع الفيش — " + (nw?.name || "");
+  $("fm").classList.remove("hidden");
+});
+$("fm-close").addEventListener("click", () => $("fm").classList.add("hidden"));
+async function onFiche(e) {
+  // الفيش صورة واحدة بس: أي صورة جديدة بتحل محل اللي قبلها
+  const f = e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  try { FM.imgs = [await compressCard(f, FICHE_LIMIT, FICHE_SIDE)]; hide($("fm-msg")); } catch (err) { show($("fm-msg"), "err", err.message); }
+  renderFmThumbs();
+}
+function renderFmThumbs() {
+  $("fm-thumbs").innerHTML = FM.imgs.map((b, i) => `<div class="fm-pg"><img src="data:image/jpeg;base64,${b}" data-zoom alt="صفحة ${i + 1}" title="دوس تكبّر" style="height:160px;border:1px solid #ddd;border-radius:8px;"><button type="button" data-rm="${i}" title="شيل الصفحة">✕</button></div>`).join("")
+    + (FM.imgs.length ? `<div class="muted" style="width:100%;">دوس على الصورة تكبّرها وتتأكد إنها بتاعة العامل ده، ولو غلط شيلها بـ ✕.</div>` : "");
+  $("fm-send").disabled = !FM.imgs.length;
+}
+$("fm-thumbs").addEventListener("click", e => {
+  const rm = e.target.closest("[data-rm]"); if (!rm) return;
+  e.stopPropagation(); FM.imgs.splice(+rm.dataset.rm, 1); renderFmThumbs();
+});
+$("fm-cam").addEventListener("change", onFiche);
+$("fm-file").addEventListener("change", onFiche);
+$("fm-send").addEventListener("click", async () => {
+  if (!FM.imgs.length || !FM.nid) return;
+  $("fm-send").disabled = true; show($("fm-msg"), "info", "بيرفع...");
+  try {
+    const u = auth.currentUser;
+    const ref = await addDoc(collection(db, "doc_uploads"), { site: S.site, nid: FM.nid, kind: "fiche", images: FM.imgs,
+      uploaded_by: u.uid, uploaded_email: actorEmail(u), status: "pending", created_at: serverTimestamp() });
+    const un = onSnapshot(ref, snap => {
+      const d = snap.data(); if (!d || d.status === "pending" || d.status === "saving") return;
+      un();
+      if (d.status === "done" && FM.complete) {
+        const id = FM.complete; FM.complete = null; $("fm").classList.add("hidden");
+        rtComplete(id, { fiche_upload: ref.id }).catch(err => show($("ret-msg"), "err", "الفيش اتحفظ بس الطلب ماترجعش للـ HR: " + err.message));
+      } else if (d.status === "done") { $("fm").classList.add("hidden"); show($("f-msg"), "ok", "الفيش اتحفظ ✓"); }
+      else { $("fm-send").disabled = false; show($("fm-msg"), "err", d.error || "الحفظ فشل"); }
+    });
+  } catch (err) { $("fm-send").disabled = false; show($("fm-msg"), "err", "ماترفعش: " + err.message); }
+});
+
+// ===== طلبات الإجازة والمرضي (المشرف بيرفع ← HR تيما ← العميل) =====
+// الطلب بيتسجل في hr_events (source = supervisor) بنفس شكل حالات الشرقية والإكسيل، فصفحة hr.html والتقارير بيقروه زيهم.
+const LV = { who: null, img: "", imgFile: null, pages: [], list: [], unsub: null, site: "", evs: [], evUnsub: null };
+// طلبات القوة (إضافة / خروج / تغيير) في نفس القايمة — بشكل الحالات: from = التاريخ، status بنفس معاني الإجازة
+const WE_TY = { hire: "إضافة", leave: "خروج", change: "تغيير" };
+function weItem(e) {
+  const st = { pending: "pending", error: "pending", approved: "pending", done: "approved", rejected: "rejected", returned: "returned" }[e.status];
+  if (!st || !WE_TY[e.kind]) return null;   // اتلغى، أو حركة تأمين (من صفحة السجل)
+  const day = e.first_day || e.left_date || e.effective || "";
+  const to = e.to ? Object.entries(e.to).map(([k, v]) => ({ type: "النوع", job: "الوظيفة", site: "الموقع" }[k] || k) + " ← " + v).join("، ") : "";
+  return { id: "we_" + e.id, we: e.kind, name: e.name || e.code || "", status: st, from: day, to: day,
+    detail: e.kind === "hire" ? `${e.type || ""}${e.job ? " — " + e.job : ""}${e.status === "done" && e.code ? " — الكود " + e.code : ""}`
+      : e.kind === "leave" ? (e.reason || "") : to,
+    note: e.decision_note || "" };
+}
+// المحضر المختوم: لحد 3 صور (image2، image3، image4). كل الصور في نفس الطلب، والطلب لازم يفضل تحت 1MB،
+// فلما المحضر يبقى أكتر من صورة بنضغط الصور أكتر وقت الإرسال (الصورة الواحدة بتفضل بنفس جودتها القديمة)
+const LV_MAX_PAGES = 3, LV_PAGE_ONE = 380000, LV_IMG_MULTI = 360000, LV_PAGES_BUDGET = 630000;
+const LV_TY = { sick: "مرضي", leave: "إجازة" };
+// إصابة العمل: النوع sick وsick_kind = injury، ومعاها صورة المحضر المختوم (image2) إجباري
+const lvTyTxt = e => e.we ? WE_TY[e.we] : e.type === "sick" && e.sick_kind === "injury" ? "إصابة عمل" : (LV_TY[e.type] || "");
+const LV_ST = { returned: ["تم رده — استكمل الناقص", "p-err"], pending: ["مستني الـ HR", "p-wait"], client_wait: ["في انتظار الموافقة", "p-warn"], approved: ["تم الاعتماد", "p-ok"], rejected: ["اترفض", "p-err"] };
+// بنود القايمة: المستني (HR ثم العميل)، وبعدين الإجازات والمرضي (وإصابة العمل معاه) المعتمد والمرفوض
+const LV_GROUPS = [
+  { k: "returned", t: "تم ردها — محتاجة تستكمل", f: e => e.status === "returned" },
+  { k: "pending", t: "مستني الـ HR", f: e => e.status === "pending" },
+  { k: "client_wait", t: "في انتظار الموافقة", f: e => e.status === "client_wait" },
+  { k: "leave_ok", t: "إجازات تم الاعتماد", f: e => e.type === "leave" && e.status === "approved" },
+  { k: "leave_no", t: "إجازات مرفوضة", f: e => e.type === "leave" && e.status === "rejected" },
+  { k: "sick_ok", t: "مرضي تم الاعتماد", f: e => e.type === "sick" && e.status === "approved" },
+  { k: "sick_no", t: "مرضي مرفوض", f: e => e.type === "sick" && e.status === "rejected" },
+  { k: "we_ok", t: "إضافة / خروج / تغيير — تم الاعتماد", f: e => e.we && e.status === "approved" },
+  { k: "we_no", t: "إضافة / خروج / تغيير — مرفوض", f: e => e.we && e.status === "rejected" },
+];
+const LV_OPEN = new Set(["returned", "pending"]);   // البنود المفتوحة بتفضل مفتوحة مع كل تحديث للقايمة
+const lvWorkDays = (f, t) => { let n = 0; for (let d = new Date(f + "T00:00"); d <= new Date(t + "T00:00"); d.setDate(d.getDate() + 1)) if (d.getDay() !== 5) n++; return n; };
+function lvWatch() {
+  const site = $("site").value;
+  if (site === LV.site && LV.unsub) return;
+  LV.unsub?.(); LV.unsub = null; LV.evUnsub?.(); LV.evUnsub = null; LV.site = site; LV.list = []; LV.evs = []; renderLvList();
+  if (!site) return;
+  LV.evUnsub = onSnapshot(query(collection(db, "worker_events"), where("branch", "==", site)), snap => {
+    LV.evs = snap.docs.map(d => weItem({ id: d.id, ...d.data() })).filter(Boolean); renderLvList();
+    RT.list = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(e => e.kind === "hire" && e.status === "returned"); renderRet();
+  }, () => {});
+  LV.unsub = onSnapshot(query(collection(db, "hr_events"), where("source", "==", "supervisor"), where("site", "==", site)), snap => {
+    LV.list = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderLvList();
+  }, err => show($("lv-msg"), "err", "مش قادر أقرا الطلبات: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : err.message)));
+}
+$("site").addEventListener("change", lvWatch);
+$("lv-list").addEventListener("toggle", e => { const g = e.target.closest?.("[data-lvg]"); if (g) g.open ? LV_OPEN.add(g.dataset.lvg) : LV_OPEN.delete(g.dataset.lvg); }, true);
+function renderLvList() {
+  // آخر 60 يوم بس، الأحدث فوق
+  const cut = new Date(); cut.setDate(cut.getDate() - 60); const c = ymd(cut);
+  const rows = LV.list.concat(LV.evs).filter(e => (e.to || e.from || "") >= c || e.status === "pending" || e.status === "client_wait")
+    .sort((a, b) => String(b.from).localeCompare(String(a.from)));
+  const item = e => {
+    const [st, cls] = LV_ST[e.status] || [esc(e.status), "p-grey"];
+    const moved = e.original && (e.original.from !== e.from || e.original.to !== e.to)
+      ? `<div class="muted">اتعدلت من ${esc(e.original.from)} → ${esc(e.original.to)}</div>` : "";
+    const why = (e.status === "rejected" || e.status === "returned") && e.note ? `<div class="muted">السبب: ${esc(e.note)}</div>` : "";
+    return `<div style="border-bottom:1px solid #eee;padding:8px 0;"><div class="row" style="justify-content:space-between;">
+      <b>${esc(e.name)}</b><span><span class="pill p-grey">${lvTyTxt(e)}</span> <span class="pill ${cls}">${st}</span></span></div>
+      ${e.we ? `<div class="muted">${esc(e.from)}${e.detail ? " — " + esc(e.detail) : ""}</div>`
+        : `<div class="muted">من ${esc(e.from)} لحد ${esc(e.to)} — ${esc(e.days)} يوم${e.approved_days != null && +e.approved_days < +e.days ? ` (العميل اعتمد ${esc(e.approved_days)})` : ""}</div>`}${moved}${why}</div>`;
+  };
+  const used = new Set();
+  const groups = LV_GROUPS.map(g => { const list = rows.filter(e => !used.has(e) && g.f(e)); list.forEach(e => used.add(e)); return { ...g, list }; });
+  const other = rows.filter(e => !used.has(e));
+  if (other.length) groups.push({ k: "other", t: "حالات تانية", list: other });
+  $("lv-list").innerHTML = rows.length ? groups.filter(g => g.list.length).map(g =>
+    `<details class="lv-grp" data-lvg="${g.k}"${LV_OPEN.has(g.k) ? " open" : ""}><summary><span>${g.t}</span><span class="pill p-grey">${g.list.length}</span></summary>${g.list.map(item).join("")}</details>`).join("")
+    : `<div class="muted">مفيش طلبات في آخر 60 يوم.</div>`;
+}
+function lvReset() {
+  LV.who = null; LV.img = ""; LV.imgFile = null; LV.pages = []; renderLvPages(); $("lv-q").value = ""; $("lv-type").value = "sick"; $("lv-extc").checked = true; lvTypeUi();
+  const t = ymd(new Date()); $("lv-from").value = t; $("lv-to").value = t;
+  $("lv-img").classList.add("hidden"); $("lv-img").src = ""; hide($("lv-m")); lvPick(""); lvCheck();
+}
+$("lv-new").addEventListener("click", () => { lvReset(); $("lvm").classList.remove("hidden"); $("lv-q").focus(); });
+$("lvm-close").addEventListener("click", () => $("lvm").classList.add("hidden"));
+function renderLvHits() {
+  const q = rmNorm($("lv-q").value); if (!q || LV.who) { $("lv-hits").innerHTML = ""; return; }
+  const hits = (S.rosterNow || []).filter(w => rmNorm(w.name).includes(q) || String(w.code || "").includes(q) || String(w.nid || "").includes(q)).slice(0, 12);
+  $("lv-hits").innerHTML = hits.length ? hits.map(w => `<button type="button" data-lvpick="${esc(w.code)}"><b>${esc(w.name)}</b><small>${esc(w.job || "")}</small></button>`).join("")
+    : `<div class="muted" style="padding:8px;">مفيش عامل بالاسم ده في كشف الموقع</div>`;
+}
+function lvPick(code) {
+  LV.who = code ? (S.rosterNow || []).find(w => String(w.code) === String(code)) || null : null;
+  const w = LV.who;
+  $("lv-picked").innerHTML = w ? `<div><b>${esc(w.name)}</b> <small class="muted">${esc(w.job || "")}</small></div><button type="button" class="btn sec small" data-lvclear>غيّر</button>` : "";
+  $("lv-picked").classList.toggle("hidden", !w); $("lv-q").classList.toggle("hidden", !!w); renderLvHits(); lvTypeUi(); lvCheck();
+}
+$("lv-q").addEventListener("input", renderLvHits);
+$("lv-hits").addEventListener("click", e => { const b = e.target.closest("[data-lvpick]"); if (b) lvPick(b.dataset.lvpick); });
+$("lv-picked").addEventListener("click", e => { if (e.target.closest("[data-lvclear]")) { lvPick(""); $("lv-q").focus(); } });
+// نفس العامل في أيام متداخلة مع طلب تاني لسه شغال أو تم اعتماده
+function lvOverlap(w, f, t) {
+  return LV.list.find(e => e.status !== "rejected" && ((w.nid && e.nid === w.nid) || String(e.code) === String(w.code)) && e.from <= t && (e.to || e.from) >= f);
+}
+function lvCheck() {
+  const f = $("lv-from").value, t = $("lv-to").value;
+  let err = "";
+  if (!f || !t) err = "حدد من ولحد";
+  else if (t < f) err = "«لحد» قبل «من»";
+  // الإجازة والمرضي وإصابة العمل للأساسي بس (بيبسي وشيبسي والإمداد) — اليومية وبدايل الراحات لأ
+  else if (LV.who && !isBasic(LV.who.type)) err = "الإجازة والمرضي للأساسي بس — العامل ده مش أساسي";
+  $("lv-days").textContent = err || `${lvWorkDays(f, t)} يوم (الجمعة مش بتتحسب)`;
+  const ov = !err && LV.who ? lvOverlap(LV.who, f, t) : null;
+  if (ov) show($("lv-m"), "warn", `فيه طلب تاني لنفس العامل في الأيام دي (${lvTyTxt(ov)} من ${ov.from} لحد ${ov.to} — ${(LV_ST[ov.status] || [ov.status])[0]}).`);
+  else if ($("lv-m").classList.contains("warn")) hide($("lv-m"));
+  const inj = $("lv-type").value === "injury";
+  $("lv-send").disabled = !!err || !LV.who || !LV.img || (inj && !lvIsExt() && !LV.pages.length) || !!ov;
+}
+// إصابة العمل الممتدة: لو العامل عنده إصابة قبل كده (مش مرفوضة)، الطلب الجديد امتداد ليها — من غير محضر جديد،
+// و«من» بتبدأ اليوم اللي بعد آخر يوم فيها. لو شال العلامة = إصابة جديدة بمحضر.
+function lvPrevInj(w) {
+  if (!w) return null;
+  return LV.list.filter(e => e.type === "sick" && e.sick_kind === "injury" && e.status !== "rejected" && ((w.nid && e.nid === w.nid) || String(e.code) === String(w.code)))
+    .sort((a, b) => String(b.to || b.from).localeCompare(String(a.to || a.from)))[0] || null;
+}
+const lvNext = d => { const x = new Date(d + "T00:00"); x.setDate(x.getDate() + 1); return ymd(x); };
+const lvIsExt = () => $("lv-type").value === "injury" && !!lvPrevInj(LV.who) && $("lv-extc").checked;
+function lvTypeUi() {
+  const inj = $("lv-type").value === "injury", prev = inj ? lvPrevInj(LV.who) : null;
+  $("lv-ext").classList.toggle("hidden", !prev);
+  if (prev) {
+    $("lv-extt").textContent = `اللي من ${prev.from} لحد ${prev.to}`;
+    if ($("lv-extc").checked) { const nx = lvNext(prev.to || prev.from); if (!$("lv-from").value || $("lv-from").value <= (prev.to || prev.from)) $("lv-from").value = nx; if ($("lv-to").value && $("lv-to").value < nx) $("lv-to").value = nx; }
+  }
+  $("lv-inj").classList.toggle("hidden", !inj || lvIsExt());
+}
+$("lv-extc").addEventListener("change", () => { lvTypeUi(); lvCheck(); });
+$("lv-type").addEventListener("change", () => { lvTypeUi(); lvCheck(); });
+$("lv-from").addEventListener("change", () => { if ($("lv-to").value < $("lv-from").value) $("lv-to").value = $("lv-from").value; lvCheck(); });
+$("lv-to").addEventListener("change", lvCheck);
+async function onLvImg(e) {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try {
+    LV.img = await compressCard(f); LV.imgFile = f;
+    $("lv-img").src = "data:image/jpeg;base64," + LV.img; $("lv-img").classList.remove("hidden"); hide($("lv-m"));
+  } catch (err) { LV.img = ""; show($("lv-m"), "err", err.message); }
+  lvCheck();
+}
+$("lv-cam").addEventListener("change", onLvImg);
+$("lv-file").addEventListener("change", onLvImg);
+function renderLvPages() {
+  $("lv-pages").innerHTML = LV.pages.map((p, i) => `<div style="position:relative;">
+    <img data-zoom src="data:image/jpeg;base64,${p.b64}" alt="المحضر ${i + 1}" title="دوس تكبّر" style="width:100%;height:110px;object-fit:cover;border:1px solid #eee;border-radius:10px;">
+    <button type="button" class="btn sec small" data-lvdel="${i}" title="شيل الصورة" style="position:absolute;top:4px;left:4px;padding:2px 8px;">✕</button></div>`).join("");
+  $("lv-add2").classList.toggle("hidden", LV.pages.length >= LV_MAX_PAGES);
+  $("lv-n2").textContent = LV.pages.length ? `${LV.pages.length} من ${LV_MAX_PAGES}` : "";
+}
+async function onLvImg2(e) {
+  const files = [...e.target.files]; e.target.value = ""; if (!files.length) return;
+  const room = LV_MAX_PAGES - LV.pages.length;
+  try {
+    for (const f of files.slice(0, room)) LV.pages.push({ file: f, b64: await compressCard(f, LV_PAGE_ONE) });
+    if (files.length > room) show($("lv-m"), "warn", `المحضر لحد ${LV_MAX_PAGES} صور بس — الزيادة ماتضافتش.`);
+    else hide($("lv-m"));
+  } catch (err) { show($("lv-m"), "err", err.message); }
+  renderLvPages(); lvCheck();
+}
+$("lv-pages").addEventListener("click", e => {
+  const b = e.target.closest("[data-lvdel]"); if (!b) return;
+  LV.pages.splice(+b.dataset.lvdel, 1); renderLvPages(); lvCheck();
+});
+// وقت الإرسال: لو المحضر أكتر من صورة، نصغّر الصور عشان المجموع يفضل تحت حد الطلب
+async function lvPackImages(inj) {
+  if (!inj || LV.pages.length <= 1) return { img: LV.img, pages: LV.pages.map(p => p.b64) };
+  const img = LV.img.length > LV_IMG_MULTI && LV.imgFile ? await compressCard(LV.imgFile, LV_IMG_MULTI) : LV.img;
+  const per = Math.floor(LV_PAGES_BUDGET / LV.pages.length);
+  const pages = [];
+  for (const p of LV.pages) pages.push(p.b64.length > per ? await compressCard(p.file, per) : p.b64);
+  return { img, pages };
+}
+$("lv-cam2").addEventListener("change", onLvImg2);
+$("lv-file2").addEventListener("change", onLvImg2);
+$("lv-send").addEventListener("click", async () => {
+  const w = LV.who, f = $("lv-from").value, t = $("lv-to").value, pick = $("lv-type").value, site = $("site").value;
+  const inj = pick === "injury", type = inj ? "sick" : pick, ext = inj && lvIsExt() ? lvPrevInj(w) : null;
+  if (!w || !LV.img || (inj && !ext && !LV.pages.length) || !f || t < f) return;
+  $("lv-send").disabled = true; show($("lv-m"), "info", "بيرفع...");
+  try {
+    const u = auth.currentUser;
+    const pk = await lvPackImages(inj && !ext);
+    const mahdar = inj && !ext ? Object.fromEntries(pk.pages.map((b, i) => ["image" + (i + 2), "data:image/jpeg;base64," + b])) : {};
+    await addDoc(collection(db, "hr_events"), {
+      source: "supervisor", site, nid: String(w.nid || ""), code: String(w.code || ""), name: w.name || "", job: w.job || "",
+      type, type_ar: inj ? "إصابة عمل" : LV_TY[type], ...(type === "sick" ? { sick_kind: inj ? "injury" : "sick" } : {}),
+      from: f, to: t, days: String(lvWorkDays(f, t)), ...(ext ? { extends: ext.id } : {}),
+      image: "data:image/jpeg;base64," + pk.img, ...mahdar, status: "pending", entry_date: ymd(new Date()),
+      by_email: actorEmail(u), uploaded_by: u.uid, created_at: serverTimestamp() });
+    $("lvm").classList.add("hidden");
+    show($("lv-msg"), "ok", `الطلب اتبعت للـ HR — ${inj ? (ext ? "امتداد إصابة عمل" : "إصابة عمل") : LV_TY[type]} ${w.name} من ${f} لحد ${t}.`);
+  } catch (err) {
+    $("lv-send").disabled = false;
+    show($("lv-m"), "err", "ماترفعش: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : err.message));
+  }
+});
