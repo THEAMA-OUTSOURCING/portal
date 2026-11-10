@@ -79,7 +79,7 @@ onAuthStateChanged(auth, async user => {
   W_SITES = S.scoped ? SUP_SITES.filter(s => S.scoped.includes(s)) : [...SUP_SITES, SHARQIA_SITE];   // من جديد مع كل دخول (لو حساب تاني دخل من نفس الصفحة)
   document.body.classList.toggle("view-only", role === "viewer");
   document.querySelectorAll(".admin-only").forEach(el => el.classList.toggle("hidden", role !== "admin"));
-  $("who").textContent = (user.email || "") + " — " + ({ admin: "أدمن", hr: "HR", accountant: "محاسب", viewer: "مشاهد (عرض بس)" }[role]);
+  $("who").textContent = role === "admin" ? "ادمن" : (user.email || "") + " — " + ({ hr: "HR", accountant: "محاسب", viewer: "مشاهد (عرض بس)" }[role]);
   $("app").classList.remove("hidden");
   await loadAll();
   if (role === "admin") { await loadAdminConfig(); initAccounts(); loadJobCodes(); }

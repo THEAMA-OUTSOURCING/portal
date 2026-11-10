@@ -83,7 +83,7 @@ onAuthStateChanged(auth, async user => {
   else if (S.office) S.sites = Array.isArray(claims.sites) && claims.sites.length ? SUP_SITES.filter(s => claims.sites.includes(s)) : SUP_SITES;
   else if (claims.role === "supervisor" && Array.isArray(claims.sites) && claims.sites.length) S.sites = claims.sites;
   else { $("denied").classList.remove("hidden"); return; }
-  $("who").textContent = user.email;
+  $("who").textContent = claims.role === "admin" ? "ادمن" : user.email;
   $("site").innerHTML = S.sites.map(s => `<option>${esc(s)}</option>`).join("");
   const y = new Date(); y.setDate(y.getDate() - 1);
   $("date").max = ymd(new Date());

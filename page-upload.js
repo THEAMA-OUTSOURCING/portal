@@ -17,7 +17,7 @@ onAuthStateChanged(auth, async user => {
   if (!user) return $("login").classList.remove("hidden");
   let role = null; try { role = (await user.getIdTokenResult()).claims.role || null; } catch (e) {}
   if (role !== "admin") return $("denied").classList.remove("hidden");   // مؤقتاً: الرفع للأدمن بس لحد ما الشكل يتظبط
-  $("who").textContent = user.email;
+  $("who").textContent = role === "admin" ? "ادمن" : user.email;
   $("app").classList.remove("hidden");
 });
 

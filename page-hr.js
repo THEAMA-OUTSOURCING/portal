@@ -453,7 +453,7 @@ onAuthStateChanged(auth, async user => {
   // المشاهد (viewer): يشوف الحالات وصورها بس — من غير رفع ولا اعتماد ولا تصدير للعميل
   VIEW = role === "viewer";
   if (VIEW) { document.querySelectorAll(".no-view").forEach(el => el.classList.add("hidden")); document.querySelector("#app h1").textContent = "الحالات"; }
-  $("who").textContent = user.email; $("app").classList.remove("hidden");
+  $("who").textContent = role === "admin" ? "ادمن" : user.email; $("app").classList.remove("hidden");
   wqStart(role, user.uid);
   let last = "cases:sick"; try { last = localStorage.getItem(TAB_KEY) || "cases:sick"; } catch (e) {}
   showTab(last);

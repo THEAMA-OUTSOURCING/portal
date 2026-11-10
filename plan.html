@@ -73,11 +73,11 @@ details.fold .fold-n{font-weight:400;font-size:13px;color:#6b6b6b;}
 .site{display:grid;grid-template-columns:130px 1fr 80px;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid #f0efe9;cursor:pointer;}
 .site:last-child{border-bottom:0;}
 .site:hover .nm{text-decoration:underline;}
-.bar{position:relative;height:20px;background:#efeee8;border-radius:4px;overflow:hidden;}
+.bar{position:relative;height:22px;background:#efeee8;border-radius:4px;overflow:hidden;}
 .bar .p{position:absolute;inset-block:0;right:0;border:1px dashed #999;border-radius:4px;}
 .bar .f{position:absolute;inset-block:0;right:0;background:#2b2b2b;border-radius:4px;}
 .bar .x{position:absolute;inset-block:0;background:#185fa5;}
-.bar .t{position:absolute;inset-block:0;left:6px;display:flex;align-items:center;font-size:11px;color:#666;}
+.bar .t{position:absolute;inset-block:0;left:6px;display:flex;align-items:center;font-size:12px;color:#555;}
 .gap{text-align:left;font-weight:600;direction:ltr;font-variant-numeric:tabular-nums;}
 .c-s{color:#b42318;} .c-o{color:#185fa5;} .c-k{color:#3b6d11;}
 .tbl{overflow-x:auto;}
@@ -87,11 +87,11 @@ th{color:#6b6b6b;font-weight:500;}
 td.n,th.n{text-align:center;font-variant-numeric:tabular-nums;}
 .pill{display:inline-block;min-width:42px;text-align:center;padding:1px 8px;border-radius:999px;font-weight:600;direction:ltr;}
 .pill.s{background:#fcebeb;color:#b42318;} .pill.o{background:#e6eefa;color:#185fa5;} .pill.k{background:#eaf3de;color:#3b6d11;}
-.amd{font-size:11px;color:#185fa5;margin-inline-start:6px;}
-.was{color:#6b6b6b;text-decoration:line-through;font-size:11px;margin-inline-start:4px;}
+.amd{font-size:12px;color:#185fa5;margin-inline-start:6px;}
+.was{color:#6b6b6b;text-decoration:line-through;font-size:12px;margin-inline-start:4px;}
 tr.has-sec td{font-weight:600;} tr.sec-row td{font-size:13px;color:#555;border-top:none;padding-top:3px;padding-bottom:3px;}
 tr.sec-row td:nth-child(2){padding-inline-start:18px;} .sec-warn{color:#b42318;font-size:12px;}
-.chip{padding:4px 12px;border:1px solid #ddd;background:#fff;border-radius:999px;cursor:pointer;font-size:12px;}
+.chip{padding:6px 14px;min-height:36px;border:1px solid #ddd;background:#fff;border-radius:999px;cursor:pointer;font-size:13px;}
 .chip[aria-pressed=true]{background:#222;color:#fff;border-color:#222;}
 .grid-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end;}
 .grid-form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#6b6b6b;}
@@ -118,6 +118,10 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
 .tbl{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 @media(max-width:600px){
  body{padding:10px;}
+ /* التابات سطر واحد بيتسحب بالعرض بدل ما تتكسر على 3 سطور */
+ .tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+ .tabs::-webkit-scrollbar{display:none;}
+ .tab{white-space:nowrap;flex:0 0 auto;}
  .row>.btn{flex:1 1 calc(50% - 10px);}
  .row>label.f{flex:1 1 calc(50% - 10px);}
  .row>label.f :is(input,select){width:100%;}
@@ -206,7 +210,7 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
             <button class="chip" data-f="s" aria-pressed="false">نقص</button>
             <button class="chip" data-f="o" aria-pressed="false">زيادة</button>
             <button class="chip" data-f="k" aria-pressed="false">مطابق</button>
-            <select id="site-sel"><option value="">كل المواقع</option></select>
+            <select id="site-sel" aria-label="الموقع"><option value="">كل المواقع</option></select>
           </div>
           <div class="tbl"><table><thead><tr><th>الموقع</th><th>الوظيفة</th><th class="n">المطلوب</th><th class="n">الموجود</th><th class="n">الفرق</th><th class="n">جداد وبدايل ويوميات</th></tr></thead><tbody id="detail"></tbody></table></div>
         </div>
@@ -450,6 +454,6 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
   </div>
 </div>
 
-<script type="module" src="page-plan.js?v=20261110a"></script>
+<script type="module" src="page-plan.js?v=20261110c"></script>
 </body>
 </html>

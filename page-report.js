@@ -44,7 +44,7 @@ onAuthStateChanged(auth, async user => {
   else if (["admin", "hr", "accountant", "viewer"].includes(c.role)) { S.sites = [...ATT_SITES, ...XL_SITES]; S.office = true; }
   else if (c.role === "supervisor" && Array.isArray(c.sites) && c.sites.length) S.sites = c.sites;
   else return $("denied").classList.remove("hidden");
-  $("who").textContent = user.email;
+  $("who").textContent = c.role === "admin" ? "ادمن" : user.email;
   document.querySelectorAll(".office-only").forEach(e => e.classList.toggle("hidden", !S.office));
   document.querySelectorAll(".admin-only").forEach(e => e.classList.toggle("hidden", c.role !== "admin"));
   S.canApprove = ["admin", "accountant"].includes(c.role);

@@ -321,7 +321,7 @@ onAuthStateChanged(auth, async user => {
   if (!(S.role === "admin" && claims.email === "myehia200@gmail.com")) { purgeCache(); return $("denied").classList.remove("hidden"); }
   S.scoped = ["hr", "accountant"].includes(S.role) && Array.isArray(claims.sites) && claims.sites.length ? claims.sites : null;
   if (S.scoped) $("scope-note").textContent = "حسابك ليه الفروع دي بس: " + S.scoped.join("، ") + ".";
-  $("who").textContent = user.email; $("app").classList.remove("hidden");
+  $("who").textContent = S.role === "admin" ? "ادمن" : user.email; $("app").classList.remove("hidden");
   $("ins-card").classList.toggle("hidden", !["admin", "hr"].includes(S.role));
   load(false);
 });
