@@ -68,6 +68,18 @@ function row2(label, val, color){
   return '<div class="row2"><span class="lbl">'+label+'</span><span style="font-weight:500;color:'+(color||'#222')+';">'+val+'</span></div>';
 }
 
+// ===== كلمة مرور ضعيفة =====
+// بترجع سبب الرفض، أو '' لو كويسة: كلها نفس الرقم/الحرف، أرقام متتالية (123456 / 654321)، كلمات مشهورة، أو كود الموظف نفسه
+function weakPass(p, code){
+  const t = String(p||'').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).trim().toLowerCase();
+  if(/^(.)\1+$/.test(t)) return 'كلمة المرور كلها نفس الرقم — اختار حاجة أصعب';
+  const seq = '01234567890', rseq = '09876543210';
+  if(/^\d+$/.test(t) && (seq.includes(t) || rseq.includes(t))) return 'أرقام ورا بعض سهل تتخمّن — اختار حاجة أصعب';
+  if(['password','qwerty','qwertyuiop','asdfgh','theama','tiema','123123','112233','111222','121212','abc123','iloveyou'].some(w => t === w || t === w + '1' || t === w + '123')) return 'كلمة المرور دي مشهورة وسهل تتخمّن — اختار حاجة تانية';
+  if(code && t === String(code).toLowerCase()) return 'متستخدمش كود الموظف ككلمة مرور';
+  return '';
+}
+
 // ===== رسائل أخطاء كلمة المرور =====
 function passErrorMsg(e){
   const c = (e && e.code) || '';
@@ -508,7 +520,10 @@ window.uploadSheet = uploadSheet;
 
 // ===== مسح البيانات =====
 async function confirmClear(){
-  if(!await ask('هتمسح كل بيانات الرواتب. متأكد؟', { ok: "امسح الكل", danger: true })) return;
+  // مسح كل الكشوف مالوش رجوع، والعمال كلهم مش هيشوفوا مرتب — لازم تكتب الكلمة بنفسك (مش دوسة بالغلط)
+  const typed = await askText('هتمسح كشوف المرتبات كلها لكل الشركات، ومالهاش رجوع.\nللتأكيد اكتب: امسح الكل', { ok: "امسح الكل", danger: true, required: true });
+  if(typed === null) return;
+  if(typed.replace(/\s+/g,' ').trim() !== 'امسح الكل'){ tell('مااتمسحش حاجة — الكلمة مش مطابقة.'); return; }
   try{
     const snap = await getDocs(collection(db,'payroll'));
     for(let i=0; i<snap.docs.length; i+=400){
@@ -732,6 +747,7 @@ async function doSetPass(){
   if(p1.length<6){ fail('كلمة المرور لازم تكون 6 أحرف على الأقل'); return; }
   if(p1!==p2){ fail('كلمة المرور مش متطابقة'); return; }
   if(loggedUser && (p1===loggedUser.nationalId || p1===loggedUser.loginPass)){ fail('متستخدمش الرقم القومي — اختار كلمة مرور تانية'); return; }
+  { const w = weakPass(p1, loggedUser?.code); if(w){ fail(w); return; } }
   if(!auth.currentUser){ fail('انتهت الجلسة — اخرج وادخل تاني'); return; }
   const btn = document.getElementById('setpass-btn');
   if(btn.disabled) return;
@@ -780,6 +796,7 @@ async function doChangePass(){
   if(p1.length<6){ fail('كلمة المرور لازم تكون 6 أحرف على الأقل'); return; }
   if(p1!==p2){ fail('كلمة المرور مش متطابقة'); return; }
   if(loggedUser && p1===loggedUser.nationalId){ fail('متستخدمش الرقم القومي — اختار كلمة مرور تانية'); return; }
+  { const w = weakPass(p1, loggedUser?.code); if(w){ fail(w); return; } }
   if(!auth.currentUser){ fail('انتهت الجلسة — اخرج وادخل تاني'); return; }
   const btn = document.getElementById('chgpass-btn');
   btn.innerHTML='<span class="spinner"></span> جاري الحفظ...'; btn.disabled=true;
