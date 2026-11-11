@@ -1,8 +1,8 @@
 // page-upload.js — سكريبت صفحة upload.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, doc, getDoc, getDocs, addDoc, collection, query, where, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, fetchPlanBase, planBySite, nearWorkers, sameName, ask } from './shared.js?v=20261104e';
-import { detect, parseChipsy, parseEmdad, parseSharqia, emdadMonths, counts, COMPANY_LABEL, CHIPSY_PLAN, countsForPlan, chipsySections, trimOverPlan } from './xl-attendance.js?v=20261104e';
+import { db, auth, actorEmail, fetchPlanBase, planBySite, alignPlan, nearWorkers, sameName, ask } from './shared.js?v=20261111a';
+import { detect, parseChipsy, parseEmdad, parseSharqia, emdadMonths, counts, COMPANY_LABEL, CHIPSY_PLAN, countsForPlan, chipsySections, trimOverPlan } from './xl-attendance.js?v=20261111a';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -206,9 +206,10 @@ async function overPlan(list) {
   if (S.type === "sharqia") return { rows: [], note: "الشرقية مالهاش مخطط — الأعداد زي ما هي في الشيت." };
   const rows = [];
   for (const [, d] of list) {
-    const plan = S.type === "chipsy" ? CHIPSY_PLAN[d.site] || {} : (await pepsiPlan(d.date))[d.site] || {};
+    const plan0 = S.type === "chipsy" ? CHIPSY_PLAN[d.site] || {} : (await pepsiPlan(d.date))[d.site] || {};
     const n = {};
     Object.values(d.entries).forEach(e => { if (countsForPlan(e, S.type)) n[e.pj] = (n[e.pj] || 0) + 1; });
+    const plan = alignPlan(plan0, Object.keys(n));   // توحيد إملاء الوظيفة
     Object.entries(n).forEach(([job, c]) => { if (plan[job] != null && c > plan[job]) rows.push({ date: d.date, site: d.site, job, c, plan: plan[job] }); });
   }
   return { rows: rows.sort((a, b) => a.date.localeCompare(b.date) || a.site.localeCompare(b.site)),

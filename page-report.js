@@ -1,8 +1,8 @@
 // page-report.js — سكريبت صفحة report.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite, ask } from './shared.js?v=20261104e';
-import { printOrder } from './sheet.js?v=20261104e';
+import { db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite, alignPlan, ask } from './shared.js?v=20261111a';
+import { printOrder } from './sheet.js?v=20261111a';
 
 // مواقع الساعات: الإضافي النهاري والليلي (بالدقايق) على خانة اليوم — والوقت اللي محتاج مراجعة بيتعلّم ومايتحسبش
 const TB_TIP = "الوقت محتاج مراجعة — اليوم ده مش محسوب في الإضافي";
@@ -730,7 +730,7 @@ async function paperOrder(d) {
     const [r, o, pl, base] = await Promise.all([getDoc(doc(db, "rosters", d.site)), getDoc(doc(db, "sheet_order", d.site)),
       getDoc(doc(db, "pools", d.site)), fetchPlanBase(d.date.slice(0, 7)).catch(() => null)]);
     const subs = (pl.exists() ? pl.data().workers || [] : []).filter(p => /راحات/.test(p.type || "") && String(p.name || "").trim() && /^\d{14}$/.test(String(p.nid || "")) && String(p.job || "").trim());
-    return ORD_CACHE[key] = printOrder({ roster: r.exists() ? r.data().workers || [] : [], subs, order: o.exists() ? o.data() : null, plan: planBySite(base, d.date)[d.site] || {} });
+    return ORD_CACHE[key] = printOrder({ roster: r.exists() ? r.data().workers || [] : [], subs, order: o.exists() ? o.data() : null, plan: alignPlan(planBySite(base, d.date)[d.site] || {}, (r.exists() ? r.data().workers || [] : []).map(w => w.job)) });
   } catch (e) { return null; }   // من غير ترتيب: بالاسم
 }
 // صور اليوم: الأحدث الأول وعليها «آخر صورة». الصورة بتفضل على البوابة 14 يوم، وبعد كده على السيرفر بس
@@ -892,9 +892,10 @@ $("a-esave").onclick = async () => {
     Object.values(entries).forEach(e => {
       if (e.s === "P" || (e.s === "L" && (e.c === "ق" || e.c === "ط")) || (e.s === "A" && e.rep)) per[e.job] = (per[e.job] || 0) + 1;
     });
-    const over = [...new Set(added.map(e => e.job))].filter(j => A.plan[j] != null && per[j] > A.plan[j]);
-    if (over.length) return show($("a-msg"), "err", "مينفعش تضيف البديل: العدد هيعدّي المطلوب — " + over.map(j => `${j}: ${per[j]} والمطلوب ${A.plan[j]}`).join("، "));
-    const noPlan = [...new Set(added.map(e => e.job))].filter(j => A.plan[j] == null);
+    const PA = alignPlan(A.plan, Object.keys(per));   // توحيد إملاء الوظيفة (ى/ي، أ/ا، ة/ه)
+    const over = [...new Set(added.map(e => e.job))].filter(j => PA[j] != null && per[j] > PA[j]);
+    if (over.length) return show($("a-msg"), "err", "مينفعش تضيف البديل: العدد هيعدّي المطلوب — " + over.map(j => `${j}: ${per[j]} والمطلوب ${PA[j]}`).join("، "));
+    const noPlan = [...new Set(added.map(e => e.job))].filter(j => PA[j] == null);
     if (noPlan.length && !await ask(`مفيش عدد مطلوب متسجل لـ: ${noPlan.join("، ")}. تضيف البديل برضه؟`)) return;
   }
   if (fixed && !await ask(`فيه ${fixed} وقت كان متعلّم للمراجعة (الأصفر). اتأكدت منهم؟`)) return;

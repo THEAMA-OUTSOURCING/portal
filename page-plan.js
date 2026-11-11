@@ -1,10 +1,10 @@
 // page-plan.js — سكريبت صفحة plan.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, ask, askText, tell } from './shared.js?v=20261104e';
-import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261104e';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261104e';
-import { keyOf, splitJob } from './sheet.js?v=20261104e';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, ask, askText, tell } from './shared.js?v=20261111a';
+import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261111a';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261111a';
+import { keyOf, splitJob } from './sheet.js?v=20261111a';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====

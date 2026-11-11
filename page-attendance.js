@@ -1,9 +1,9 @@
 // page-attendance.js — سكريبت صفحة attendance.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, isBasic, nearWorkers, ask, tell } from './shared.js?v=20261104e';
-import { openPrintView, openOrderEditor, printOrder } from './sheet.js?v=20261104e';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261104e';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, isBasic, nearWorkers, ask, tell } from './shared.js?v=20261111a';
+import { openPrintView, openOrderEditor, printOrder } from './sheet.js?v=20261111a';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261111a';
 
 
 const $ = id => document.getElementById(id);
@@ -26,6 +26,8 @@ async function loadPlan() {
   if (!Object.keys(plan).length && CHIPSY_SITE_PLAN[site]) plan = { ...CHIPSY_SITE_PLAN[site] };
   if (site === S.site && date === S.date) S.plan = plan;
 }
+// المطلوب بأسماء وظايف الكشف (توحيد الإملاء ى/ي، أ/ا، ة/ه) — كل القراءات من هنا مش من S.plan مباشرة
+const planNow = () => alignPlan(S.plan, [...(S.roster || []), ...(S.rosterNow || []), ...(S.pool || [])].map(w => w.job));
 // أيام موقع في فترة بس (بدل كل أيام الموقع من البداية) — محتاج index على att_days: site + date.
 // لو الـ index لسه مااتعملش، بيرجع للطريقة القديمة عشان الصفحة متقفش.
 async function siteDays(site, from, to) {
@@ -623,10 +625,14 @@ function render() {
     if (def === "P" || def === "Q" || (def === "A" && S.rep[k])) { perJob[r.w.job] = perJob[r.w.job] || 0; perJob[r.w.job]++; }   // ق بيتحسب في عدد اليوم
   });
   Object.values(movedRows()).forEach(({ w }) => { perJob[w.job] = (perJob[w.job] || 0) + 1; P++; });
-  S.over = Object.entries(perJob).filter(([j, n]) => S.plan[j] != null && n > S.plan[j]).map(([job, n]) => ({ job, n, plan: S.plan[job] }));
-  const planRows = Object.keys(perJob).map(j => `<tr><td>${esc(j)}</td><td class="n">${fmt(perJob[j])}</td><td class="n">${S.plan[j] != null ? fmt(S.plan[j]) : "—"}</td>
-    <td class="n">${S.plan[j] == null ? "" : perJob[j] > S.plan[j] ? `<span class="pill p-err">زيادة ${fmt(perJob[j] - S.plan[j])}</span>` : perJob[j] < S.plan[j] ? `<span class="pill p-grey">ناقص ${fmt(S.plan[j] - perJob[j])}</span>` : `<span class="pill p-ok">مطابق</span>`}</td></tr>`).join("");
-  $("plan-box").innerHTML = Object.keys(S.plan).length ? `<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr><th style="text-align:right">الوظيفة</th><th>الحاضرين</th><th>المطلوب</th><th></th></tr></thead><tbody>${planRows}</tbody></table>
+  // نفس الوظيفة بإملاء مختلف (بديل مكتوب «ليلي» والكشف «ليلى») تتجمع في سطر واحد باسم الكشف
+  { const nm = new Map(); S.roster.forEach(w => { const k = jkey(w.job); if (k && !nm.has(k)) nm.set(k, w.job); });
+    Object.keys(perJob).forEach(j => { const t = nm.get(jkey(j)) || [...nm.values(), ...Object.keys(perJob)].find(x => jkey(x) === jkey(j)); if (t && t !== j) { perJob[t] = (perJob[t] || 0) + perJob[j]; delete perJob[j]; } }); }
+  const PL = planNow();
+  S.over = Object.entries(perJob).filter(([j, n]) => PL[j] != null && n > PL[j]).map(([job, n]) => ({ job, n, plan: PL[job] }));
+  const planRows = Object.keys(perJob).map(j => `<tr><td>${esc(j)}</td><td class="n">${fmt(perJob[j])}</td><td class="n">${PL[j] != null ? fmt(PL[j]) : "—"}</td>
+    <td class="n">${PL[j] == null ? "" : perJob[j] > PL[j] ? `<span class="pill p-err">زيادة ${fmt(perJob[j] - PL[j])}</span>` : perJob[j] < PL[j] ? `<span class="pill p-grey">ناقص ${fmt(PL[j] - perJob[j])}</span>` : `<span class="pill p-ok">مطابق</span>`}</td></tr>`).join("");
+  $("plan-box").innerHTML = Object.keys(PL).length ? `<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr><th style="text-align:right">الوظيفة</th><th>الحاضرين</th><th>المطلوب</th><th></th></tr></thead><tbody>${planRows}</tbody></table>
     <p class="muted" style="margin-top:6px;">المطلوب = الأساسي، من شيت الاحتياج بتاع الشهر.</p>` : `<p class="muted">مفيش عدد مطلوب متسجل للموقع ده.</p>`;
 
   $("stats").innerHTML = [[P, "حاضر"], [A, "غايب"], ...(Q ? [[Q, "توقف"]] : []), [open, "محتاج قرار"], [flagged, "اتعلّم للمراجعة"]]
@@ -734,7 +740,7 @@ $("confirm").addEventListener("click", async () => {
   let P = 0, A = 0, Qn = 0;
   // ترتيب الكشف الورقي (زي المطبوع) — الاعتماد بيعرض الأسماء بيه
   let ordMap = new Map();
-  try { ordMap = printOrder({ roster: S.roster, subs: restSubs(), order: await loadOrder(S.site), plan: S.plan }); } catch (e) {}
+  try { ordMap = printOrder({ roster: S.roster, subs: restSubs(), order: await loadOrder(S.site), plan: planNow() }); } catch (e) {}
   for (const w of S.roster) {
     const r = ai[w.code];
     const s = defOf(w.code, r);
@@ -919,14 +925,14 @@ $("print").addEventListener("click", async () => {
   if (!S.rosterNow.length) return show($("deadline"), "err", "كشف الموقع مش موجود لسه.");
   const [year, month] = (S.date || ymd(new Date())).split("-").map(Number);
   const order = await loadOrder(S.site);
-  await openPrintView({ site: S.site, roster: S.rosterNow, subs: restSubs(), order, plan: S.plan, month, year });
+  await openPrintView({ site: S.site, roster: S.rosterNow, subs: restSubs(), order, plan: planNow(), month, year });
 });
 $("order").addEventListener("click", async () => {
   if (!S.rosterNow.length) return show($("deadline"), "err", "كشف الموقع مش موجود لسه.");
   const site = S.site;
   const order = await loadOrder(site);
   await openOrderEditor({
-    site, roster: S.rosterNow, subs: restSubs(), pool: S.pool || [], order, plan: S.plan, canEdit: true, canAdmin: S.admin, lastChange: orderNote(order),
+    site, roster: S.rosterNow, subs: restSubs(), pool: S.pool || [], order, plan: planNow(), canEdit: true, canAdmin: S.admin, lastChange: orderNote(order),
     onSave: async o => {
       const u = auth.currentUser;
       // آخر حفظ هو اللي بيمشي، ومين غيّر وإمتى بيتسجلوا مع الترتيب
@@ -1163,11 +1169,12 @@ function renderForce() {
   if (S.photo !== false) return;
   const perJob = {};
   S.rosterNow.forEach(w => { perJob[w.job] = (perJob[w.job] || 0) + 1; });
-  const jobsAll = [...new Set([...Object.keys(perJob), ...Object.keys(S.plan || {})])];
+  const PL = planNow();
+  const jobsAll = [...new Set([...Object.keys(perJob), ...Object.keys(PL)])];
   $("force-plan").innerHTML = jobsAll.length ? `<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr><th style="text-align:right">الوظيفة</th><th>على الكشف</th><th>المطلوب</th><th></th></tr></thead><tbody>` +
-    jobsAll.map(j => { const n = perJob[j] || 0, p = S.plan?.[j];
+    jobsAll.map(j => { const n = perJob[j] || 0, p = PL[j];
       return `<tr><td>${esc(j)}</td><td class="n">${fmt(n)}</td><td class="n">${p != null ? fmt(p) : "—"}</td><td class="n">${p == null ? "" : n > p ? `<span class="pill p-err">زيادة ${fmt(n - p)}</span>` : n < p ? `<span class="pill p-grey">ناقص ${fmt(p - n)}</span>` : `<span class="pill p-ok">مطابق</span>`}</td></tr>`; }).join("") +
-    `</tbody></table>` + (Object.keys(S.plan || {}).length ? "" : `<p class="muted" style="margin-top:6px;">مفيش عدد مطلوب متسجل للفرع ده.</p>`) : `<p class="muted">الكشف فاضي.</p>`;
+    `</tbody></table>` + (Object.keys(PL).length ? "" : `<p class="muted" style="margin-top:6px;">مفيش عدد مطلوب متسجل للفرع ده.</p>`) : `<p class="muted">الكشف فاضي.</p>`;
 }
 function renderManage() {
   renderRmHits();
@@ -1269,7 +1276,7 @@ function knownWorkers() {
     ...(S.newWorkers || []).map(x => ({ ...x, nid: x.nid || x.id })), ...(ELSE_LIST || [])];
 }
 function openNc() {
-  const jobs = [...new Set([...S.rosterNow.map(x => x.job), ...Object.keys(S.plan || {})].filter(Boolean))];
+  const jobs = [...new Set([...S.rosterNow.map(x => x.job), ...Object.keys(planNow())].filter(Boolean))];
   $("nc-job").innerHTML = jobs.map(j => `<option>${esc(j)}</option>`).join("");
   ["nc-name", "nc-nid", "nc-phone"].forEach(id => $(id).value = ""); $("nc-type").value = "";
   hide($("nc-msg")); $("ncm").classList.remove("hidden"); $("nc-name").focus();

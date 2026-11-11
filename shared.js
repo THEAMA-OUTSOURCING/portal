@@ -173,6 +173,17 @@ export function nearWorkers(nid, name, workers) {
 }
 
 // ===== المخطط (شيت احتياج بيبسي) =====
+// اسم الوظيفة ممكن يختلف في الإملاء بين شيت الاحتياج والكشف (ليلي/ليلى، أ/ا، ة/ه، تشكيل، مسافات زيادة)
+// — بنوحّد للمطابقة بس، والاسم اللي بيظهر هو اسم الكشف.
+export const jkey = s => String(s ?? "").replace(/[\u064B-\u0652\u0640]/g, "").replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه").replace(/\s+/g, " ").trim();
+// بيرجّع نسخة من المطلوب {وظيفة: عدد} بأسماء الوظايف زي ما هي مكتوبة في jobs (الكشف)؛ اللي مالوش مقابل بيفضل باسمه
+export function alignPlan(plan, jobs) {
+  const by = new Map();
+  (jobs || []).forEach(j => { const k = jkey(j); if (k && !by.has(k)) by.set(k, j); });
+  const out = {};
+  Object.entries(plan || {}).forEach(([j, n]) => { const k = by.get(jkey(j)) || j; out[k] = (out[k] || 0) + (Number(n) || 0); });
+  return out;
+}
 const pnorm = s => String(s ?? "").replace(/\s+/g, " ").trim();
 const pkey = s => pnorm(s).toLowerCase();
 const ckey = (loc, pos) => pnorm(loc) + "|" + pkey(pos);
@@ -435,4 +446,4 @@ window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-if (FIRST_COPY) import('./notify.js?v=20261104e').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+if (FIRST_COPY) import('./notify.js?v=20261111a').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
