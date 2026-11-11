@@ -856,9 +856,12 @@ async function rejectNew(nw, why) {
 }
 
 // ===== بيانات العمال (الأدمن وHR والمحاسب) =====
-// الشرقية للدخان: للمكتب اللي على كل الفروع بس، وتسجيل «مشي» بس (التعديلات التانية من شيت الرواتب)
+// الشرقية للدخان: للمكتب اللي على كل الفروع بس. المصدر هو السجل الموحد (مش شيت الرواتب): مسموح «مشي» وتغيير الوظيفة،
+// والنوع والموقع لأ (الشرقية كلها أساسي، وموقعها «الشرقية للدخان» — والرولز مابتسمحش بنقل منها أو ليها)
 const SHARQIA_SITE = "الشرقية للدخان";
 const leaveOnly = site => site === SHARQIA_SITE;
+// الشرقية: مسموح «مشي» أو وظيفة جديدة بس (نفس النوع ونفس الموقع)
+const sharqiaBad = (w, type, site) => (leaveOnly(w.site) || leaveOnly(site)) && type !== "مشي" && (type !== w.type || site !== w.site);
 let W_SITES = [...SUP_SITES, SHARQIA_SITE];
 // قوايم العمال (تعديلات / جداد / اتشالوا من الكشف): اللي ليه فروع بيقرا فروعه بس (الـ Rules بتطلب كده)
 const bySites = name => S.scoped ? query(collection(db, name), where("site", "in", W_SITES)) : collection(db, name);
@@ -1181,7 +1184,7 @@ function renderOverrides() {
       if (o.job && o.job !== b.job) ch.push(`الوظيفة: ${o.job}`);
       if (o.site && o.site !== b.site) ch.push(`${b.site || "—"} ← ${o.site}`);
     }
-    return `<tr><td>${esc(o.name || b.name || "")}</td><td>${esc(code)}</td><td>${esc(ch.join("، ") || "بدون فرق عن الرواتب")}${o.note ? `<div class="muted">${esc(o.note)}</div>` : ""}</td>
+    return `<tr><td>${esc(o.name || b.name || "")}</td><td>${esc(code)}</td><td>${esc(ch.join("، ") || "بدون فرق عن السجل")}${o.note ? `<div class="muted">${esc(o.note)}</div>` : ""}</td>
       <td style="direction:ltr;text-align:right">${esc(o.from || "")}</td><td class="muted">${esc(o.by_email || "")}</td>
       <td class="muted" style="font-size:12px;">مستني الـ HR</td></tr>`;
   }).join("") : `<tr><td colspan="6" class="muted">مفيش تعديلات.</td></tr>`;
@@ -1232,7 +1235,7 @@ $("w-save")?.addEventListener("click", async () => {
   const w = WS.edit; if (!w) return;
   const type = $("w-type").value, job = $("w-job").value.trim(), site = $("w-site2").value;
   if (!job && type !== "مشي") return show($("w-msg"), "err", "اكتب الوظيفة.");
-  if (type !== "مشي" && (leaveOnly(w.site) || leaveOnly(site))) return show($("w-msg"), "err", "الشرقية للدخان: تقدر تسجّل «مشي» بس — النوع والوظيفة بيتعدلوا من شيت الرواتب.");
+  if (sharqiaBad(w, type, site)) return show($("w-msg"), "err", "الشرقية للدخان: تقدر تغيّر الوظيفة أو تسجّل «مشي» بس — النوع والموقع مايتغيروش.");
   if (type === w.type && job === w.job && site === w.site) return show($("w-msg"), "info", "مفيش تغيير.");
   if (!$("w-from").value) return show($("w-msg"), "err", "اختار التاريخ.");
   $("w-save").disabled = true;
@@ -1245,7 +1248,7 @@ $("w-save")?.addEventListener("click", async () => {
 });
 $("w-ovr")?.addEventListener("click", async e => {
   const code = e.target.dataset.undo; if (!code) return;
-  if (!await ask("تلغي التعديل ده؟ العامل هيرجع زي ما هو في شيت الرواتب.", { ok: "الغي التعديل", danger: true })) return;
+  if (!await ask("تلغي التعديل ده؟ العامل هيرجع زي ما هو في السجل.", { ok: "الغي التعديل", danger: true })) return;
   try { await deleteDoc(doc(db, "roster_overrides", code)); } catch (err) { tell("مااتلغاش: " + err.message); }
 });
 // رفع من إكسيل
@@ -1294,7 +1297,7 @@ $("w-file")?.addEventListener("change", async e => {
       if (tRaw && !type) { problems.push(`سطر ${i + 2}: النوع "${tRaw}" مش معروف`); return; }
       const job = col(r, "الوظيفة") || cur.job, site = col(r, "الموقع") || cur.site;
       if (type !== "مشي" && !W_SITES.includes(site)) { problems.push(`سطر ${i + 2}: الموقع "${site}" مش من مواقع الحضور`); return; }
-      if (type !== "مشي" && (leaveOnly(site) || leaveOnly(cur.site))) { problems.push(`سطر ${i + 2}: الشرقية للدخان — مسموح «مشي» بس`); return; }
+      if (sharqiaBad(cur, type, site)) { problems.push(`سطر ${i + 2}: الشرقية للدخان — مسموح تغيير الوظيفة أو «مشي» بس`); return; }
       if (type === cur.type && job === cur.job && site === cur.site) { same++; return; }
       WS.pending.push({ w, cur, type, job, site, from: col(r, "ساري من") || today(), note: col(r, "ملاحظة") });
     });
