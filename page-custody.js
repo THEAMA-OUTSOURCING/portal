@@ -1,7 +1,8 @@
 // page-custody.js — سكريبت صفحة custody.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, writeBatch, query, where, onSnapshot, runTransaction, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, SUP_SITES, ask } from './shared.js?v=20261111a';
+import { db, auth, actorEmail, SUP_SITES, ask, fetchPlanBase, planBySite, alignPlan } from './shared.js?v=20261111a';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261111a';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -29,11 +30,24 @@ const itemsOf = site => site === SHARQIA ? ITEMS.filter(i => i.id !== "vest") : 
 const isSalesJob = job => /مساعد\S*\s+(ال)?بيع/.test(String(job || ""));
 const itemsFor = (site, job) => site === SHARQIA ? itemsOf(site) : itemsOf(site).filter(i => i.id === "shoe" || (i.id === "vest") === isSalesJob(job));
 const gets = (site, w, item) => itemsFor(site, w.job).some(i => i.id === item);
+// ===== الحد الأقصى للتسليم = العدد المطلوب في المخطط =====
+// المخطط بنفس حساب صفحة الحضور: شيت احتياج بيبسي (والإمداد) — وشيبسي من المخطط الثابت. الوظيفة اللي مالهاش مطلوب (الشرقية، المشرفين…) مالهاش حد.
+// لو الكشف أكتر من المطلوب: المشرف بيختار مين يستلم، ولما عدد اللي استلموا الصنف يوصل للمطلوب التسليم بيتقفل للباقي.
+let PLAN_BASE = null;
+async function planOf(site) {
+  const today = ymd(new Date());
+  let plan = {};
+  try { if (!PLAN_BASE) PLAN_BASE = fetchPlanBase(today.slice(0, 7)); plan = planBySite(await PLAN_BASE, today)[site] || {}; } catch (e) { plan = {}; }
+  if (!Object.keys(plan).length && CHIPSY_SITE_PLAN[site]) plan = { ...CHIPSY_SITE_PLAN[site] };
+  return plan;
+}
+// المطلوب لوظيفة (بأسماء وظايف الكشف) — null = مفيش حد
+const capIn = (plan, roster, job) => { const n = alignPlan(plan, roster.map(w => w.job))[job]; return n == null ? null : Number(n) || 0; };
 const SIZES = { shoe: ["40", "41", "42", "43", "44", "45", "46", "47"], tshirt: ["M", "L", "XL", "XXL", "3XL", "4XL", "5XL"], vest: ["واحد"] };
 const UNSIZED = "مش معروف";
 const STORE = "المخزن العام";   // الأدمن بس — مش فرع، ومالوش كشف ولا دورة   // مخزون اتسجل من غير مقاس (اتشرى قبل ما نعرف المقاسات)
 
-const S = { user: null, admin: false, canEdit: false, sites: [], site: "", cycle: null, roster: [], docs: {}, stock: [], removals: {},
+const S = { user: null, admin: false, canEdit: false, sites: [], site: "", cycle: null, roster: [], docs: {}, stock: [], removals: {}, plan: {},
             filter: "all", q: "", busy: new Set(), unsubs: [], store: [] };
 
 // ===== الدخول =====
@@ -86,7 +100,8 @@ function openSite() {
   stopWatch();
   document.body.classList.toggle("store", $("site").value === STORE);
   if ($("site").value === STORE) return openStore();
-  S.site = $("site").value; S.cycle = null; S.roster = []; S.docs = {}; S.stock = []; S.removals = {};
+  S.site = $("site").value; S.cycle = null; S.roster = []; S.docs = {}; S.stock = []; S.removals = {}; S.plan = {};
+  const site = S.site; planOf(site).then(p => { if (S.site === site) { S.plan = p; render(); } });
   hide($("w-msg")); hide($("cy-msg"));
   $("cy-start").value = ""; S.cyAuto = "";   // الشهر المقترح للدورة يتحسب لكل فرع من جديد (مايفضلش من الفرع اللي قبله)
   render();
@@ -108,6 +123,13 @@ function openSite() {
 // ===== الحسابات =====
 const key = item => S.cycle ? S.cycle.start + "__" + item : null;
 const hasItem = (nid, item) => { const k = key(item); const e = k && S.docs[nid]?.issues?.[k]; return !!(e && !e.returned_at); };
+const jobOf = w => w.job || "بدون وظيفة";
+const capOf = job => capIn(S.plan, S.roster, job);
+const givenIn = (job, item) => S.roster.filter(w => jobOf(w) === job && hasItem(w.nid, item)).length;
+// الصنف اتقفل للوظيفة: اللي استلموه وصلوا للمطلوب
+const full = (job, item) => { const c = capOf(job); return c != null && givenIn(job, item) >= c; };
+// العامل لسه مستني الصنف ده: بتاع وظيفته، ما استلموش، والتسليم مش مقفول
+const waits = (w, item) => gets(S.site, w, item) && !hasItem(w.nid, item) && !full(jobOf(w), item);
 function stockOf(item) {
   const got = S.stock.filter(s => s.item === item).reduce((a, s) => a + (Number(s.qty) || 0), 0);
   let out = 0;
@@ -151,7 +173,11 @@ function render() {
   // الملخص
   const IT = itemsOf(S.site);
   const waiting = {};
-  IT.forEach(i => waiting[i.id] = S.roster.filter(w => gets(S.site, w, i.id) && !hasItem(w.nid, i.id)).length);
+  // المستنيين لكل صنف: في كل وظيفة (المطلوب أو الكشف، الأقل) ناقص اللي استلموا
+  IT.forEach(i => {
+    const jobs = new Map(); S.roster.filter(w => gets(S.site, w, i.id)).forEach(w => jobs.set(jobOf(w), (jobs.get(jobOf(w)) || 0) + 1));
+    waiting[i.id] = [...jobs.entries()].reduce((a, [j, n]) => { const c = capOf(j); return a + Math.max(0, (c == null ? n : Math.min(n, c)) - givenIn(j, i.id)); }, 0);
+  });
   $("sum").style.gridTemplateColumns = `repeat(${IT.length},minmax(0,1fr))`;
   $("sum").innerHTML = IT.map(i => {
     const s = stockOf(i.id), needP = waiting[i.id] * i.pieces, diff = s.left - needP;
@@ -163,7 +189,8 @@ function render() {
 
   // الفلتر
   // «ما استلمش حاجة» = مفيش ولا قطعة · «ناقصه حاجة» = فاضله قطعة واحدة على الأقل
-  const noneOf = w => itemsFor(S.site, w.job).every(i => !hasItem(w.nid, i.id)), someMissing = w => itemsFor(S.site, w.job).some(i => !hasItem(w.nid, i.id));
+  const noneOf = w => itemsFor(S.site, w.job).every(i => !hasItem(w.nid, i.id)) && itemsFor(S.site, w.job).some(i => waits(w, i.id)),
+        someMissing = w => itemsFor(S.site, w.job).some(i => waits(w, i.id));
   $("f-all").textContent = `الكل (${S.roster.length})`;
   $("f-none").textContent = `ما استلمش حاجة (${S.roster.filter(noneOf).length})`;
   $("f-wait").textContent = `ناقصه حاجة (${S.roster.filter(someMissing).length})`;
@@ -184,12 +211,16 @@ function render() {
     : [...byJob.entries()].map(([job, ws]) => {
         const all = allByJob.get(job) || ws;
         const IJ = itemsFor(S.site, job === "بدون وظيفة" ? "" : job);   // أصناف الوظيفة دي بس
-        const done = all.filter(w => IJ.every(i => hasItem(w.nid, i.id))).length;
-        // عدد اللي استلموا كل صنف لوحده في الوظيفة
+        const cap = capOf(job), target = cap == null ? all.length : Math.min(all.length, cap);
+        const done = IJ.every(i => all.filter(w => hasItem(w.nid, i.id)).length >= target);
+        // عدد اللي استلموا كل صنف لوحده في الوظيفة (من المطلوب لو فيه مطلوب)
         const per = IJ.map(i => `${i.ar} ${all.filter(w => hasItem(w.nid, i.id)).length}`).join(" · ");
+        const over = cap != null && all.length > cap;
+        const shut = IJ.filter(i => full(job, i.id)).map(i => i.ar);
         const isOpen = q || open.has(job) || byJob.size === 1;
         return `<details class="job" data-job="${esc(job)}"${isOpen ? " open" : ""}>
-          <summary><span class="t">${esc(job)}</span><span class="chip ${done === all.length ? "green" : "amber"}" title="استلموا كل حاجة ${done} من ${all.length}">${per} من ${all.length}</span></summary>
+          <summary><span class="t">${esc(job)}</span><span class="chip ${done ? "green" : "amber"}">${per} من ${target}</span></summary>
+          ${over ? `<div class="msg show warn" style="margin:6px 0;">الكشف ${all.length} والمطلوب ${cap} — اختار مين يستلم. ${shut.length ? "التسليم اتقفل: " + shut.join(" و") + " (وصل للمطلوب)." : "التسليم بيتقفل لما عدد اللي استلموا يوصل " + cap + "."}</div>` : ""}
           <div class="hdr"><span>${ws.length} عامل</span>${IJ.map(i => `<span>${i.ar}${i.pieces > 1 ? " ×" + i.pieces : ""}</span>`).join("")}</div>
           ${ws.map((w, i) => ({ w, i, n: IJ.filter(it => hasItem(w.nid, it.id)).length }))
               .sort((a, b) => (b.n > 0) - (a.n > 0) || a.i - b.i)   // اللي استلم ولو قطعة واحدة الأول في وظيفته، والباقي بنفس الترتيب
@@ -199,9 +230,9 @@ function render() {
             return `<div class="w"><div class="n"><b>${esc(w.name)}</b>
               <small class="${sz && ok ? "" : "bad"}">${ok ? (sz ? esc(sz) : "ما سجلش مقاسه") : "الرقم القومي ناقص — مينفعش يتعلّم"}${w.code ? " · " + esc(w.code) : ""}</small></div>
               ${IJ.map(i => {
-                const on = hasItem(w.nid, i.id), busy = S.busy.has(w.nid + i.id);
+                const on = hasItem(w.nid, i.id), busy = S.busy.has(w.nid + i.id), shutI = !on && full(job, i.id);
                 return `<button class="it${on ? " on" : ""}" data-nid="${esc(w.nid)}" data-item="${i.id}" aria-pressed="${on}"
-                  aria-label="${i.ar} — ${esc(w.name)}"${dis || !ok || busy ? " disabled" : ""}><svg viewBox="0 0 24 24" aria-hidden="true">${i.svg}</svg></button>`;
+                  aria-label="${i.ar} — ${esc(w.name)}"${shutI ? ` title="اتسلم للمطلوب — التسليم مقفول"` : ""}${dis || !ok || busy || shutI ? " disabled" : ""}><svg viewBox="0 0 24 24" aria-hidden="true">${i.svg}</svg></button>`;
               }).join("")}</div>`;
           }).join("")}
         </details>`;
@@ -229,6 +260,7 @@ $("jobs").addEventListener("click", async e => {
   if (!w) return;
   const item = b.dataset.item, want = !hasItem(w.nid, item);
   if (want && !gets(S.site, w, item)) return;   // الصنف ده مش لوظيفته
+  if (want && full(jobOf(w), item)) return show($("w-msg"), "err", `${ITEM[item].ar} اتسلم للعدد المطلوب في «${jobOf(w)}» (${capOf(jobOf(w))}) — شيل علامة حد تاني الأول لو عايز تسلّمه.`);
   if (!want && !await ask(`تشيل علامة استلام ${ITEM[item].ar} من ${w.name}؟`, { ok: "شيل العلامة", danger: true })) return;
   await mark(w, item, want);
 });
@@ -324,7 +356,7 @@ async function loadSite(site, withExits) {
     getDoc(doc(db, "custody_cycles", site)), getDoc(doc(db, "rosters", site)),
     getDocs(query(collection(db, "custody"), where("site", "==", site))),
     getDocs(query(collection(db, "custody_stock"), where("site", "==", site)))]);
-  const out = { site, cycle: cy.exists() ? cy.data() : null, roster: ro.exists() ? (ro.data().workers || []) : [], docs: [], stock: [], removals: {}, gone: {} };
+  const out = { site, cycle: cy.exists() ? cy.data() : null, roster: ro.exists() ? (ro.data().workers || []) : [], docs: [], stock: [], removals: {}, gone: {}, plan: await planOf(site) };
   cu.forEach(d => out.docs.push(d.data())); st.forEach(d => out.stock.push(d.data()));
   if (withExits) {
     // تاريخ الخروج: الشيل من الكشف (من غير «نقل»)، أو «مشي» من الإدارة
@@ -360,7 +392,12 @@ $("rep-needs").onclick = async () => {
     data.forEach(d => {
       itemsOf(d.site).forEach(i => {
         const need = {}, have = {};
-        d.roster.filter(w => gets(d.site, w, i.id)).forEach(w => { const sz = i.id === "vest" ? "واحد" : (w[i.id] || "من غير مقاس"); need[sz] = (need[sz] || 0) + i.pieces; });
+        // كل وظيفة: لحد العدد المطلوب بس — واللي استلموا في الدورة الحالية الأول (هما اللي اتختاروا)
+        const got = new Set(d.cycle ? d.docs.filter(c => { const e = c.issues?.[d.cycle.start + "__" + i.id]; return e && !e.returned_at; }).map(c => String(c.nid)) : []);
+        const byJob = new Map(); d.roster.filter(w => gets(d.site, w, i.id)).forEach(w => { const j = w.job || "بدون وظيفة"; byJob.set(j, (byJob.get(j) || []).concat(w)); });
+        const pick = [...byJob.entries()].flatMap(([j, ws]) => { const c = capIn(d.plan, d.roster, j);
+          const s = ws.slice().sort((a, b) => got.has(String(b.nid)) - got.has(String(a.nid))); return c == null ? s : s.slice(0, c); });
+        pick.forEach(w => { const sz = i.id === "vest" ? "واحد" : (w[i.id] || "من غير مقاس"); need[sz] = (need[sz] || 0) + i.pieces; });
         d.stock.filter(x => x.item === i.id).forEach(x => have[x.size] = (have[x.size] || 0) + (Number(x.qty) || 0));
         d.docs.forEach(c => Object.entries(c.issues || {}).forEach(([k, e]) => {
           if (k.endsWith("__" + i.id) && !e.returned_at) { const sz = i.id === "vest" ? "واحد" : (e.size || "من غير مقاس"); have[sz] = (have[sz] || 0) - i.pieces; }
@@ -383,7 +420,7 @@ $("rep-needs").onclick = async () => {
     });
     if (!rows.length) { $("rep-out").innerHTML = `<p class="muted">مفيش عمال في الكشوف دي.</p>`; return; }
     const cyTxt = data.length === 1 && data[0].cycle ? ` — الدورة الجاية تبدأ ${monthAr(addMonths(data[0].cycle.end, 1))}` : "";
-    let html = `<p class="muted" style="margin-bottom:6px;">المطلوب = عمال الكشف دلوقتي (التيشرت قطعتين للعامل). في المخزن = الباقي من نفس المقاس. «من غير مقاس» = العامل ما سجلش مقاسه في «مطلوب وهام». «مش معروف» = مخزون اتسجل من غير مقاس — راجعه قبل الشراء لأنه ممكن يغطي جزء من «هنشتري»${cyTxt}.</p>`;
+    let html = `<p class="muted" style="margin-bottom:6px;">المطلوب = عمال الكشف دلوقتي، ولحد العدد المطلوب في المخطط لكل وظيفة (التيشرت قطعتين للعامل). في المخزن = الباقي من نفس المقاس. «من غير مقاس» = العامل ما سجلش مقاسه في «مطلوب وهام». «مش معروف» = مخزون اتسجل من غير مقاس — راجعه قبل الشراء لأنه ممكن يغطي جزء من «هنشتري»${cyTxt}.</p>`;
     if (data.length > 1) {
       // الأدمن: رصيد المخزن العام بيتطرح من «هنشتري» في الإجمالي
       let sto = null;
