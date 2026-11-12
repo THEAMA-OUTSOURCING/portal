@@ -24,6 +24,11 @@ const ITEMS = [
 const ITEM = Object.fromEntries(ITEMS.map(i => [i.id, i]));
 // الأصناف اللي بتتسلم في الموقع: الشرقية للدخان مالهاش فيست
 const itemsOf = site => site === SHARQIA ? ITEMS.filter(i => i.id !== "vest") : ITEMS;
+// الأصناف بالوظيفة: مساعد البيع = سيفتي + فيست واحد (من غير تيشرت) · باقي الوظايف = سيفتي + 2 تيشرت (من غير فيست)
+// الشرقية للدخان برة القاعدة دي: سيفتي + تيشرت للكل
+const isSalesJob = job => /مساعد\S*\s+(ال)?بيع/.test(String(job || ""));
+const itemsFor = (site, job) => site === SHARQIA ? itemsOf(site) : itemsOf(site).filter(i => i.id === "shoe" || (i.id === "vest") === isSalesJob(job));
+const gets = (site, w, item) => itemsFor(site, w.job).some(i => i.id === item);
 const SIZES = { shoe: ["40", "41", "42", "43", "44", "45", "46", "47"], tshirt: ["M", "L", "XL", "XXL", "3XL", "4XL", "5XL"], vest: ["واحد"] };
 const UNSIZED = "مش معروف";
 const STORE = "المخزن العام";   // الأدمن بس — مش فرع، ومالوش كشف ولا دورة   // مخزون اتسجل من غير مقاس (اتشرى قبل ما نعرف المقاسات)
@@ -111,7 +116,7 @@ function stockOf(item) {
   return { got, out, left: got - out };
 }
 const sizeTxt = w => {
-  const p = []; if (w.shoe) p.push("جزمة " + w.shoe); if (w.tshirt) p.push("تيشرت " + w.tshirt);
+  const p = []; if (w.shoe) p.push("جزمة " + w.shoe); if (w.tshirt && gets(S.site, w, "tshirt")) p.push("تيشرت " + w.tshirt);
   return p.length ? p.join(" · ") : "";
 };
 const validNid = nid => /^[0-9]{14}$/.test(String(nid || ""));
@@ -146,7 +151,7 @@ function render() {
   // الملخص
   const IT = itemsOf(S.site);
   const waiting = {};
-  IT.forEach(i => waiting[i.id] = S.roster.filter(w => !hasItem(w.nid, i.id)).length);
+  IT.forEach(i => waiting[i.id] = S.roster.filter(w => gets(S.site, w, i.id) && !hasItem(w.nid, i.id)).length);
   $("sum").style.gridTemplateColumns = `repeat(${IT.length},minmax(0,1fr))`;
   $("sum").innerHTML = IT.map(i => {
     const s = stockOf(i.id), needP = waiting[i.id] * i.pieces, diff = s.left - needP;
@@ -158,7 +163,7 @@ function render() {
 
   // الفلتر
   // «ما استلمش حاجة» = مفيش ولا قطعة · «ناقصه حاجة» = فاضله قطعة واحدة على الأقل
-  const noneOf = w => IT.every(i => !hasItem(w.nid, i.id)), someMissing = w => IT.some(i => !hasItem(w.nid, i.id));
+  const noneOf = w => itemsFor(S.site, w.job).every(i => !hasItem(w.nid, i.id)), someMissing = w => itemsFor(S.site, w.job).some(i => !hasItem(w.nid, i.id));
   $("f-all").textContent = `الكل (${S.roster.length})`;
   $("f-none").textContent = `ما استلمش حاجة (${S.roster.filter(noneOf).length})`;
   $("f-wait").textContent = `ناقصه حاجة (${S.roster.filter(someMissing).length})`;
@@ -178,21 +183,22 @@ function render() {
     : !list.length ? `<div class="card muted">مفيش نتايج.</div>`
     : [...byJob.entries()].map(([job, ws]) => {
         const all = allByJob.get(job) || ws;
-        const done = all.filter(w => IT.every(i => hasItem(w.nid, i.id))).length;
+        const IJ = itemsFor(S.site, job === "بدون وظيفة" ? "" : job);   // أصناف الوظيفة دي بس
+        const done = all.filter(w => IJ.every(i => hasItem(w.nid, i.id))).length;
         // عدد اللي استلموا كل صنف لوحده في الوظيفة
-        const per = IT.map(i => `${i.ar} ${all.filter(w => hasItem(w.nid, i.id)).length}`).join(" · ");
+        const per = IJ.map(i => `${i.ar} ${all.filter(w => hasItem(w.nid, i.id)).length}`).join(" · ");
         const isOpen = q || open.has(job) || byJob.size === 1;
         return `<details class="job" data-job="${esc(job)}"${isOpen ? " open" : ""}>
           <summary><span class="t">${esc(job)}</span><span class="chip ${done === all.length ? "green" : "amber"}" title="استلموا كل حاجة ${done} من ${all.length}">${per} من ${all.length}</span></summary>
-          <div class="hdr"><span>${ws.length} عامل</span>${IT.map(i => `<span>${i.ar}${i.pieces > 1 ? " ×" + i.pieces : ""}</span>`).join("")}</div>
-          ${ws.map((w, i) => ({ w, i, n: IT.filter(it => hasItem(w.nid, it.id)).length }))
+          <div class="hdr"><span>${ws.length} عامل</span>${IJ.map(i => `<span>${i.ar}${i.pieces > 1 ? " ×" + i.pieces : ""}</span>`).join("")}</div>
+          ${ws.map((w, i) => ({ w, i, n: IJ.filter(it => hasItem(w.nid, it.id)).length }))
               .sort((a, b) => (b.n > 0) - (a.n > 0) || a.i - b.i)   // اللي استلم ولو قطعة واحدة الأول في وظيفته، والباقي بنفس الترتيب
               .map(({ w }) => {
             const sz = sizeTxt(w);
             const ok = validNid(w.nid);
             return `<div class="w"><div class="n"><b>${esc(w.name)}</b>
               <small class="${sz && ok ? "" : "bad"}">${ok ? (sz ? esc(sz) : "ما سجلش مقاسه") : "الرقم القومي ناقص — مينفعش يتعلّم"}${w.code ? " · " + esc(w.code) : ""}</small></div>
-              ${IT.map(i => {
+              ${IJ.map(i => {
                 const on = hasItem(w.nid, i.id), busy = S.busy.has(w.nid + i.id);
                 return `<button class="it${on ? " on" : ""}" data-nid="${esc(w.nid)}" data-item="${i.id}" aria-pressed="${on}"
                   aria-label="${i.ar} — ${esc(w.name)}"${dis || !ok || busy ? " disabled" : ""}><svg viewBox="0 0 24 24" aria-hidden="true">${i.svg}</svg></button>`;
@@ -222,6 +228,7 @@ $("jobs").addEventListener("click", async e => {
   const w = S.roster.find(x => String(x.nid) === b.dataset.nid);
   if (!w) return;
   const item = b.dataset.item, want = !hasItem(w.nid, item);
+  if (want && !gets(S.site, w, item)) return;   // الصنف ده مش لوظيفته
   if (!want && !await ask(`تشيل علامة استلام ${ITEM[item].ar} من ${w.name}؟`, { ok: "شيل العلامة", danger: true })) return;
   await mark(w, item, want);
 });
@@ -353,7 +360,7 @@ $("rep-needs").onclick = async () => {
     data.forEach(d => {
       itemsOf(d.site).forEach(i => {
         const need = {}, have = {};
-        d.roster.forEach(w => { const sz = i.id === "vest" ? "واحد" : (w[i.id] || "من غير مقاس"); need[sz] = (need[sz] || 0) + i.pieces; });
+        d.roster.filter(w => gets(d.site, w, i.id)).forEach(w => { const sz = i.id === "vest" ? "واحد" : (w[i.id] || "من غير مقاس"); need[sz] = (need[sz] || 0) + i.pieces; });
         d.stock.filter(x => x.item === i.id).forEach(x => have[x.size] = (have[x.size] || 0) + (Number(x.qty) || 0));
         d.docs.forEach(c => Object.entries(c.issues || {}).forEach(([k, e]) => {
           if (k.endsWith("__" + i.id) && !e.returned_at) { const sz = i.id === "vest" ? "واحد" : (e.size || "من غير مقاس"); have[sz] = (have[sz] || 0) - i.pieces; }
