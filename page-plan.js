@@ -1,6 +1,6 @@
 // page-plan.js — سكريبت صفحة plan.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell } from './shared.js?v=20261115a';
 import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261115a';
 import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261115a';
@@ -736,8 +736,27 @@ async function saveAccount() {
   // الاسم بيتبعت بس لو مكتوب — لحد ما الـ Rules والسيرفر يتحدّثوا، الحفظ من غير اسم يفضل شغال
   return runAccountTask("account_save", { email, ...(name ? { name } : {}), role, sites, payroll, disabled: $("ac-disabled").checked });
 }
+// إنشاء حساب أو تغيير دوره أو باسورده: باسورد الأدمن بيتكتب تانى قبل كل طلب (جلسة مفتوحة أو مسروقة لوحدها ماتكفيش).
+// والـ Rules بتتأكد إن الباسورد اتكتب من دقايق (auth_time) — فالطلب مايتبعتش من غير الخطوة دى.
+async function confirmMe() {
+  const u = auth.currentUser;
+  if (!u) { show($("ac-msg"), "err", "انتهت الجلسة — ادخل تانى."); return false; }
+  const pw = await askText("اكتب باسورد حسابك للتأكيد قبل تعديل الحسابات:", { input: "password", ok: "تأكيد" });
+  if (!pw) return false;
+  try {
+    await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, pw));
+    await u.getIdToken(true);   // توكن جديد بوقت الدخول الجديد قبل ما الطلب يتبعت
+    return true;
+  } catch (err) {
+    const c = err.code || "";
+    show($("ac-msg"), "err", /wrong-password|invalid-credential|invalid-login/.test(c) ? "الباسورد غلط — الطلب مااتبعتش."
+      : c === "auth/too-many-requests" ? "محاولات كتير — استنى شوية وجرّب تانى." : "ماقدرتش أتأكد من الباسورد: " + err.message);
+    return false;
+  }
+}
 async function runAccountTask(type, extra) {
   const msg = $("ac-msg"); $("ac-secret").classList.add("hidden");
+  if (!await confirmMe()) return;
   show(msg, "info", "جاري إرسال الطلب للسيرفر...");
   document.querySelectorAll('[data-panel="accounts"] button').forEach(b => b.disabled = true);
   try {
