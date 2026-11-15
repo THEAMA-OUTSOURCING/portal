@@ -593,7 +593,7 @@ function render() {
     const roP = ro || (blocked ? "disabled" : "");
     return `<div class="w ${!r ? "missing" : flag ? "flag" : ""}">
       <div class="nm"><b>${esc(w.name)}</b><small>${w.past ? `<span style="color:#6b6b6b">مش على الكشف دلوقتي (${esc(w.type || "")}) · </span>` : ""}${esc(aiTxt)}${note}${why ? ` · <span style="color:#8a5a10">${esc(why)}</span>` : ""}${blocked ? ` · <span style="color:#a32d2d">الحضور مقفول لحد ما الفيش يترفع</span>` : ""}</small></div>
-      <div class="seg"><button class="p" data-c="${w.code}" data-v="P" aria-pressed="${def === "P"}" ${roP}>حاضر</button><button class="a" data-c="${w.code}" data-v="A" aria-pressed="${def === "A"}" ${ro}>غايب</button>${S.timed ? `<button class="q" data-c="${w.code}" data-v="Q" aria-pressed="${def === "Q"}" ${ro}>توقف</button>` : ""}</div></div>` +
+      <div class="seg"><button class="p" data-c="${esc(w.code)}" data-v="P" aria-pressed="${def === "P"}" ${roP}>حاضر</button><button class="a" data-c="${esc(w.code)}" data-v="A" aria-pressed="${def === "A"}" ${ro}>غايب</button>${S.timed ? `<button class="q" data-c="${esc(w.code)}" data-v="Q" aria-pressed="${def === "Q"}" ${ro}>توقف</button>` : ""}</div></div>` +
       (def === "A" ? repBlock(w, r) : "");
   }).join("")).join("");
   const subs = aiSubs();
@@ -1101,7 +1101,7 @@ $("workers").addEventListener("input", e => {
   const q = e.target.value.trim(), box = $("hits-" + code);
   if (q.length < 2) { box.innerHTML = ""; return; }
   const hits = candidates(q, code);
-  box.innerHTML = hits.length ? hits.map(p => `<span class="chip" data-pick="${code}" data-who="${esc(p.nid || p.code)}">${esc(p.name)}</span>`).join(" ")
+  box.innerHTML = hits.length ? hits.map(p => `<span class="chip" data-pick="${esc(code)}" data-who="${esc(p.nid || p.code)}">${esc(p.name)}</span>`).join(" ")
     : `<span class="muted">مفيش حد بالاسم ده في البدلاء — لو جديد، استخدم "بديل جديد".</span>`;
 });
 $("workers").addEventListener("click", e => {
