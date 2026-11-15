@@ -530,13 +530,13 @@ export async function openPrintView(opts) {
   return { el: pv, close };
 }
 
-// المكتبات بتتحمّل بس لما حد يدوس «حفظ PDF» — بإصدار ثابت وبصمة (integrity): لو الملف اتغير، المتصفح يرفضه
+// المكتبات بتتحمّل بس لما حد يدوس «حفظ PDF» — من فولدر vendor في البوابة نفسها (مش من CDN)، بإصدار ثابت وبصمة (integrity): لو الملف اتغير، المتصفح يرفضه
 const LIBS = {
-  html2canvas: { src: "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
+  html2canvas: { src: "vendor/html2canvas-1.4.1.min.js",
                  sri: "sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H", ready: () => window.html2canvas },
-  jspdf:       { src: "https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js",
+  jspdf:       { src: "vendor/jspdf-4.2.1.umd.min.js",
                  sri: "sha384-qovJwSBbRDPP5cEjCp8S0UP66wrvnjaa60XMOGzTNanrThcrGfXfnZkvgY8N1KT3", ready: () => window.jspdf?.jsPDF },
-  sortable:    { src: "https://cdn.jsdelivr.net/npm/sortablejs@1.15.7/Sortable.min.js",
+  sortable:    { src: "vendor/sortable-1.15.7.min.js",
                  sri: "sha384-DgmC6Xe2bSN2WjTDXzWYbUbxyhNP+NNkGDR/g78pCXV7E7rcVTGxVg0uIVCUUcBc", ready: () => window.Sortable },
 };
 export function loadLib(name) {

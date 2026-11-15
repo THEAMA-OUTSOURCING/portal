@@ -446,8 +446,8 @@ let excelJsP = null;
 function loadExcelJS() {
   return excelJsP || (excelJsP = new Promise((res, rej) => {
     const s = document.createElement("script");
-    s.src = "https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js";
-    s.integrity = "sha384-Pqp51FUN2/qzfxZxBCtF0stpc9ONI6MYZpVqmo8m20SoaQCzf+arZvACkLkirlPz"; s.crossOrigin = "anonymous";   // لو الملف على الـ CDN اتغيّر مايشتغلش
+    s.src = "vendor/exceljs-4.4.0.min.js";
+    s.integrity = "sha384-Pqp51FUN2/qzfxZxBCtF0stpc9ONI6MYZpVqmo8m20SoaQCzf+arZvACkLkirlPz"; s.crossOrigin = "anonymous";   // لو الملف اتغيّر مايشتغلش
     s.onload = () => res(window.ExcelJS);
     s.onerror = () => { excelJsP = null; rej(new Error("مكتبة الإكسيل ماتحمّلتش")); };
     document.head.appendChild(s);

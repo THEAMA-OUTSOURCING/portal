@@ -982,7 +982,7 @@ function cardType(stored, b){
 }
 // متصفحات الموبايل مش بتعرض PDF جوه iframe (بتطلع زرار تحميل/فتح بس)،
 // فبنرسم صفحات الـ PDF صور بـ pdf.js — تظهر على الموبايل والكمبيوتر، والعامل يقدر يضغط عليها مطوّلاً ويحفظها.
-const PDFJS_BASE = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/';
+const PDFJS_BASE = 'vendor/pdfjs-3.11.174/';   // من البوابة نفسها (مش من CDN) — ومعاه pdf.worker
 let pdfjsReady = null;
 function loadPdfJs(){
   if(window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
