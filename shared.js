@@ -444,9 +444,16 @@ document.addEventListener("submit", e => { if (e.target?.id === "l-form") e.prev
 // لحد ما Firebase يتحمّل. بيستخبى لوحده بالـ CSS أول ما الدخول أو الصفحة يظهروا، وهنا احتياطي للمتصفحات القديمة.
 onAuthStateChanged(auth, () => { setTimeout(() => document.getElementById("boot")?.remove(), 0); });
 
+// نسخة السجل المحفوظة في المتصفح (page-sijil.js — أرقام قومية وتليفونات وأرقام تأمين) بتتمسح أول ما الحساب يخرج،
+// من أى صفحة وفي أى تاب، مش من صفحة السجل بس. قبل كده الخروج من صفحة تانية كان بيسيبها على الجهاز لحد 7 أيام.
+onAuthStateChanged(auth, user => {
+  if (user) return;
+  try { Object.keys(localStorage).filter(k => k.startsWith("sijil_v1")).forEach(k => localStorage.removeItem(k)); } catch (e) {}
+});
+
 // علامة إن كود الصفحة اتحمّل كامل (sentry.js بيشيّك عليها: لو مش موجودة بعد تحميل الصفحة يبقى الكود ماتحملش ويظهر شريط «تحديث»)
 window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-if (FIRST_COPY) import('./notify.js?v=20261115a').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+if (FIRST_COPY) import('./notify.js?v=20261115c').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
