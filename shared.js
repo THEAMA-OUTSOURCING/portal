@@ -156,6 +156,9 @@ export const nidDiff = (a, b) => {
 // نفس الاسم؟ أول 3 أسامي (أو أول اسمين لو واحد فيهم أقصر) — من غير فرق همزة/ة/ى، و«عبد ال...» = «عبدال...»
 const nameWords = s => enDigits(s).replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي")
   .replace(/(^|\s)(عبد|ابو)\s+/g, "$1$2").replace(/[^ء-ي\s]/g, " ").split(/\s+/).filter(Boolean);
+// عدد أجزاء الاسم: «عبد الناصر» و«ابو مصطفى» و«عز الدين» و«فتح الله» = اسم واحد.
+// فـ«محمد عبد الناصر محمد» = 3 (ثلاثي) مش 4.
+export const nameParts = s => nameWords(s).filter((w, i) => i === 0 || !["الدين", "الله"].includes(w)).length;
 export const sameName = (a, b) => {
   const x = nameWords(a), y = nameWords(b), k = Math.min(3, x.length, y.length);
   return k >= 2 && x.slice(0, k).join(" ") === y.slice(0, k).join(" ");
@@ -446,4 +449,4 @@ window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-if (FIRST_COPY) import('./notify.js?v=20261111a').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+if (FIRST_COPY) import('./notify.js?v=20261115a').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));

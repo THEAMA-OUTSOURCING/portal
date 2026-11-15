@@ -1,10 +1,10 @@
 // page-plan.js — سكريبت صفحة plan.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, ask, askText, tell } from './shared.js?v=20261111a';
-import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261111a';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261111a';
-import { keyOf, splitJob } from './sheet.js?v=20261111a';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell } from './shared.js?v=20261115a';
+import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261115a';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261115a';
+import { keyOf, splitJob } from './sheet.js?v=20261115a';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====
@@ -1281,7 +1281,7 @@ $("w-file")?.addEventListener("change", async e => {
         const nid = nidIn, name = col(r, "الاسم").replace(/\s+/g, " ");
         if (!nid && !name) return;
         const bad = nidCheck(nid); if (bad) { problems.push(`سطر ${i + 2}: ${name || nid} — ${bad}`); return; }
-        if (name.split(" ").length < 4) { problems.push(`سطر ${i + 2}: الاسم لازم رباعي`); return; }
+        if (nameParts(name) < 4) { problems.push(`سطر ${i + 2}: الاسم لازم رباعي`); return; }
         let phone = enDigits(col(r, "التليفون", "الموبايل", "رقم التليفون")).replace(/\D/g, ""); if (phone.length === 10 && phone[0] === "1") phone = "0" + phone;
         if (!/^01[0125][0-9]{8}$/.test(phone)) { problems.push(`سطر ${i + 2}: ${name} — التليفون ناقص أو غلط`); return; }
         const tIn = col(r, "النوع", "نوع الوظيفة"), nt = TYPE_IN[arNorm(tIn)] || TYPE_IN[tIn], site = col(r, "الموقع"), job = col(r, "الوظيفة");

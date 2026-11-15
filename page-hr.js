@@ -1,7 +1,7 @@
 // page-hr.js — سكريبت صفحة hr.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, SUP_SITES, isBasic, ask } from './shared.js?v=20261111a';
+import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask } from './shared.js?v=20261115a';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
@@ -827,7 +827,7 @@ function wqEdits(card, e) {
 function wqCheck(e, upd) {
   const x = { ...e, ...upd };
   if (x.kind === "hire") {
-    if (String(x.name || "").split(" ").length < 4) return "الاسم لازم يكون رباعي على الأقل.";
+    if (nameParts(x.name) < 4) return "الاسم لازم يكون رباعي على الأقل.";
     if (!/^[23][0-9]{13}$/.test(x.nid || "")) return "الرقم القومي لازم 14 رقم.";
     if (!/^01[0125][0-9]{8}$/.test(x.phone || "")) return "التليفون لازم 11 رقم ويبدأ بـ 01.";
     if (!x.job) return "اكتب الوظيفة.";

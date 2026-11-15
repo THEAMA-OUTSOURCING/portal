@@ -1,9 +1,9 @@
 // page-attendance.js — سكريبت صفحة attendance.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, isBasic, nearWorkers, ask, tell } from './shared.js?v=20261111a';
-import { openPrintView, openOrderEditor, printOrder } from './sheet.js?v=20261111a';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261111a';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, isBasic, nearWorkers, nameParts, ask, tell } from './shared.js?v=20261115a';
+import { openPrintView, openOrderEditor, printOrder } from './sheet.js?v=20261115a';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261115a';
 
 
 const $ = id => document.getElementById(id);
@@ -1329,7 +1329,7 @@ const cleanPhone = v => { let p = enDigits(v).replace(/\D/g, ""); if (p.length =
 const cleanName = v => String(v || "").replace(/\s+/g, " ").trim();
 // المشكلة في البيانات اللي اتكتبت (أو "" لو تمام)
 function typedProblem(name, nid, phone) {
-  if (name.split(" ").length < 4) return "اكتب الاسم رباعي على الأقل زي البطاقة.";
+  if (nameParts(name) < 4) return "اكتب الاسم رباعي على الأقل زي البطاقة.";
   const age = nidAge(nid);
   if (age == null) return "الرقم القومى لازم 14 رقم وصحيح.";
   if (age < 18) return "تيما مبتشغلش حد تحت السن القانونى (18 سنة).";
