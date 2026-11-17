@@ -1850,6 +1850,10 @@ $("lv-send").addEventListener("click", async () => {
   const w = LV.who, f = $("lv-from").value, t = $("lv-to").value, pick = $("lv-type").value, site = $("site").value;
   const inj = pick === "injury", type = inj ? "sick" : pick, ext = inj && lvIsExt() ? lvPrevInj(w) : null;
   if (!w || !LV.img || (inj && !ext && !LV.pages.length) || !f || t < f) return;
+  // طلب تاني لنفس العامل داخل في نفس الأيام (ومش مرفوض) — مايتبعتش
+  const clash = LV.list.find(x => ["sick", "leave"].includes(x.type) && x.status !== "rejected" && x.from && x.to && x.from <= t && f <= x.to
+    && ((w.nid && x.nid === String(w.nid)) || (w.code && x.code === String(w.code))));
+  if (clash) return show($("lv-m"), "err", `${w.name} عنده طلب ${clash.type_ar || ""} من ${clash.from} لحد ${clash.to} داخل في نفس الأيام — مينفعش طلب تاني عليها. لو محتاج تمدّه ابدأ من بعد ${clash.to}.`);
   $("lv-send").disabled = true; show($("lv-m"), "info", "بيرفع...");
   try {
     const u = auth.currentUser;

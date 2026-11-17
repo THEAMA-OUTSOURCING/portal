@@ -119,6 +119,37 @@ async function recOf(nid, code) {
   }
   return (RECS[k] = w);
 }
+// رقم حالة الإكسيل: نفس العامل (زي ما هو في الشيت) + نفس «من» + نفس النوع = نفس الحالة
+const idOf = r => `xl__${r._k || r.nid || r.code}__${r.from}__${r.type}${r.kind ? "_" + r.kind : ""}`;
+// ===== حالتين لنفس العامل على نفس الأيام =====
+// أي إجازة أو مرضي أو إصابة لنفس العامل ومش مرفوضة من HR تيما بتمنع حالة تانية تدخل في أيامها — من الإكسيل ومن الاعتماد.
+// حتى لو العميل رفضها: أيامها اتحسبت خ، ولو هتتراجع يبقى بـ «رجّع لـ HR تيما» على نفس الحالة مش بحالة جديدة.
+const CASES = {};
+async function workerCases(nid, code) {
+  const k = (nid || "") + "|" + (code || "");
+  if (!(k in CASES)) {
+    const out = new Map(), c = collection(db, "hr_events");
+    // HR بفروع: الـ Rules بتطلب فلتر الفروع في القراية
+    const scope = q => SCOPED ? query(q, where("site", "in", SCOPED.slice(0, 30))) : q;
+    const qs = [];
+    if (nid) qs.push(scope(query(c, where("nid", "==", String(nid)))));
+    if (code) qs.push(scope(query(c, where("code", "==", String(code)))));
+    for (const q of qs) (await getDocs(q)).forEach(d => out.set(d.id, { id: d.id, ...d.data() }));
+    CASES[k] = out;
+  }
+  // آخر نسخة من اللي متحمّل في الصفحة (لو حالة اتغيّرت من ساعة القراية)
+  const out = new Map(CASES[k]);
+  ALL.forEach(x => { if ((nid && x.nid === String(nid)) || (code && String(x.code) === String(code))) out.set(x.id, x); });
+  return [...out.values()];
+}
+const clashesOf = (list, selfId, from, to) => list.filter(x => x.id !== selfId && ["sick", "leave"].includes(x.type) && x.status !== "rejected"
+  && x.from && x.to && from && to && x.from <= to && from <= x.to);
+const SRC_AR = { supervisor: "طلب مشرف", excel_hr: "إكسيل HR", sharqia_drive: "شيت الشرقية" };
+const clashTxt = list => list.map(x => `${tyTxt(x)} من ${x.from} لحد ${x.to} — ${ST[x.status] || x.status}${SRC_AR[x.source] ? " (" + SRC_AR[x.source] + ")" : ""}`).join("\n");
+async function clashMsg(ev, selfId, from, to) {
+  const cl = clashesOf(await workerCases(ev.nid, ev.code), selfId, from, to);
+  return cl.length ? `${ev.name || ev.nid || ev.code} عنده حالة تانية داخلة في نفس الأيام — عدّل التواريخ أو ارفض واحدة منهم الأول:\n` + clashTxt(cl) : "";
+}
 const kindOf = t => /اصاب|إصاب/.test(t) ? ["sick", "", "injury"] : /مرض/.test(t) ? ["sick", "", "sick"] : /بدون/.test(t) ? ["leave", "unpaid"] : /سنو|عارض|اجاز|إجاز/.test(t) ? ["leave", "annual"] : [null, null];
 function workDays(f, t) { let n = 0; for (let d = new Date(f + "T00:00"); d <= new Date(t + "T00:00"); d.setDate(d.getDate() + 1)) if (d.getDay() !== 5) n++; return n; }
 $("xf").onchange = async () => {
@@ -147,26 +178,31 @@ $("xf").onchange = async () => {
     for (const row of XROWS) {
       // الموقع والوظيفة والاسم والكود من السجل. لو العامل مش في السجل: الموقع من عمود «الموقع» زي الأول
       const w = await recOf(row.nid, row.code);
+      // الموقع من السجل لو هو فرع من البوابة بس — عمال الشرقية موقعهم في السجل خط/قطاع (توينز ...)، وحالاتهم بتفضل من غير site زي حالات شيت الشرقية
+      const recSite = w && SUP_SITES.includes(w.site) ? w.site : "";
       if (w) {
-        if (w.site && row.loc && siteOfLoc(row.loc) !== w.site) fixed.push(`سطر ${row._line}: «${row.loc}» ← ${w.site}`);
+        if (recSite && row.loc && siteOfLoc(row.loc) !== recSite) fixed.push(`سطر ${row._line}: «${row.loc}» ← ${recSite}`);
         if (w.nid) row.nid = String(w.nid);
         if (w.code) row.code = String(w.code);
         if (w.name) row.name = w.name;
         if (w.job) row.job = w.job;
-        if (w.site) row.site = w.site;
-      } else {
-        notFound.push(row._line);
-        const site = siteOfLoc(row.loc);
-        if (site) row.site = site;
-      }
+      } else notFound.push(row._line);
+      const site = recSite || siteOfLoc(row.loc);
+      if (site) row.site = site;
       // المرضي اللي HR بيرفعه بيعدّي على العميل على طول — فلازم السبب والمستشفى عشان شيت العميل
       const toCl = row.type === "sick" && needsClient(row);
       const why = toCl && !row.cause ? "سبب الحالة فاضي" : toCl && !row.hospital ? "المستشفى فاضي"
         : SCOPED && !SCOPED.includes(row.site) ? `${row.name || row.nid || row.code} موقعه «${row.site || row.loc}» مش من فروعك` : "";
       if (why) { bad.push(`سطر ${row._line}: ${why}`); continue; }
       // الإجازات والمرضي لغير الأساسي في مواقع البوابة مش بتترفع
-      if ((row.type === "leave" || row.type === "sick") && !(await basicOk(row.site, row.nid, row.code))) bad.push(`سطر ${row._line}: ${row.name || row.nid} مش أساسي في ${row.site} — الإجازة والمرضي للأساسي بس`);
-      else keep.push(row);
+      if ((row.type === "leave" || row.type === "sick") && !(await basicOk(row.site, row.nid, row.code))) { bad.push(`سطر ${row._line}: ${row.name || row.nid} مش أساسي في ${row.site} — الإجازة والمرضي للأساسي بس`); continue; }
+      // حالة تانية لنفس العامل على نفس الأيام: في البوابة (غير نفس السطر لو اترفع قبل كده) أو في سطر تاني في نفس الشيت
+      const id = idOf(row);
+      const cl = clashesOf(await workerCases(row.nid, row.code), id, row.from, row.to);
+      const inFile = keep.find(x => ((row.nid && x.nid === row.nid) || (row.code && x.code === row.code)) && x.from <= row.to && row.from <= x.to);
+      if (cl.length) { bad.push(`سطر ${row._line}: ${row.name || row.nid} عنده حالة تانية في نفس الأيام — ` + clashTxt(cl).split("\n").join(" / ")); continue; }
+      if (inFile) { bad.push(`سطر ${row._line}: ${row.name || row.nid} — أيامه داخلة في سطر ${inFile._line} في نفس الشيت`); continue; }
+      keep.push(row);
     }
     XROWS = keep; XROWS.forEach(r => delete r._line);
     const info = (fixed.length ? `\n${fixed.length} سطر الموقع اتاخد من السجل بدل اللي في الشيت:\n` + fixed.slice(0, 20).join("\n") : "")
@@ -183,7 +219,6 @@ $("xsave").onclick = async () => {
   // لو اتغيّر فيه حاجة (زي «لحد»): لو لسه مستني بيتحدّث، ولو اتاخد فيه قرار بيتعلّم «اتعدل بعد القرار — راجعه».
   const byId = new Map(ALL.map(x => [x.id, x]));
   // السطور اللي مش في اللي محمّل دلوقتي (ممكن يكون تم اعتمادها قبل كده): نتأكد منها واحدة واحدة
-  const idOf = r => `xl__${r._k || r.nid || r.code}__${r.from}__${r.type}${r.kind ? "_" + r.kind : ""}`;
   try {
     const miss = [...new Set(XROWS.map(idOf))].filter(id => !byId.has(id));
     (await Promise.all(miss.map(id => getDoc(doc(db, "hr_events", id))))).forEach(sn => { if (sn.exists()) byId.set(sn.id, { id: sn.id, ...sn.data() }); });
@@ -653,6 +688,7 @@ $("list").onclick = async e => {
     if (!f || (type !== "resign" && (!t || t < f))) return show($("msg"), "err", "التواريخ مش مظبوطة.");
     if ((type === "leave" || type === "sick") && !(await basicOk(ev.site, ev.nid, ev.code)))
       return show($("msg"), "err", `الإجازة والمرضي للأساسي بس في بيبسي وشيبسي والإمداد — ${ev.name} مش أساسي في ${ev.site}.`);
+    if (type !== "resign") { const cm = await clashMsg(ev, id, f, t); if (cm) return show($("msg"), "err", cm); }
     const extra = { type, type_ar: TY[type], edited: true, note: note || "اتعدل من الـ HR",
       original: ev.original || { type: ev.type, from: ev.from || "", to: ev.to || "", entry_date: ev.entry_date || "" } };
     if (type === "resign") Object.assign(extra, { entry_date: f, from: "", to: "", days: "", kind: "" });
@@ -702,6 +738,7 @@ $("list").onclick = async e => {
   if (ev.changed && ev.changed_data) Object.assign(extra, ev.changed_data);
   if (["leave", "sick"].includes(extra.type || ev.type) && !(await basicOk(ev.site, ev.nid, ev.code)))
     return show($("msg"), "err", `الإجازة والمرضي للأساسي بس في بيبسي وشيبسي والإمداد — ${ev.name} مش أساسي في ${ev.site}. ارفضها واكتب السبب.`);
+  if (["leave", "sick"].includes(extra.type || ev.type)) { const cm = await clashMsg(ev, id, extra.from || ev.from, extra.to || ev.to); if (cm) return show($("msg"), "err", cm); }
   if ((extra.type || ev.type) === "sick") {
     const sf = readSick(id, { ...ev, ...extra }); if (sf.err) return show($("msg"), "err", sf.err);
     Object.assign(extra, sf.v);
