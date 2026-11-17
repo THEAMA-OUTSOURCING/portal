@@ -1,10 +1,10 @@
 // page-plan.js — سكريبت صفحة plan.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead } from './shared.js?v=20261117a';
-import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261117a';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261117a';
-import { keyOf, splitJob } from './sheet.js?v=20261117a';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead } from './shared.js?v=20261117b';
+import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261117b';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261117b';
+import { keyOf, splitJob } from './sheet.js?v=20261117b';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====
@@ -841,11 +841,12 @@ function forceEv(kind, w, extra) {
   return { kind, status: "pending", source: "page", branch: w.site, site: w.site, name: w.name || "", ...extra,
     by: u.uid, by_email: actorEmail(u), created_at: serverTimestamp() };
 }
-// evs = [[ref, data]] — بيتكتبوا مع بعض، وبعدين الاعتماد (لو الحساب ده يعتمد) — بيرجّع عدد اللي اتعتمد
+// evs = [[ref, data]] — بيتكتبوا مع بعض، وبعدين الاعتماد لو اللى بعت HR (طلب الـ HR بيعتمده هو) — بيرجّع عدد اللي اتعتمد.
+// طلب الأدمن بيستنى الـ HR: مابيتعتمدش هنا، والـ Rules بترفض إن الأدمن يعتمد طلب هو اللى باعته.
 async function sendForce(evs) {
   const u = auth.currentUser;
   for (let i = 0; i < evs.length; i += 400) { const b = writeBatch(db); evs.slice(i, i + 400).forEach(([r, d]) => b.set(r, d)); await b.commit(); }
-  const mine = evs.filter(([, d]) => canDecideSite(d.branch));
+  const mine = S.role === "hr" ? evs.filter(([, d]) => canDecideSite(d.branch)) : [];
   for (let i = 0; i < mine.length; i += 400) {
     const b = writeBatch(db);
     mine.slice(i, i + 400).forEach(([r]) => b.update(r, { status: "approved", decided_by: u.uid, decided_email: actorEmail(u), decided_at: serverTimestamp() }));

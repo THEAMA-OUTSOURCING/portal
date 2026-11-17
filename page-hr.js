@@ -1,7 +1,7 @@
 // page-hr.js — سكريبت صفحة hr.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask } from './shared.js?v=20261117a';
+import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask } from './shared.js?v=20261117b';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
@@ -753,6 +753,8 @@ function wqFields(e, edit) {
   }
   return `<div class="wq-f">${out.join("")}</div>`;
 }
+// طلب الأدمن بيستنى الـ HR: الأدمن مايعتمدش طلب هو اللى باعته (الـ Rules بترفضه) — زرار «اعتماد» بيتشال من طلباته
+const wqOwn = e => WQ.role === "admin" && !!e.by && e.by === WQ.uid;
 function wqCard(e) {
   const edit = !VIEW && (e.status === "pending" || e.status === "error");
   const retEdit = !VIEW && e.status === "returned";   // المشرف ماستكملش: الـ HR يقدر يرفضه نهائي
@@ -772,7 +774,8 @@ function wqCard(e) {
       ${notes.map(n => `<div class="warn" style="white-space:pre-line;">${esc(n)}</div>`).join("")}
     </div>
     ${edit ? `<div class="ft" style="flex-wrap:wrap;">
-      <button class="btn ok small" data-wqok="${esc(e.id)}">اعتماد</button>
+      ${wqOwn(e) ? `<span class="muted" style="font-size:12px;flex-basis:100%;">الطلب ده انت اللى باعته — مستنى اعتماد الـ HR. تقدر تعدّله أو ترفضه.</span>`
+        : `<button class="btn ok small" data-wqok="${esc(e.id)}">اعتماد</button>`}
       <button class="btn sec small" data-wqsave="${esc(e.id)}">حفظ التعديل</button>
       <select data-wqr style="padding:4px 6px;font-size:12px;border:1px solid #ddd;border-radius:8px;">
         <option value="">— السبب (إجباري للرفض أو الإرجاع) —</option>
@@ -845,6 +848,7 @@ $("wq-list").onclick = async ev => {
   if (VIEW) return;
   const ds = ev.target.dataset, id = ds.wqok || ds.wqsave || ds.wqno || ds.wqret; if (!id) return;
   const e = WQ.open.get(id); if (!e) return;
+  if (ds.wqok && wqOwn(e)) return show($("wq-msg"), "err", "الطلب ده انت اللى باعته — لازم الـ HR يعتمده.");
   const card = ev.target.closest("[data-wq]"), upd = wqEdits(card, e), u = auth.currentUser;
   const meta = { decided_by: u.uid, decided_email: actorEmail(u), decided_at: serverTimestamp() };
   if (Object.keys(upd).length) upd.hr_edited = true;
