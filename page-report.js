@@ -1,8 +1,8 @@
 // page-report.js — سكريبت صفحة report.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite, alignPlan, ask } from './shared.js?v=20261117e';
-import { printOrder } from './sheet.js?v=20261117e';
+import { db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite, alignPlan, ask, compressPage, replacePage, replacedBy } from './shared.js?v=20261117f';
+import { printOrder } from './sheet.js?v=20261117f';
 
 // مواقع الساعات: الإضافي النهاري والليلي (بالدقايق) على خانة اليوم — والوقت اللي محتاج مراجعة بيتعلّم ومايتحسبش
 const TB_TIP = "الوقت محتاج مراجعة — اليوم ده مش محسوب في الإضافي";
@@ -741,18 +741,36 @@ async function dayPhotos(d) {
     if (A.cur !== d) return;
     const ps = []; sn.forEach(x => ps.push({ id: x.id, ...x.data() }));
     // الصورة المستخدمة = اللي مفيش صورة أحدث لنفس الصفحة (السيرفر بيعلّم القديمة superseded_by). المستخدمة الأول، والأحدث فالأحدث
-    const ids = new Set(ps.map(p => p.id)), old = p => !!(p.superseded_by && ids.has(p.superseded_by));
+    const ids = new Set(ps.map(p => p.id)), rep = p => replacedBy(p, ps), old = p => !!(p.superseded_by && ids.has(p.superseded_by)) || !!rep(p);
+    // المحاسب يبدّل صورة لحد ما اليوم يتعتمد، والأدمن أي وقت (المسح للأدمن بس من صفحة الحضور)
+    const canRep = p => (S.role === "admin" || (S.role === "accountant" && d.status !== "approved")) && !old(p) && ["done", "error"].includes(p.status);
     ps.sort((a, b) => old(a) - old(b) || (b.created_at?.seconds || 0) - (a.created_at?.seconds || 0));
     const tm = p => p.created_at?.toDate ? p.created_at.toDate().toLocaleString("ar-EG", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
     box.innerHTML = ps.length ? ps.map((p, i) => `<div style="flex:0 0 auto;width:130px;font-size:12px;text-align:center;">
         ${p.image ? `<img src="data:image/jpeg;base64,${esc(p.image)}" data-lb="${esc(p.id)}" alt="صورة ${ps.length - i}" title="دوس تكبّر" style="width:130px;height:170px;object-fit:cover;border:${!old(p) && p.status === "done" ? "3px solid #1a7f37" : "1px solid #ccc"};${old(p) ? "opacity:.55;" : ""};border-radius:8px;cursor:zoom-in;">`
           : `<div class="muted" style="width:130px;height:170px;border:1px dashed #ccc;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:6px;">الصورة على السيرفر بس (أقدم من 14 يوم)</div>`}
-        <div>${old(p) ? `<span class="pill p-wait">اتصورت تاني</span><br>` : p.status === "done" ? `<span class="pill p-ok">المستخدمة</span><br>` : ""}${esc(tm(p))}<br><span class="muted">${esc(p.uploaded_email || "")}</span>${p.status === "error" ? `<br><b style="color:#a32d2d">القراية فشلت</b>` : ""}</div></div>`).join("")
+        <div>${rep(p) ? `<span class="pill p-wait">اتبدلت</span><br>` : old(p) ? `<span class="pill p-wait">اتصورت تاني</span><br>` : p.status === "done" ? `<span class="pill p-ok">المستخدمة</span><br>` : p.status === "pending" || p.status === "reading" ? `<span class="pill p-wait">بتتقري...</span><br>` : ""}${esc(tm(p))}<br><span class="muted">${esc(p.uploaded_email || "")}</span>${p.status === "error" ? `<br><b style="color:#a32d2d">القراية فشلت</b>` : ""}${canRep(p) ? `<br><button class="btn sec small" data-arep="${esc(p.id)}" style="margin-top:4px;">استبدال</button>` : ""}</div></div>`).join("")
       : `<span class="muted">مفيش صور لليوم ده.</span>`;
     A.photos = Object.fromEntries(ps.filter(p => p.image).map(p => [p.id, p.image]));
+    A.pagesList = ps;
+    // الصورة البديلة لسه بتتقري: نحدّث بعد شوية
+    clearTimeout(A.photoPoll);
+    if (ps.some(p => p.status === "pending" || p.status === "reading")) A.photoPoll = setTimeout(() => { if (A.cur === d) dayPhotos(d); }, 20000);
   } catch (e) { box.innerHTML = `<span class="muted">الصور ماتحمّلتش: ${esc(e.message)}</span>`; }
 }
+const repInput = Object.assign(document.createElement("input"), { type: "file", accept: "image/*", className: "hidden" });
+document.body.appendChild(repInput);
+repInput.addEventListener("change", async () => {
+  const f = repInput.files?.[0]; repInput.value = "";
+  const d = A.cur, old = (A.pagesList || []).find(p => p.id === A.repTarget); A.repTarget = null;
+  if (!f || !d || !old) return;
+  if (!await ask("تستبدل الصورة دي بالصورة الجديدة؟\nالقديمة هتتحفظ ومش هتتقري تاني، والجديدة هتتقري مكانها. الحالات اللي في الجدول مابتتغيرش لوحدها — عدّلها بإيدك لو محتاج.", { ok: "استبدل" })) return;
+  try { await replacePage(old, await compressPage(f)); show($("a-msg"), "ok", "اتبدلت الصورة ✓ — الجديدة بتتقري دلوقتي."); dayPhotos(d); }
+  catch (er) { show($("a-msg"), "err", "مااتبدلتش: " + (er.code === "permission-denied" ? "مش مسموح دلوقتي (يمكن اليوم تم اعتماده، أو الصورة اتبدلت قبل كده)." : er.message)); }
+});
 $("a-photos").addEventListener("click", e => {
+  const rb = e.target.closest?.("[data-arep]");
+  if (rb) { A.repTarget = rb.dataset.arep; repInput.click(); return; }
   const id = e.target.dataset?.lb; if (!id || !A.photos?.[id]) return;
   $("a-lb-img").src = "data:image/jpeg;base64," + A.photos[id]; $("a-lb").classList.remove("hidden");
 });

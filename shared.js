@@ -1,7 +1,7 @@
 // shared.js — الحاجات المشتركة بين صفحات البوابة، في مكان واحد بدل ما تبقى متكررة في كل صفحة.
 // أي موقع جديد أو تغيير في الإعدادات يتعمل هنا مرة واحدة.
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getFirestore, collection, doc, getDoc, getDocs, query, where } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getFirestore, collection, doc, getDoc, getDocs, query, where, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check.js';
 
@@ -128,6 +128,45 @@ onAuthStateChanged(auth, async user => {
   window.sentryRole?.(ACTOR_ROLE);
 });
 export const actorEmail = u => ACTOR_ROLE === "admin" ? "ادمن" : (u?.email || "");
+
+// ===== صور الكشوف =====
+// تصغير صورة الكشف قبل الرفع (نفس الحد اللي الـ Rules بتقبله: أقل من 950 ألف حرف)
+export async function compressPage(file) {
+  const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+  const maxSide = 1800;
+  const k = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+  for (const q of [0.82, 0.72, 0.62, 0.5]) {
+    const data = c.toDataURL("image/jpeg", q).split(",")[1];
+    if (data.length < 900000) return data;
+  }
+  throw new Error("الصورة كبيرة جداً");
+}
+// استبدال صورة كشف (بدل المسح): صورة جديدة بتشاور على القديمة (replaces)، وسجل الاستبدال
+// (att_page_replacements/<رقم القديمة>) بيتكتب في نفس العملية. القديمة مابتتمسحش: بتفضل محفوظة ومابتتقريش تاني.
+// الـ Rules بتحكم مين يستبدل وامتى: المشرف لحد مراجعة الإقليمي، والإقليمي والمحاسب لحد الاعتماد، والأدمن أي وقت.
+export async function replacePage(old, image) {
+  const u = auth.currentUser, b = writeBatch(db), nref = doc(collection(db, "att_pages"));
+  b.set(nref, { site: old.site, date: old.date, image, uploaded_by: u.uid, uploaded_email: actorEmail(u),
+    status: "pending", created_at: serverTimestamp(), replaces: old.id });
+  b.set(doc(db, "att_page_replacements", old.id), { site: old.site, date: old.date, page: old.id, new_page: nref.id,
+    uploaded_email: old.uploaded_email || "", uploaded_at: old.created_at || null, rows: (old.result?.rows || []).length,
+    archived_path: old.archived_path || "", replaced_by: u.uid, replaced_email: actorEmail(u), replaced_at: serverTimestamp() });
+  await b.commit();
+  return nref.id;
+}
+// الصورة اللي بدّلت p (لو قرايتها فشلت ومحدش بدّلها هي كمان: p لسه هي المستخدمة)
+export function replacedBy(p, pages) {
+  for (let i = 0, cur = p; i < 10; i++) {
+    const n = pages.find(x => x.replaces === cur.id);
+    if (!n) return null;
+    if (n.status !== "error") return n;
+    cur = n;
+  }
+  return null;
+}
 
 // بترسم الأزرار لوحدها في أي صفحة فيها <nav id="pnav"> بعد الدخول، وبتشيلها بعد الخروج
 if (FIRST_COPY) onAuthStateChanged(auth, async user => {
@@ -513,4 +552,4 @@ window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-if (FIRST_COPY) import('./notify.js?v=20261117e').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+if (FIRST_COPY) import('./notify.js?v=20261117f').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));

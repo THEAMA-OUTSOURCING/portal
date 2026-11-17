@@ -1,9 +1,9 @@
 // page-attendance.js — سكريبت صفحة attendance.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, isBasic, nearWorkers, nameParts, ask, tell } from './shared.js?v=20261117e';
-import { openPrintView, openOrderEditor, printOrder } from './sheet.js?v=20261117e';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261117e';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, isBasic, nearWorkers, nameParts, ask, tell, compressPage, replacePage, replacedBy } from './shared.js?v=20261117f';
+import { openPrintView, openOrderEditor, printOrder } from './sheet.js?v=20261117f';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261117f';
 
 
 const $ = id => document.getElementById(id);
@@ -186,19 +186,7 @@ async function openDay() {
 }
 
 // ===== رفع الصور =====
-async function compress(file) {
-  const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
-  const maxSide = 1800;
-  const k = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
-  const c = document.createElement("canvas");
-  c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
-  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
-  for (const q of [0.82, 0.72, 0.62, 0.5]) {
-    const data = c.toDataURL("image/jpeg", q).split(",")[1];
-    if (data.length < 900000) return data;
-  }
-  throw new Error("الصورة كبيرة جداً");
-}
+const compress = compressPage;
 async function onFiles(e) {
   const files = [...e.target.files]; e.target.value = "";
   if (!files.length) return;
@@ -222,10 +210,25 @@ async function onFiles(e) {
   show($("up-msg"), "ok", `اترفع ${fmt(ok)} صورة. القراءة بتاخد حوالي دقيقة لكل صورة، والنتيجة هتظهر لوحدها.`);
 }
 $("file").addEventListener("change", onFiles);
+// استبدال صورة: الجديدة بتاخد مكان القديمة ورقمها وبتتقري من الأول، والقديمة بتفضل محفوظة
+$("rep-file").addEventListener("change", async e => {
+  const f = e.target.files?.[0]; e.target.value = "";
+  const old = S.pages.find(x => x.id === S.repTarget); S.repTarget = null;
+  if (!f || !old) return;
+  if (!canReplace(old)) return show($("up-msg"), "err", "الصورة دي مينفعش تتبدل دلوقتي (يمكن اليوم اتراجع أو تم اعتماده، أو اتبدلت قبل كده).");
+  const n = pageSlots().no[old.id];
+  if (!await ask(`تستبدل صورة ${fmt(n)} بالصورة دي؟\nالقديمة هتتحفظ ومش هتتقري تاني، والجديدة هتتقري مكانها.`, { ok: "استبدل" })) return;
+  show($("up-msg"), "info", `بيرفع الصورة الجديدة مكان صورة ${fmt(n)}...`);
+  try { await replacePage(old, await compress(f));
+    show($("up-msg"), "ok", `اتبدلت صورة ${fmt(n)} ✓ — الجديدة بتتقري دلوقتي (حوالي دقيقة)، والقديمة متحفظة.`); }
+  catch (err) { show($("up-msg"), "err", "مااتبدلتش: " + (err.code === "permission-denied" ? "مش مسموح دلوقتي (يمكن اليوم اتراجع أو تم اعتماده، أو الصورة اتبدلت قبل كده)." : err.message)); }
+});
 $("cam").addEventListener("change", onFiles);
 $("pages").addEventListener("click", async e => {
+  const rp = e.target.closest("[data-rep]");
+  if (rp) { S.repTarget = rp.dataset.rep; $("rep-file").click(); return; }
   const del = e.target.closest("[data-del]");
-  if (del) {
+  if (del && S.admin) {
     const pg = S.pages.find(x => x.id === del.dataset.del); if (!pg) return;
     if (!await ask("تمسح الصورة دي؟ نتيجتها هتتشال من الحضور، والمسح بيتسجل باسمك.", { ok: "امسح", danger: true })) return;
     // المسح بيتسجل في att_page_deletions (الـ Rules مابتسمحش بمسح صورة من غير السجل ده في نفس العملية)
@@ -258,18 +261,19 @@ document.addEventListener("click", e => {
 // صف مكتوب بخط اليد: هل هو عامل موجود في الكشف؟ (بالرقم القومي أو بالاسم)
 // كود مكتوب جنب الاسم بخط اليد (T1234): أسهل في القراية من الاسم والرقم القومي
 const codeIn = x => { const m = [x.code, x.name, x.note].map(v => String(v || "")).join(" ").match(/[Tt]\s?(\d{2,6})(?!\d)/); return m ? "T" + m[1] : ""; };
-function matchExtra(x) {
+// list: الكشف اللي بندوّر فيه (كشف اليوم افتراضياً، أو الكشف الحالي في dayRoster)
+function matchExtra(x, list = S.roster) {
   const xc = codeIn(x);
-  if (xc) { const w = S.roster.find(q => String(q.code || "").toUpperCase() === xc); if (w) return w; }
+  if (xc) { const w = list.find(q => String(q.code || "").toUpperCase() === xc); if (w) return w; }
   const nid = String(x.nid || "").replace(/\D/g, "");
   if (nid.length >= 10) {
-    const hits = S.roster.filter(w => w.nid && w.nid.length === 14 && nid.length === 14
+    const hits = list.filter(w => w.nid && w.nid.length === 14 && nid.length === 14
       ? [...w.nid].filter((c, i) => c !== nid[i]).length <= 2
       : w.nid && w.nid.endsWith(nid.slice(-6)));
     if (hits.length === 1) return hits[0];
   }
   if (x.name) {
-    const sc = S.roster.map(w => ({ w, s: nameScore(x.name, w.name) })).sort((a, b) => b.s - a.s);
+    const sc = list.map(w => ({ w, s: nameScore(x.name, w.name) })).sort((a, b) => b.s - a.s);
     if (sc[0] && sc[0].s >= 0.85 && (!sc[1] || sc[0].s - sc[1].s >= 0.1)) return sc[0].w;
   }
   return null;
@@ -362,14 +366,16 @@ function aiState() {
   livePages().forEach(p => {
     (p.result?.extra || []).forEach((x, i) => {
       const w = matchExtra(x);
-      if (w && !map[w.code]) map[w.code] = { s: "P", conf: "M", match: "handwritten", note: x.note || "", code: w.code, page: p.id };
+      if (w && !map[w.code]) map[w.code] = { s: xState(x), conf: "M", match: "handwritten", note: x.note || "", code: w.code, page: p.id };
       // مااتطابقش لوحده والمشرف اختاره بنفسه من عمال الكشف
       const pk = !w && !poolOfExtra(x) ? S.xpick[p.id + "|" + i] : "";
-      if (pk && S.roster.some(q => q.code === pk) && !map[pk]) map[pk] = { s: "P", conf: "M", match: "handwritten", note: x.note || "", code: pk, page: p.id, xk: p.id + "|" + i };
+      if (pk && S.roster.some(q => q.code === pk) && !map[pk]) map[pk] = { s: xState(x), conf: "M", match: "handwritten", note: x.note || "", code: pk, page: p.id, xk: p.id + "|" + i };
     });
   });
   return map;
 }
+// سطر مكتوب بخط اليد = حاضر، إلا في مواقع الساعات لو قدامه «توقف»: بيتقري توقف زي المطبوع (ق) — والمشرف لسه بيأكد
+function xState(x) { return S.timed && specialOf(x) === "stop" ? "A" : "P"; }
 function needsReview(r) { return !r || r.s === "U" || r.conf === "L" || r.match === "fuzzy" || r.match === "handwritten"; }
 
 // بدلاء الراحات المطبوعين في الكشف: مش في قائمة عمال الموقع، فالسيرفر بيرجّع صفهم من غير code.
@@ -417,7 +423,7 @@ function aiSubs() {
       const pk = S.xpick[pg.id + "|" + i];
       const p = poolOfExtra(x) || (pk ? (S.pool || []).find(q => (q.nid || q.code) === pk) : null);
       if (!p || map[subKey(p)]) return;
-      map[subKey(p)] = { s: "P", conf: "M", match: "handwritten", note: x.note || "", nid: x.nid || "", page: pg.id, w: p, ...(pk ? { xk: pg.id + "|" + i } : {}) };
+      map[subKey(p)] = { s: xState(x), conf: "M", match: "handwritten", note: x.note || "", nid: x.nid || "", page: pg.id, w: p, ...(pk ? { xk: pg.id + "|" + i } : {}) };
     });
   });
   return map;
@@ -506,12 +512,23 @@ function wrongSiteNote(p) {
   const w = wrongSite(p); if (!w) return "";
   const o = w.other;
   return `<div class="pill p-err" style="white-space:normal;margin-bottom:4px;">⚠️ ${o
-    ? `الكشف ده شكله بتاع «${esc(o.site)}» (${fmt(o.matched)} اسم من ${fmt(w.n)} من كشفه) — امسح الصورة وارفعها على الموقع الصح`
+    ? `الكشف ده شكله بتاع «${esc(o.site)}» (${fmt(o.matched)} اسم من ${fmt(w.n)} من كشفه) — ${S.admin ? "امسح الصورة" : "كلّم الإدارة تمسح الصورة"} وارفعها على الموقع الصح`
     : `${fmt(w.hit)} اسم بس من ${fmt(w.n)} من كشف ${esc(S.site)} — اتأكد إنك اخترت الموقع الصح قبل ما تكمل`}</div> `;
 }
+// ترتيب الصور ورقمها: البديلة بتاخد مكان ورقم القديمة، والقديمة بتفضل تحتها باهتة
+function pageSlots() {
+  const byId = new Map(S.pages.map(p => [p.id, p]));
+  const root = p => { let c = p; for (let i = 0; i < 10 && c.replaces && byId.has(c.replaces); i++) c = byId.get(c.replaces); return c; };
+  const t = p => p.created_at?.seconds ?? Date.now() / 1000;
+  const list = S.pages.map(p => ({ p, r: root(p) })).sort((a, b) => t(a.r) - t(b.r) || (a.r.id < b.r.id ? -1 : a.r.id > b.r.id ? 1 : 0) || t(b.p) - t(a.p));
+  const no = {}, seen = new Map();
+  list.forEach(({ p, r }) => { if (!seen.has(r.id)) seen.set(r.id, seen.size + 1); no[p.id] = seen.get(r.id); });
+  return { list: list.map(x => x.p), no };
+}
+const canReplace = p => S.photo && !lockedForMe() && ["done", "error"].includes(p.status) && !replacedBy(p, S.pages);
 function livePages() {
   const ids = new Set(S.pages.map(p => p.id));
-  return S.pages.filter(p => p.status === "done" && !(p.superseded_by && ids.has(p.superseded_by)));
+  return S.pages.filter(p => p.status === "done" && !(p.superseded_by && ids.has(p.superseded_by)) && !replacedBy(p, S.pages));
 }
 // كشف اليوم: لو اليوم اتأكد قبل كده، بيتبني من اللي كانوا على الكشف يومها (المحفوظ) مش من الكشف الحالي —
 // اللي مشي أو اتحول بديل/يومية بعد اليوم ده بيفضل بكوده وحالته المحفوظة، واللي اتضاف للكشف بعده مابيتطلبش له قرار
@@ -519,17 +536,27 @@ function livePages() {
 function readOnDay(w) {
   return livePages().some(p => (p.result?.rows || []).some(r => (r.code && r.code === w.code) || (w.nid && String(r.nid || "").replace(/\D/g, "") === w.nid)));
 }
+// اللي اسمه مكتوب بخط اليد في صور اليوم (اتطابق مع الكشف الحالي، أو اتختار من البحث): بيدخل كشف اليوم حتى لو اتضاف
+// للكشف بعد اليوم ده (مثلاً كان بديل راحات واتحول أساسي) — من غيرها مكانش بيتلاقي لا في الاقتراحات ولا في البحث
+function writtenOnDay(now) {
+  const out = new Set();
+  livePages().forEach(p => (p.result?.extra || []).forEach((x, i) => {
+    const w = matchExtra(x, now); if (w) out.add(w.code);
+    const pk = S.xpick[p.id + "|" + i]; if (pk && !pk.startsWith("M:")) out.add(pk);
+  }));
+  return out;
+}
 function dayRoster() {
   const now = S.rosterNow || [], E = S.day?.entries;
   if (!E) return now;
   const saved = Object.entries(E).filter(([, e]) => !e.sub && !e.rep_for);
   const byNid = {}; saved.forEach(([k, e]) => { if (e.nid && !byNid[e.nid]) byNid[e.nid] = k; });
-  const used = new Set(), out = [];
+  const used = new Set(), out = [], written = writtenOnDay(now);
   now.forEach(w => {
     if (E[w.code] && !E[w.code].sub) { out.push(w); used.add(w.code); return; }
     const k = w.nid && byNid[w.nid];
     if (k && !used.has(k)) { out.push({ ...w, code: k }); used.add(k); return; }   // نفس العامل بكود قديم (مثلاً N… وبقى T…)
-    if (readOnDay(w)) out.push(w);
+    if (readOnDay(w) || written.has(w.code)) out.push(w);
   });
   saved.forEach(([k, e]) => { if (!used.has(k)) out.push({ code: k, name: e.name || "", nid: e.nid || "", job: e.job || "", type: e.type || "", past: true }); });
   return out;
@@ -537,14 +564,18 @@ function dayRoster() {
 function render() {
   S.roster = dayRoster();
   const busy = S.pages.filter(p => p.status === "pending" || p.status === "reading").length;
-  $("pages").innerHTML = S.pages.map((p, pi) => {
+  const SL = pageSlots();
+  $("pages").innerHTML = SL.list.map(p => {
     const res = p.result || {};
     const rows = res.rows || [];
     const pres = rows.filter(r => r.s === "P").length, abs = rows.filter(r => r.s === "A").length;
     const reps = rows.filter(r => r.s === "A" && r.note).length, extra = (res.extra || []).length;
     const calc = pres + reps + extra;
     let st;
-    if (p.status === "pending") st = `<span class="pill p-wait">مستني السيرفر</span>`;
+    const rb = replacedBy(p, S.pages);
+    const tm = x => x.created_at?.toDate ? x.created_at.toDate().toLocaleString("ar-EG", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
+    if (rb) st = `<span class="pill p-grey">اتبدلت</span><div class="muted">اتبدلت بصورة جديدة (${esc(rb.uploaded_email || "")}${tm(rb) ? " — " + esc(tm(rb)) : ""}). القديمة متحفظة ومابتتقريش.</div>`;
+    else if (p.status === "pending") st = `<span class="pill p-wait">مستني السيرفر</span>`;
     else if (p.status === "reading") st = `<span class="pill p-wait">بيقرا...</span>`;
     else if (p.status === "error") st = `<span class="pill p-err">فشلت</span><div class="muted">${esc(p.error || "")}</div>`;
     else if (p.superseded_by && S.pages.some(x => x.id === p.superseded_by)) st = `<span class="pill p-warn">اتصورت تاني</span><div class="muted">فيه صورة أحدث لنفس الصفحة، والقراية من الأحدث</div>`;
@@ -552,10 +583,10 @@ function render() {
       (res.count == null ? `<span class="pill p-warn">العدد المكتوب مااتقراش</span>`
         : res.count === calc ? `<span class="pill p-ok">العدد ${fmt(calc)} ✓</span>`
         : `<span class="pill p-warn">مكتوب ${fmt(res.count)} / محسوب ${fmt(calc)}</span>`);
-    // المشرف/الإقليمي يمسح صورته بس قبل ما اليوم يتأكد، والأدمن في أي وقت — وكل مسح بيتسجل
-    const mine = p.status !== "reading" && (S.admin || (p.uploaded_by === auth.currentUser?.uid && !S.day));
-    return `<div class="pg"><img src="data:image/jpeg;base64,${esc(p.image)}" data-view alt="صفحة">
-      <div class="b"><b>صورة ${fmt(pi + 1)}</b> ${st}${mine ? `<div style="margin-top:6px;"><button class="btn danger small" data-del="${esc(p.id)}">مسح</button></div>` : ""}</div></div>`;
+    // الصورة الغلط بتتبدل (المشرف لحد مراجعة الإقليمي، والإقليمي لحد الاعتماد، والأدمن أي وقت) — المسح للأدمن بس، وكل مسح بيتسجل
+    const canDel = S.admin && p.status !== "reading", canRep = !rb && canReplace(p);
+    return `<div class="pg"${rb ? ' style="opacity:.55"' : ""}><img src="data:image/jpeg;base64,${esc(p.image)}" data-view alt="صفحة">
+      <div class="b"><b>صورة ${fmt(SL.no[p.id])}</b> ${st}${canRep || canDel ? `<div style="margin-top:6px;">${canRep ? `<button class="btn sec small" data-rep="${esc(p.id)}">استبدال</button> ` : ""}${canDel ? `<button class="btn danger small" data-del="${esc(p.id)}">مسح</button>` : ""}</div>` : ""}</div></div>`;
   }).join("");
 
   const hasDone = S.pages.some(p => p.status === "done") || S.day;
@@ -580,7 +611,7 @@ function render() {
     if (blocked) S.choice[w.code] = "A";
     const def = defOf(w.code, r), sp = S.timed ? specialOf(r) : "";
     if (def === "P") P++; else if (def === "A") A++; else if (def === "Q") Q++; else open++;
-    const flag = r && needsReview(r) && !(sp && def);
+    const flag = r && needsReview(r) && !(sp && def && r.match !== "handwritten");
     if (flag) flagged++;
     const why = !r ? "مش موجود في أي صورة"
       : r.s === "U" ? "القراءة مش واضحة"
@@ -603,7 +634,7 @@ function render() {
     if (def === "P") P++; else if (def === "A") A++; else if (def === "Q") Q++; else open++;
     const flag = needsReview(r); if (flag) flagged++;
     const why = r.s === "U" ? "القراءة مش واضحة" : r.match === "handwritten" ? "اتكتب بخط اليد — اتأكد" : r.match === "fuzzy" ? "الرقم القومي اتقرا بفرق بسيط" : r.conf === "L" ? "القراءة مش أكيدة" : "";
-    const aiTxt = r.s === "P" ? "قرا: حاضر" : r.s === "A" ? "قرا: غايب" : "قرا: مش واضح";
+    const aiTxt = S.timed && specialOf(r) === "stop" && r.s !== "P" ? "قرا: توقف (ق)" : r.s === "P" ? "قرا: حاضر" : r.s === "A" ? "قرا: غايب" : "قرا: مش واضح";
     const ro = lockedForMe() ? "disabled" : "";
     return `<div class="w ${flag ? "flag" : ""}">
       <div class="nm"><b>${esc(w.name)}</b><small>${esc(w.type || "بديل")} — ${esc(w.job || "")} · ${esc(aiTxt)}${why ? ` · <span style="color:#8a5a10">${esc(why)}</span>` : ""}</small></div>
@@ -642,7 +673,7 @@ function render() {
   // الغايب في صف مطبوع لعامل مش في الكشف دلوقتي (غالباً مشي، والورقة اتطبعت قبل التعديل): مش محتاج حاجة، فبيتعدّ بس
   const loose = [];
   let goneAbs = 0, needLookup = false;
-  const picNo = p => S.pages.findIndex(x => x.id === p.id) + 1;
+  const picNo = p => SL.no[p.id] || 0;
   livePages().forEach(p => {
     (p.result?.rows || []).filter(r => !rowCode(r) && !subOf(r)).forEach(r => {
       if (r.s === "A" && /^\d{14}$/.test(String(r.nid || "").replace(/\D/g, ""))) { goneAbs++; return; }
@@ -663,7 +694,7 @@ function render() {
       const read = x.name ? `«${esc(x.name)}»` : "اسم مش مقروء";
       if (S.xpick[key]) {
         const w = xpickWho(S.xpick[key]);
-        loose.push(`بخط اليد في صورة ${fmt(picNo(p))}: ${read} — اتسجل حاضر: <b>${esc(w?.name || "")}</b>${w?.where ? ` (من ${esc(w.where)})` : ""}${ro ? "" : ` <button class="btn sec small" data-xunpick="${esc(key)}">تغيير</button>`}`);
+        loose.push(`بخط اليد في صورة ${fmt(picNo(p))}: ${read} — اتحدد إنه: <b>${esc(w?.name || "")}</b>${w?.where ? ` (من ${esc(w.where)})` : ""}${ro ? "" : ` <button class="btn sec small" data-xunpick="${esc(key)}">تغيير</button>`}`);
         return;
       }
       if (ro) { loose.push(`بخط اليد في صورة ${fmt(picNo(p))}: ${read} — مااتسجلش على حد.`); return; }
@@ -671,7 +702,7 @@ function render() {
       const sug = extraCands(x, key);
       const head = sug.length
         ? `بخط اليد في صورة ${fmt(picNo(p))}: ${read}${x.nid ? " — " + esc(x.nid) : ""} — <b>ممكن يكون:</b>`
-        : `<b>فيه حد حاضر مكتوب بخط اليد في صورة ${fmt(picNo(p))}</b>${x.name ? ` (اتقرا ${read})` : ""} ومش قادرين نحدده — دوّر عليه واختاره:`;
+        : `<b>فيه حد ${xState(x) === "A" ? "مكتوب بخط اليد وقدامه «توقف»" : "حاضر مكتوب بخط اليد"} في صورة ${fmt(picNo(p))}</b>${x.name ? ` (اتقرا ${read})` : ""} ومش قادرين نحدده — دوّر عليه واختاره:`;
       const q = S.xq?.[key] || "";
       loose.push(head
         + (sug.length ? `<div style="margin-top:4px;">${sug.map(c => `<span class="chip" data-xpick="${esc(key)}" data-who="${esc(c.id)}">${candLabel(c)} ✓</span>`).join(" ")}</div>` : "")
@@ -1015,9 +1046,11 @@ function aiStateBase() {
 const idOf = w => w.nid || w.code;
 const overdueSet = () => new Set(S.newWorkers.filter(x => ficheState(x).st === "overdue").map(x => x.id));
 // اقتراحات لحد ٣ من بدلاء الموقع وعمال كشفه، بالاسم المقروء أو الملاحظة
+// عمال الكشف الحالي اللي مش في كشف اليوم (اتضافوا للكشف بعد اليوم ده): بيتلاقوا في الاقتراحات والبحث كمان
+const laterRoster = () => { const ids = new Set(S.roster.map(w => w.code)); return (S.rosterNow || []).filter(w => w.code && !ids.has(w.code)); };
 function extraCands(x, key, limit = 3) {
   const taken = takenIds(key), od = overdueSet();
-  const here = [...S.roster.map(w => ({ w, id: w.code })), ...(S.pool || []).filter(p => !od.has(p.nid)).map(w => ({ w, id: idOf(w) }))]
+  const here = [...S.roster.map(w => ({ w, id: w.code })), ...laterRoster().map(w => ({ w, id: w.code })), ...(S.pool || []).filter(p => !od.has(p.nid)).map(w => ({ w, id: idOf(w) }))]
     .filter(c => c.id && !taken.has(c.id) && !taken.has(c.w.nid));
   return here.map(c => ({ ...c, sc: Math.max(...[x.name, x.note].filter(Boolean).map(t => nameFlex(t, c.w.name)), 0) }))
     .filter(c => c.sc >= 0.6).sort((a, b) => b.sc - a.sc).slice(0, limit);
@@ -1029,7 +1062,8 @@ function xSearch(qRaw, key) {
   const hit = w => (code && String(w.code || "").toUpperCase() === code) || (dig.length >= 4 && String(w.nid || "").includes(dig))
     || (!dig && words.length && words.every(t => rmNorm(w.name).includes(t)));
   const taken = takenIds(key), od = overdueSet();
-  const here = [...S.roster.map(w => ({ w, id: w.code, site: S.site })), ...(S.pool || []).filter(p => !od.has(p.nid)).map(w => ({ w, id: idOf(w), site: S.site }))]
+  const here = [...S.roster.map(w => ({ w, id: w.code, site: S.site })), ...laterRoster().map(w => ({ w, id: w.code, site: S.site })),
+    ...(S.pool || []).filter(p => !od.has(p.nid)).map(w => ({ w, id: idOf(w), site: S.site }))]
     .filter(c => c.id && hit(c.w));
   const seen = new Set(here.map(c => c.w.nid || c.id));
   const far = ELSE_LIST.filter(w => w.site !== S.site && hit(w) && !seen.has(w.nid || w.code) && (seen.add(w.nid || w.code), true))
@@ -1039,7 +1073,7 @@ function xSearch(qRaw, key) {
 // الاختيار المحفوظ لصف بخط اليد: مين ده
 function xpickWho(v) {
   if (v.startsWith("M:")) { const m = S.mpick[v.slice(2)]; return m ? { ...m, where: m.site } : null; }
-  return S.roster.find(w => w.code === v) || (S.pool || []).find(q => idOf(q) === v) || null;
+  return S.roster.find(w => w.code === v) || (S.rosterNow || []).find(w => w.code === v) || (S.pool || []).find(q => idOf(q) === v) || null;
 }
 const candLabel = c => `${esc(c.w.name)}<small style="opacity:.75"> · ${esc([c.w.code && !String(c.w.code).startsWith("N") ? c.w.code : "", c.w.type || "", c.site && c.site !== S.site ? c.site : ""].filter(Boolean).join(" · "))}</small>`;
 // key = كود العامل الأساسي، أو R+الرقم القومي لبديل راحات مطبوع غايب (بديل مكان البديل)
