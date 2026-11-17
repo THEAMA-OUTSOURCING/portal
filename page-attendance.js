@@ -1,9 +1,9 @@
 // page-attendance.js — سكريبت صفحة attendance.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, isBasic, nearWorkers, nameParts, ask, tell } from './shared.js?v=20261117b';
-import { openPrintView, openOrderEditor, printOrder } from './sheet.js?v=20261117b';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261117b';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, isBasic, nearWorkers, nameParts, ask, tell } from './shared.js?v=20261117d';
+import { openPrintView, openOrderEditor, printOrder } from './sheet.js?v=20261117d';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261117d';
 
 
 const $ = id => document.getElementById(id);
@@ -832,17 +832,25 @@ $("confirm").addEventListener("click", async () => {
       counts: { present: P, absent: A, ...(Qn ? { stop: Qn } : {}), total: S.roster.length + subsP },
       pages: livePages().map(p => p.id),
     };
-    if (S.regional) {
-      // الإقليمي: مراجعة (لو المشرف مارفعش، الإقليمي بيرفع ويراجع مرة واحدة)
-      const sup = S.day?.confirmed_at ? { late: !!S.day.late, confirmed_by: S.day.confirmed_by, confirmed_email: S.day.confirmed_email || "", confirmed_at: S.day.confirmed_at }
-        : { late, confirmed_by: u.uid, confirmed_email: actorEmail(u), confirmed_at: serverTimestamp() };
-      await setDoc(doc(db, "att_days", S.site + "__" + S.date), { ...base, ...sup, status: "reviewed",
-        review_late: late || !!S.day?.review_late, reviewed_by: u.uid, reviewed_email: actorEmail(u), reviewed_at: serverTimestamp() });
-    } else {
-      await setDoc(doc(db, "att_days", S.site + "__" + S.date), { ...base, status: "confirmed",
-        late: late || !!S.day?.late, confirmed_by: u.uid, confirmed_email: actorEmail(u), confirmed_at: serverTimestamp() });
-    }
-    show($("c-msg"), "ok", "اتأكد الحضور ✓");
+    // L = «متأخر»: محسوبة هنا بساعة الموبايل، والـ Rules بتحكم بوقت السيرفر وبتقبل قيمة واحدة بس
+    const save = L => {
+      if (S.regional) {
+        // الإقليمي: مراجعة (لو المشرف مارفعش، الإقليمي بيرفع ويراجع مرة واحدة)
+        const sup = S.day?.confirmed_at ? { late: !!S.day.late, confirmed_by: S.day.confirmed_by, confirmed_email: S.day.confirmed_email || "", confirmed_at: S.day.confirmed_at }
+          : { late: L, confirmed_by: u.uid, confirmed_email: actorEmail(u), confirmed_at: serverTimestamp() };
+        return setDoc(doc(db, "att_days", S.site + "__" + S.date), { ...base, ...sup, status: "reviewed",
+          review_late: L || !!S.day?.review_late, reviewed_by: u.uid, reviewed_email: actorEmail(u), reviewed_at: serverTimestamp() });
+      }
+      return setDoc(doc(db, "att_days", S.site + "__" + S.date), { ...base, status: "confirmed",
+        late: L || !!S.day?.late, confirmed_by: u.uid, confirmed_email: actorEmail(u), confirmed_at: serverTimestamp() });
+    };
+    // لو ساعة الموبايل مش مظبوطة الحفظ بيترفض — بنجرب مرة تانية بالقيمة التانية (لو الرفض لسبب تانى هيترفض برضه)
+    let used = late;
+    try { await save(late); }
+    catch (err) { if (err.code !== "permission-denied") throw err; await save(!late); used = !late; }
+    show($("c-msg"), "ok", used === late ? "اتأكد الحضور ✓"
+      : used ? "اتأكد الحضور ✓ — بس اتسجل متأخر: المهلة كانت خلصت وساعة الموبايل متأخرة. اظبط ساعة الموبايل."
+      : "اتأكد الحضور ✓ — في الميعاد. ساعة الموبايل مقدّمة، اظبطها.");
   } catch (err) {
     show($("c-msg"), "err", "ماتأكدش: " + (err.code === "permission-denied" ? "مش مسموح (يمكن اليوم اتراجع أو تم اعتماده)." : err.message));
   }
