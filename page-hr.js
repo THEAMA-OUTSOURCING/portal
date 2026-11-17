@@ -84,12 +84,40 @@ const siteOfLoc = loc => SUP_SITES.find(s => siteKey(s) === siteKey(loc)) || "";
 // الإجازة والمرضي وإصابة العمل في بيبسي وشيبسي والإمداد (مواقع البوابة) للأساسي بس: العامل لازم يكون على كشف الموقع كأساسي (أو جديد على الكشف).
 // الشرقية والإكسيل اللي مالوش موقع من البوابة مش بيتأثروا. لو الكشف ماتقراش (صلاحية/نت) مش بنمنع.
 const ROSTERS = {};
+async function rosterOf(site) {
+  if (!(site in ROSTERS)) { try { const d = await getDoc(doc(db, "rosters", site)); ROSTERS[site] = d.exists() ? d.data().workers || [] : null; } catch (e) { ROSTERS[site] = null; } }
+  return ROSTERS[site];
+}
 async function basicOk(site, nid, code) {
   if (!site || !SUP_SITES.includes(site)) return true;
-  if (!(site in ROSTERS)) { try { const d = await getDoc(doc(db, "rosters", site)); ROSTERS[site] = d.exists() ? d.data().workers || [] : null; } catch (e) { ROSTERS[site] = null; } }
-  const ws = ROSTERS[site]; if (!ws) return true;
+  const ws = await rosterOf(site); if (!ws) return true;
   const w = ws.find(x => (nid && x.nid === String(nid)) || (code && x.code === String(code)));
   return !!w && isBasic(w.type);
+}
+// العامل من السجل الموحد (workers) بالرقم القومي، ولو مفيش بالكود — مش من عمود «الموقع» في الشيت.
+// منه بييجي الكود والرقم القومي والاسم والموقع والوظيفة. السجل مقفول على محمود بس دلوقتي، فباقي الحسابات بتدوّر
+// في كشوف المواقع (rosters) — ودي من السجل نفسه وفيها كل الأساسيين الشغالين (الإجازة والمرضي للأساسي بس أصلاً).
+let REC_OK = true;
+const RECS = {};
+async function recOf(nid, code) {
+  const k = (nid || "") + "|" + (code || "");
+  if (k in RECS) return RECS[k];
+  let w = null;
+  if (REC_OK) {
+    try {
+      let ds = nid ? (await getDocs(query(collection(db, "workers"), where("nid", "==", nid)))).docs : [];
+      if (!ds.length && code) { const d = await getDoc(doc(db, "workers", code)); if (d.exists()) ds = [d]; }
+      const all = ds.map(d => ({ ...d.data(), code: d.data().code || d.id }));
+      w = all.find(x => x.status === "شغال") || all[0] || null;
+    } catch (e) { if (e.code === "permission-denied") REC_OK = false; }
+  }
+  if (!w && !REC_OK) {
+    for (const site of SUP_SITES) {
+      const x = ((await rosterOf(site)) || []).find(y => (nid && y.nid === nid) || (!nid && code && y.code === code));
+      if (x) { w = { ...x, site }; break; }
+    }
+  }
+  return (RECS[k] = w);
 }
 const kindOf = t => /اصاب|إصاب/.test(t) ? ["sick", "", "injury"] : /مرض/.test(t) ? ["sick", "", "sick"] : /بدون/.test(t) ? ["leave", "unpaid"] : /سنو|عارض|اجاز|إجاز/.test(t) ? ["leave", "annual"] : [null, null];
 function workDays(f, t) { let n = 0; for (let d = new Date(f + "T00:00"); d <= new Date(t + "T00:00"); d.setDate(d.getDate() + 1)) if (d.getDay() !== 5) n++; return n; }
@@ -107,26 +135,43 @@ $("xf").onchange = async () => {
       const row = { source: "excel_hr", company: String(r[0]).trim(), loc: String(r[1]).trim(), nid, code, name: String(r[4]).trim(), type, kind, type_ar: sk === "injury" ? "إصابة عمل" : TY[type],
         from, to, days: String(workDays(from, to)), reason: String(r[8]).trim() };
       if (type === "sick") Object.assign(row, { sick_kind: sk, cause, hospital });
-      // الموقع لو هو اسم فرع من البوابة بيتسجل site (عشان HR الفرع يشوفه). HR بفروع: فروعه بس
-      const site = siteOfLoc(row.loc);
-      if (site) row.site = site;
-      // المرضي اللي HR بيرفعه بيعدّي على العميل على طول — فلازم السبب والمستشفى عشان شيت العميل
-      const toCl = type === "sick" && needsClient(row);
-      const why = (!nid && !code) ? "مفيش رقم قومي ولا كود" : (nid && nid.length !== 14) ? "الرقم القومي مش 14 رقم" : !type ? "النوع مش مفهوم" : !from ? "تاريخ «من» مش مفهوم" : to < from ? "«لحد» قبل «من»"
-        : toCl && !cause ? "سبب الحالة فاضي" : toCl && !hospital ? "المستشفى فاضي"
-        : SCOPED && !SCOPED.includes(site) ? `الموقع «${row.loc}» مش من فروعك (اكتب اسم الفرع زي البوابة بالظبط)` : "";
+      // _k = الرقم القومي أو الكود زي ما هو في الشيت: رقم الحالة بيتبني منه، عشان رفع نفس الشيت تاني يلاقي حالته القديمة
+      row._k = nid || code;
+      const why = (!nid && !code) ? "مفيش رقم قومي ولا كود" : (nid && nid.length !== 14) ? "الرقم القومي مش 14 رقم" : !type ? "النوع مش مفهوم" : !from ? "تاريخ «من» مش مفهوم" : to < from ? "«لحد» قبل «من»" : "";
       if (why) return bad.push(`سطر ${i + 2}: ${why}`);
       row._line = i + 2;
       XROWS.push(row);
     });
-    // الإجازات والمرضي لغير الأساسي في مواقع البوابة مش بتترفع
-    const keep = [];
+    const keep = [], fixed = [], notFound = [];
+    show($("xmsg"), "info", "بيدوّر على العمال في السجل…");
     for (const row of XROWS) {
+      // الموقع والوظيفة والاسم والكود من السجل. لو العامل مش في السجل: الموقع من عمود «الموقع» زي الأول
+      const w = await recOf(row.nid, row.code);
+      if (w) {
+        if (w.site && row.loc && siteOfLoc(row.loc) !== w.site) fixed.push(`سطر ${row._line}: «${row.loc}» ← ${w.site}`);
+        if (w.nid) row.nid = String(w.nid);
+        if (w.code) row.code = String(w.code);
+        if (w.name) row.name = w.name;
+        if (w.job) row.job = w.job;
+        if (w.site) row.site = w.site;
+      } else {
+        notFound.push(row._line);
+        const site = siteOfLoc(row.loc);
+        if (site) row.site = site;
+      }
+      // المرضي اللي HR بيرفعه بيعدّي على العميل على طول — فلازم السبب والمستشفى عشان شيت العميل
+      const toCl = row.type === "sick" && needsClient(row);
+      const why = toCl && !row.cause ? "سبب الحالة فاضي" : toCl && !row.hospital ? "المستشفى فاضي"
+        : SCOPED && !SCOPED.includes(row.site) ? `${row.name || row.nid || row.code} موقعه «${row.site || row.loc}» مش من فروعك` : "";
+      if (why) { bad.push(`سطر ${row._line}: ${why}`); continue; }
+      // الإجازات والمرضي لغير الأساسي في مواقع البوابة مش بتترفع
       if ((row.type === "leave" || row.type === "sick") && !(await basicOk(row.site, row.nid, row.code))) bad.push(`سطر ${row._line}: ${row.name || row.nid} مش أساسي في ${row.site} — الإجازة والمرضي للأساسي بس`);
       else keep.push(row);
     }
     XROWS = keep; XROWS.forEach(r => delete r._line);
-    show($("xmsg"), bad.length ? "err" : "ok", `${XROWS.length} سطر سليم` + (bad.length ? ` — و${bad.length} فيهم مشكلة ومش هيترفعوا:\n` + bad.slice(0, 20).join("\n") : ""));
+    const info = (fixed.length ? `\n${fixed.length} سطر الموقع اتاخد من السجل بدل اللي في الشيت:\n` + fixed.slice(0, 20).join("\n") : "")
+      + (notFound.length ? `\nسطور مش لاقيها في السجل (الموقع من الشيت): ${notFound.slice(0, 30).join("، ")}` : "");
+    show($("xmsg"), bad.length ? "err" : "ok", `${XROWS.length} سطر سليم` + (bad.length ? ` — و${bad.length} فيهم مشكلة ومش هيترفعوا:\n` + bad.slice(0, 20).join("\n") : "") + info);
     $("xsave").disabled = !XROWS.length;
   } catch (e) { show($("xmsg"), "err", "الملف ماتقراش: " + e.message); }
 };
@@ -138,12 +183,13 @@ $("xsave").onclick = async () => {
   // لو اتغيّر فيه حاجة (زي «لحد»): لو لسه مستني بيتحدّث، ولو اتاخد فيه قرار بيتعلّم «اتعدل بعد القرار — راجعه».
   const byId = new Map(ALL.map(x => [x.id, x]));
   // السطور اللي مش في اللي محمّل دلوقتي (ممكن يكون تم اعتمادها قبل كده): نتأكد منها واحدة واحدة
-  const idOf = r => `xl__${r.nid || r.code}__${r.from}__${r.type}${r.kind ? "_" + r.kind : ""}`;
+  const idOf = r => `xl__${r._k || r.nid || r.code}__${r.from}__${r.type}${r.kind ? "_" + r.kind : ""}`;
   try {
     const miss = [...new Set(XROWS.map(idOf))].filter(id => !byId.has(id));
     (await Promise.all(miss.map(id => getDoc(doc(db, "hr_events", id))))).forEach(sn => { if (sn.exists()) byId.set(sn.id, { id: sn.id, ...sn.data() }); });
   } catch (e) { $("xsave").disabled = false; return show($("xmsg"), "err", "مش قادر أتأكد من الحالات الموجودة: " + e.message); }
-  const FIELDS = ["company", "loc", "name", "to", "days", "reason", "sick_kind", "cause", "hospital"];
+  // الاسم بييجي من السجل، فمش بيتقارن (عشان رفع شيت قديم تاني مايعلّمش حالات اتاخد فيها قرار «اتعدل»)
+  const FIELDS = ["company", "loc", "to", "days", "reason", "sick_kind", "cause", "hospital"];
   try {
     for (const r of XROWS) {
       const id = idOf(r);
@@ -152,8 +198,9 @@ $("xsave").onclick = async () => {
         // مرضي بيبسي والإمداد / شيبسي: معتمد من HR تيما على طول ← «مستني رد العميل». غير كده «مستني HR تيما» زي الأول
         const direct = r.type === "sick" && needsClient(r);
         const st = direct ? { status: "client_wait", hr_ok_by: u.uid, hr_ok_email: actorEmail(u), hr_ok_at: serverTimestamp(), client_group: groupOf(r) } : { status: "pending" };
-        await setDoc(doc(db, "hr_events", id), { ...r, entry_date: today, ...st, by_email: actorEmail(u), uploaded_by: u.uid, created_at: serverTimestamp() });
-        byId.set(id, { id, ...r, status: st.status }); n++; if (direct) nDirect++;
+        const { _k, ...data } = r;
+        await setDoc(doc(db, "hr_events", id), { ...data, entry_date: today, ...st, by_email: actorEmail(u), uploaded_by: u.uid, created_at: serverTimestamp() });
+        byId.set(id, { id, ...data, status: st.status }); n++; if (direct) nDirect++;
         continue;
       }
       const diff = {}; FIELDS.forEach(k => { if (String(ex[k] ?? "") !== String(r[k] ?? "")) diff[k] = r[k]; });
