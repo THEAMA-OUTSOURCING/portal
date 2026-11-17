@@ -1,8 +1,8 @@
 // Service Worker بسيط: الصفحات من النت الأول (عشان التحديثات توصل على طول)، ولو النت فاصل من النسخة المحفوظة.
-const CACHE = "theama-v15";   // v15: مكتبات PDF والإكسيل من فولدر vendor (مش من CDN)   // v14: صفحة العامل أخف (أيقونات مصغّرة، والإكسيل للإدارة بس)   // v13: سكريبتات الصفحات في ملفات لوحدها (CSP)
+const CACHE = "theama-v16";   // v16: سكريبت Sentry من فولدر vendor (مش من موقع Sentry)   // v15: مكتبات PDF والإكسيل من فولدر vendor (مش من CDN)   // v14: صفحة العامل أخف (أيقونات مصغّرة، والإكسيل للإدارة بس)   // v13: سكريبتات الصفحات في ملفات لوحدها (CSP)
 // بيتحمّل مقدماً: صفحة البوابة (اللي العامل بيفتحها) وملفاتها بس. باقي الصفحات (الحضور، التقارير...) بتتحفظ لوحدها
 // أول ما حساب إدارة أو مشرف يفتحها (الـ fetch تحت بيحفظ أي ملف اتحمّل) — عشان موبايل العامل مايحمّلش صفحات الإدارة.
-const PAGES = ["./", "./index.html", "./page-index.js", "./boot.js", "./sw-reg.js", "./shared.js", "./notify.js", "./sentry.js", "./vendor/tabler-subset.css", "./vendor/tabler-subset.woff2", "./manifest.json", "./logo.jpg", "./icon-192.png", "./icon-512.png"];
+const PAGES = ["./", "./index.html", "./page-index.js", "./boot.js", "./sw-reg.js", "./shared.js", "./notify.js", "./sentry.js", "./vendor/sentry-loader.js", "./vendor/tabler-subset.css", "./vendor/tabler-subset.woff2", "./manifest.json", "./logo.jpg", "./icon-192.png", "./icon-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(PAGES)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener("fetch", e => {
