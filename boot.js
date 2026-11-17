@@ -31,8 +31,13 @@
     var el = e.target.closest && e.target.closest("[data-call]");
     if (el) run(el, el.getAttribute("data-call"), e);
   });
-  // فورم الدخول: Enter أو «دخول» بيدوس الزرار (data-call) — الفورم نفسه مايبعتش ولا يعمل تحديث للصفحة
-  document.addEventListener("submit", function (e) { e.preventDefault(); });
+  // فورم الدخول: Enter أو «دخول» بيدوس الزرار (data-call) — الفورم نفسه مايبعتش ولا يعمل تحديث للصفحة.
+  // فورم الرسايل (dialog.tdlg في shared.js — method="dialog") لازم يتساب: منع الـ submit بتاعه كان بيخلّى زراير الرسالة
+  // («تمام» / «إلغاء») ماتقفلهاش في الصفحة دى، فأى تأكيد (مسح الكشوف، تمديد الظهور، رفع بتنبيهات) كان بيقف.
+  document.addEventListener("submit", function (e) {
+    if (e.target && e.target.getAttribute && e.target.getAttribute("method") === "dialog") return;
+    e.preventDefault();
+  });
   document.addEventListener("change", function (e) {
     var el = e.target.closest && e.target.closest("[data-change]");
     if (el) run(el, el.getAttribute("data-change"), e);

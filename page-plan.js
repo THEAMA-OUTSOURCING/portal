@@ -1,10 +1,10 @@
 // page-plan.js — سكريبت صفحة plan.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell } from './shared.js?v=20261115c';
-import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261115c';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261115c';
-import { keyOf, splitJob } from './sheet.js?v=20261115c';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead } from './shared.js?v=20261117a';
+import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261117a';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261117a';
+import { keyOf, splitJob } from './sheet.js?v=20261117a';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====
@@ -565,7 +565,7 @@ $("c-run").addEventListener("click", async () => {
   if (!await ask(`هيقرا شيت الرواتب المرفوع حالياً كله مرة واحدة ويحفظ الملخص لشهر ${monthLabel(S.month)}. نكمل؟`)) return;
   $("c-run").disabled = true; show(msg, "info", "جاري القراءة...");
   try {
-    const snap = await getDocs(collection(db, "payroll"));
+    const snap = await freshRead("payroll", () => getDocs(collection(db, "payroll")));
     const seen = new Set(), counts = new Map(), periods = {};
     snap.forEach(d => {
       const r = d.data(), data = r.data || {}, f = {};
@@ -1011,6 +1011,8 @@ async function mcReadMap(e) {
 async function mcPreview() {
   if (!MC.map) return show($("mc-msg"), "info", MC.files.length ? "اختار ملف الربط كمان." : "اختار ملف الربط والكارنيهات.");
   if (!MC.files.length) return show($("mc-msg"), "info", `ملف الربط فيه ${MC.map.size} عامل. اختار الكارنيهات (PDF).`);
+  // فتح كارنيهات العمال محتاج باسورد مكتوب من أقل من 12 ساعة — مرة واحدة قبل ما نسأل عن كل الملفات
+  if (!await ensureFresh("cards")) return show($("mc-msg"), "info", "لازم تأكد الباسورد الأول عشان أشوف مين ليه كارنيه قبل كده.");
   show($("mc-msg"), "info", "بشوف مين ليه كارنيه قبل كده...");
   const seen = new Set();
   MC.rows = await Promise.all(MC.files.map(async f => {

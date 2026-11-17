@@ -2,7 +2,7 @@
 // أي موقع جديد أو تغيير في الإعدادات يتعمل هنا مرة واحدة.
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getFirestore, collection, doc, getDoc, getDocs, query, where } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { getAuth, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check.js';
 
 // ===== Firebase =====
@@ -386,7 +386,7 @@ export function codeFor(map, site, job, sec) {
 //   const why = await askText("سبب الرفض (إجباري):", { required: true });   // null لو اتلغى
 // النص بيتحط كـ textContent (مفيش HTML)، و \n بتنزل سطر.
 let dlgCss = false;
-function dlg(msg, { ok = "تمام", cancel = "إلغاء", danger = false, input = null, value = "", required = false } = {}) {
+function dlg(msg, { ok = "تمام", cancel = "إلغاء", danger = false, input = null, value = "", required = false, user = "" } = {}) {
   if (!dlgCss) {
     dlgCss = true;
     const s = document.createElement("style");
@@ -412,9 +412,12 @@ dialog.tdlg button:focus-visible{outline:3px solid #9cc2ee;outline-offset:2px;}`
   return new Promise(resolve => {
     const d = document.createElement("dialog");
     d.className = "tdlg";
-    d.innerHTML = `<form method="dialog"><p></p>${input !== null ? `<input type="${input}" autocomplete="off"><div class="err"></div>` : ""}<div class="acts"><button class="ok" value="ok"></button>${cancel ? `<button class="no" value="no" formnovalidate></button>` : ""}</div></form>`;
+    // user = إيميل الحساب في رسالة تأكيد الباسورد: خانة اسم مستخدم مخفية + current-password، عشان مدير الباسوردات
+    // (جوجل) يتعرف على الرسالة ويعرض الباسورد المحفوظ بدل ما يتكتب بالإيد. من غير user الخانة زى ما كانت (autocomplete=off).
+    d.innerHTML = `<form method="dialog"><p></p>${input !== null ? `${user ? `<input class="u" type="text" name="username" autocomplete="username" readonly hidden>` : ""}<input class="v" type="${input}" ${user ? `name="password" autocomplete="current-password"` : `autocomplete="off"`}><div class="err"></div>` : ""}<div class="acts"><button class="ok" value="ok"></button>${cancel ? `<button class="no" value="no" formnovalidate></button>` : ""}</div></form>`;
     d.querySelector("p").textContent = String(msg ?? "");
-    const okB = d.querySelector(".ok"), noB = d.querySelector(".no"), inp = d.querySelector("input");
+    const okB = d.querySelector(".ok"), noB = d.querySelector(".no"), inp = d.querySelector("input.v");
+    if (user && d.querySelector("input.u")) d.querySelector("input.u").value = user;
     okB.textContent = ok; if (danger) okB.classList.add("danger");
     if (noB) noB.textContent = cancel;
     if (inp) inp.value = value;
@@ -434,6 +437,60 @@ dialog.tdlg button:focus-visible{outline:3px solid #9cc2ee;outline-offset:2px;}`
 export const ask = (msg, o = {}) => dlg(msg, o);
 export const tell = (msg, o = {}) => dlg(msg, { cancel: "", ...o });
 export const askText = (msg, o = {}) => dlg(msg, { input: "text", ...o });
+
+// ===== تأكيد الباسورد قبل قراية المرتبات والكارنيهات =====
+// الـ Rules (freshDay) بتشترط إن حساب المكتب أو المشاهد كتب باسورده من أقل من 12 ساعة قبل ما يقرا المرتبات أو كارنيهات
+// العمال — عشان جهاز مسروق أو متساب مفتوح مايسحبش بيانات العمال. المشرف داخل في الكارنيهات. العامل مش داخل في ده.
+//   ensureFresh("payroll" | "cards")  بتطلب الباسورد لو المدة عدّت (أو قربت تعدّى). بترجّع false لو المستخدم لغى.
+//   freshRead(kind, fn)               نفس الكلام وبعدين بتنفّذ القراية fn. لو الـ Rules رفضت والجلسة قريبة من المدة
+//                                     (ساعة الجهاز ممكن تكون متأخرة) بتطلب الباسورد مرة وتجرب تانى.
+const FRESH_SEC = 12 * 3600, FRESH_EARLY = 300, FRESH_SKEW = 2 * 3600;
+const FRESH_WHO = {
+  payroll: c => c.role === "admin" || c.role === "viewer" || (c.role === "accountant" && c.payroll === true),
+  cards: c => ["admin", "viewer", "hr", "supervisor"].includes(c.role),
+};
+// عمر آخر كتابة للباسورد بالثوانى — أو null لو الحساب ده مش مشروط عليه (عامل / مالوش صلاحية أصلاً)
+async function loginAge(kind) {
+  const u = auth.currentUser;
+  if (!u) return null;
+  const c = (await u.getIdTokenResult()).claims || {};
+  if (!FRESH_WHO[kind](c)) return null;
+  return Date.now() / 1000 - (Number(c.auth_time) || 0);
+}
+const freshCancelled = () => Object.assign(new Error("لازم تأكد الباسورد الأول — مفيش حاجة اتقرت."), { code: "reauth-cancelled" });
+export async function reauth() {
+  const u = auth.currentUser;
+  if (!u || !u.email) return false;
+  for (;;) {
+    const pw = await askText("عدّى 12 ساعة على آخر مرة كتبت فيها الباسورد.\nاكتب باسورد حسابك عشان تكمل:", { input: "password", ok: "تأكيد", user: u.email });
+    if (!pw) return false;
+    try {
+      await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, pw));
+      await u.getIdToken(true);   // توكن جديد بوقت الدخول الجديد قبل القراية
+      return true;
+    } catch (err) {
+      const c = err.code || "", wrong = /wrong-password|invalid-credential|invalid-login/.test(c);
+      await tell(wrong ? "الباسورد غلط — جرّب تانى." : c === "auth/too-many-requests" ? "محاولات كتير — استنى شوية وجرّب تانى."
+        : "ماقدرتش أتأكد من الباسورد: " + err.message);
+      if (!wrong) return false;
+    }
+  }
+}
+export async function ensureFresh(kind) {
+  const age = await loginAge(kind);
+  return age === null || age < FRESH_SEC - FRESH_EARLY || reauth();
+}
+export async function freshRead(kind, fn) {
+  if (!await ensureFresh(kind)) throw freshCancelled();
+  try { return await fn(); }
+  catch (e) {
+    if (e?.code !== "permission-denied") throw e;
+    const age = await loginAge(kind).catch(() => null);
+    if (age === null || age < FRESH_SEC - FRESH_SKEW) throw e;   // الرفض مالوش علاقة بالمدة
+    if (!await reauth()) throw freshCancelled();
+    return await fn();
+  }
+}
 
 // ===== فورم الدخول (l-form) =====
 // Enter في الإيميل أو الباسورد بيدوس «دخول» لوحده (زرار submit)، والفورم نفسه مايعملش تحديث للصفحة
@@ -456,4 +513,4 @@ window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-if (FIRST_COPY) import('./notify.js?v=20261115c').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+if (FIRST_COPY) import('./notify.js?v=20261117a').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));

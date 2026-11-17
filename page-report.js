@@ -1,8 +1,8 @@
 // page-report.js — سكريبت صفحة report.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite, alignPlan, ask } from './shared.js?v=20261115c';
-import { printOrder } from './sheet.js?v=20261115c';
+import { db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite, alignPlan, ask } from './shared.js?v=20261117a';
+import { printOrder } from './sheet.js?v=20261117a';
 
 // مواقع الساعات: الإضافي النهاري والليلي (بالدقايق) على خانة اليوم — والوقت اللي محتاج مراجعة بيتعلّم ومايتحسبش
 const TB_TIP = "الوقت محتاج مراجعة — اليوم ده مش محسوب في الإضافي";

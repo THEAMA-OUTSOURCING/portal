@@ -1,7 +1,7 @@
 // page-index.js — سكريبت صفحة index.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, getDocs, addDoc, deleteDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ask, tell, askText, SUP_SITES } from './shared.js?v=20261115c';
+import { db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead } from './shared.js?v=20261117a';
 
 
 let loggedUser = null;
@@ -470,7 +470,7 @@ async function uploadSheet(){
     const recs = payParsed.recs.filter(x=>pickedK.has(tabKey(x.data._tab))).map((x,i)=>({ id: x.code+'_'+uploadId+'_'+String(i+1).padStart(5,'0'),
       data: { employee_code: x.code, national_id: x.nid, upload_id: uploadId, data: x.data } }));
 
-    const old = await getDocs(collection(db,'payroll'));   // الـ IDs القديمة عشان نمسحها في الآخر
+    const old = await freshRead('payroll', ()=>getDocs(collection(db,'payroll')));   // الـ IDs القديمة عشان نمسحها في الآخر
     const BATCH = 400;                                      // حد Firestore للدفعة 500 عملية
     const written = [];
     try{
@@ -544,11 +544,13 @@ async function confirmClear(){
   if(typed === null) return;
   if(typed.replace(/\s+/g,' ').trim() !== 'امسح الكل'){ tell('مااتمسحش حاجة — الكلمة مش مطابقة.'); return; }
   try{
-    const snap = await getDocs(collection(db,'payroll'));
+    const snap = await freshRead('payroll', ()=>getDocs(collection(db,'payroll')));
     for(let i=0; i<snap.docs.length; i+=400){
       const b = writeBatch(db); snap.docs.slice(i,i+400).forEach(d=>b.delete(d.ref)); await b.commit();
     }
-  }catch(e){ tell('المسح ماكملش: '+(e.code==='permission-denied'?'مش مسموح لحسابك':e.message)+'\nممكن يكون اتمسح جزء — دوس مسح تاني.'); return; }
+  }catch(e){
+    if(e.code==='reauth-cancelled'){ tell('مااتمسحش حاجة — الباسورد مااتأكدش.'); return; }
+    tell('المسح ماكملش: '+(e.code==='permission-denied'?'مش مسموح لحسابك':e.message)+'\nممكن يكون اتمسح جزء — دوس مسح تاني.'); return; }
   showPayVis().catch(()=>{});   // مدة ظهور المرتب تتحدث بعد المسح
   tell('تم مسح كل البيانات');
 }
@@ -925,7 +927,7 @@ async function lookupSalary(){
   if(!code){ fail('ادخل كود الموظف'); return; }
   btn.disabled = true;
   try{
-    const snap = await getDocs(query(collection(db,'payroll'), where('employee_code','==',code)));
+    const snap = await freshRead('payroll', ()=>getDocs(query(collection(db,'payroll'), where('employee_code','==',code))));
     if(snap.empty){ fail('مفيش كشف راتب متسجّل على الكود ده حالياً'); return; }
     // زي شاشة الموظف: أحدث رفعة لكل شركة، وبترتيبها في الشيت
     const docs = latestPerTab(snap.docs);
@@ -936,7 +938,7 @@ async function lookupSalary(){
     showScreen('salary-screen');
   }catch(e){
     console.error('salary lookup error:', e);
-    fail(e && e.code==='permission-denied' ? 'الحساب ده مالوش صلاحية يشوف المرتبات' : 'خطأ في الاتصال، حاول تاني');
+    fail(e && e.code==='reauth-cancelled' ? e.message : e && e.code==='permission-denied' ? 'الحساب ده مالوش صلاحية يشوف المرتبات' : 'خطأ في الاتصال، حاول تاني');
   }finally{ btn.disabled = false; }
 }
 window.lookupSalary = lookupSalary;
@@ -1333,12 +1335,16 @@ async function searchMedicalCard(){
   adminCardCode = '';
   try{
     // نجرب الكود زي ما اتكتب الأول. لو مسموح بيه بنقف عنده (موجود أو لأ) — الـ T بنجربها بس لو الأول اترفض
-    let snap = null, denied = null;
-    for(const c of codes){
-      try{ const s = await getDoc(doc(db,'medical_cards',c)); denied = null; if(s.exists()){ snap = s; adminCardCode = c; } break; }
-      catch(e){ if(e && e.code==='permission-denied'){ denied = e; continue; } throw e; }
-    }
-    if(!snap && denied) throw denied;
+    // الأدمن والمشاهد والـ HR والمشرف: الباسورد لازم يكون مكتوب من أقل من 12 ساعة (freshRead بتطلبه وتكمل)
+    const snap = await freshRead('cards', async ()=>{
+      let found = null, denied = null;
+      for(const c of codes){
+        try{ const s = await getDoc(doc(db,'medical_cards',c)); denied = null; if(s.exists()){ found = s; adminCardCode = c; } break; }
+        catch(e){ if(e && e.code==='permission-denied'){ denied = e; continue; } throw e; }
+      }
+      if(!found && denied) throw denied;
+      return found;
+    });
     loading.style.display = 'none';
     if(!snap){
       document.getElementById('search-card-error-msg').textContent = 'مفيش كارنيه مسجّل للكود ده';
@@ -1358,7 +1364,7 @@ async function searchMedicalCard(){
     await renderCardPreview(preview, bytes, type, adminCardUrl);
   }catch(e){
     loading.style.display = 'none';
-    document.getElementById('search-card-error-msg').textContent = (e && e.code==='permission-denied') ? 'الكارنيه ده لعامل مش ضمن العمال المسموحلك بيهم' : 'حصل خطأ أثناء التحميل، حاول تاني';
+    document.getElementById('search-card-error-msg').textContent = (e && e.code==='reauth-cancelled') ? e.message : (e && e.code==='permission-denied') ? 'الكارنيه ده لعامل مش ضمن العمال المسموحلك بيهم' : 'حصل خطأ أثناء التحميل، حاول تاني';
     errEl.style.display = 'block';
     console.error('search card error:', e);
   }
