@@ -1,7 +1,7 @@
 // page-hr.js — سكريبت صفحة hr.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask } from './shared.js?v=20261117d';
+import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask } from './shared.js?v=20261117e';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
@@ -150,6 +150,9 @@ async function clashMsg(ev, selfId, from, to) {
   const cl = clashesOf(await workerCases(ev.nid, ev.code), selfId, from, to);
   return cl.length ? `${ev.name || ev.nid || ev.code} عنده حالة تانية داخلة في نفس الأيام — عدّل التواريخ أو ارفض واحدة منهم الأول:\n` + clashTxt(cl) : "";
 }
+// اللي اتغيّر في الشيت بعد القرار (changed_data): خانات الشيت بس هي اللي بتتنسخ للحالة مع القرار — أي مفتاح تاني بيتساب
+const CHG_KEYS = ["company", "loc", "name", "to", "days", "reason", "sick_kind", "cause", "hospital"];
+const chgOf = ev => Object.fromEntries(Object.entries(ev.changed_data || {}).filter(([k]) => CHG_KEYS.includes(k)));
 const kindOf = t => /اصاب|إصاب/.test(t) ? ["sick", "", "injury"] : /مرض/.test(t) ? ["sick", "", "sick"] : /بدون/.test(t) ? ["leave", "unpaid"] : /سنو|عارض|اجاز|إجاز/.test(t) ? ["leave", "annual"] : [null, null];
 function workDays(f, t) { let n = 0; for (let d = new Date(f + "T00:00"); d <= new Date(t + "T00:00"); d.setDate(d.getDate() + 1)) if (d.getDay() !== 5) n++; return n; }
 $("xf").onchange = async () => {
@@ -693,7 +696,7 @@ $("list").onclick = async e => {
       original: ev.original || { type: ev.type, from: ev.from || "", to: ev.to || "", entry_date: ev.entry_date || "" } };
     if (type === "resign") Object.assign(extra, { entry_date: f, from: "", to: "", days: "", kind: "" });
     else Object.assign(extra, { from: f, to: t, days: String(workDays(f, t)), kind: type === "leave" ? box.querySelector("[data-ek]").value : "" });
-    if (ev.changed && ev.changed_data) Object.keys(ev.changed_data).forEach(k => { if (!(k in extra)) extra[k] = ev.changed_data[k]; });
+    if (ev.changed && ev.changed_data) Object.entries(chgOf(ev)).forEach(([k, v]) => { if (!(k in extra)) extra[k] = v; });
     if (type === "sick") {   // حقول المرضي من صندوق التعديل (هو أول واحد في الصفحة)
       const sf = readSick(id, { ...ev, ...extra }, box); if (sf.err) return show($("msg"), "err", sf.err);
       Object.assign(extra, sf.v);
@@ -727,7 +730,7 @@ $("list").onclick = async e => {
     if (!note) return show($("msg"), "err", `اكتب سبب الرفض لـ ${ev.name} في خانة الملاحظة الأول — السبب إجباري.`);
     if (!(await ask(`ترفض ${ev.name} — ${tyTxt(ev)}؟\nالسبب: ${note}`, { ok: "ارفض", danger: true }))) return;
     const upd = { status: "rejected", note, decided_by: u.uid, decided_email: actorEmail(u), decided_at: serverTimestamp(), changed: false };
-    if (ev.changed && ev.changed_data) Object.assign(upd, ev.changed_data);   // القرار على آخر نسخة في الشيت
+    if (ev.changed && ev.changed_data) Object.assign(upd, chgOf(ev));   // القرار على آخر نسخة في الشيت
     return save(id, upd, "اترفضت.");
   }
   // من غير تاريخ (مثلاً تجديد إصابة من الشرقية مكتوبش فيه «من» و«لحد») مينفعش يتعتمد — يتعدّل الأول
@@ -735,7 +738,7 @@ $("list").onclick = async e => {
     return show($("msg"), "err", `${ev.name}: «من» و«لحد» فاضيين — دوس «تعديل» واكتبهم الأول${isInj(ev) && prevInjury(ev) ? ` (المقترح للامتداد: من ${dayAfter(prevInjury(ev).to || prevInjury(ev).from)})` : ""}.`);
   // موافقة HR تيما — الإجازة لازم يتحدد نوعها: ج (ليه رصيد) أو خ (ملوش رصيد)
   const extra = { note };
-  if (ev.changed && ev.changed_data) Object.assign(extra, ev.changed_data);
+  if (ev.changed && ev.changed_data) Object.assign(extra, chgOf(ev));
   if (["leave", "sick"].includes(extra.type || ev.type) && !(await basicOk(ev.site, ev.nid, ev.code)))
     return show($("msg"), "err", `الإجازة والمرضي للأساسي بس في بيبسي وشيبسي والإمداد — ${ev.name} مش أساسي في ${ev.site}. ارفضها واكتب السبب.`);
   if (["leave", "sick"].includes(extra.type || ev.type)) { const cm = await clashMsg(ev, id, extra.from || ev.from, extra.to || ev.to); if (cm) return show($("msg"), "err", cm); }

@@ -1,8 +1,8 @@
 // page-custody.js — سكريبت صفحة custody.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, writeBatch, query, where, onSnapshot, runTransaction, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, SUP_SITES, ask, fetchPlanBase, planBySite, alignPlan } from './shared.js?v=20261117d';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261117d';
+import { db, auth, actorEmail, SUP_SITES, ask, fetchPlanBase, planBySite, alignPlan } from './shared.js?v=20261117e';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261117e';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -261,28 +261,43 @@ $("jobs").addEventListener("click", async e => {
   const item = b.dataset.item, want = !hasItem(w.nid, item);
   if (want && !gets(S.site, w, item)) return;   // الصنف ده مش لوظيفته
   if (want && full(jobOf(w), item)) return show($("w-msg"), "err", `${ITEM[item].ar} اتسلم للعدد المطلوب في «${jobOf(w)}» (${capOf(jobOf(w))}) — شيل علامة حد تاني الأول لو عايز تسلّمه.`);
+  if (!want && !S.admin && tooOld(S.docs[w.nid]?.issues?.[key(item)]?.at))
+    return show($("w-msg"), "err", `${ITEM[item].ar} متسلّم لـ ${w.name} من أكتر من يومين — العلامة مابتتشالش. لو رجّع القطعة دوس «رجّع»، ولو التسجيل غلط كلّم الأدمن.`);
   if (!want && !await ask(`تشيل علامة استلام ${ITEM[item].ar} من ${w.name}؟`, { ok: "شيل العلامة", danger: true })) return;
   await mark(w, item, want);
 });
+// تاريخ التسليم بيتقفل بعد يومين (الـ Rules بتحكم بوقت السيرفر — ده للرسالة بس)
+const tooOld = at => !!at && (Date.parse(ymd(new Date())) - Date.parse(at)) / 86400e3 > 2;
+// كل تغيير في العهدة معاه في نفس العملية سطر في custody_log (مين، امتى، الصنف قبل وبعد) — الـ Rules بتتأكد منه ومابيتمسحش.
+const logLine = (tx, nid, site, k, action, before, after) => {
+  const lr = doc(collection(db, "custody_log"));
+  tx.set(lr, { nid: String(nid), site, key: k, action, before: before ?? null, after: after ?? null, by: S.user.uid, by_email: actorEmail(S.user), at: serverTimestamp() });
+  return lr.id;
+};
+// الأول بالسجل. لو اترفض (الـ Rules الجديدة لسه مااتنشرتش) بنكتب بالشكل القديم — مع الـ Rules الجديدة الشكل القديم مرفوض.
+const withLogFirst = async run => { try { await run(true); } catch (err) { if (err.code !== "permission-denied") throw err; await run(false); } };
+const DENIED = "مفيش صلاحية. لو تاريخ الموبايل مش مظبوط اظبطه وجرّب تاني.";
 // الإيكونات بتتعلّم واحدة واحدة — العامل اللي اتنقل من فرع تاني بتتنقل عهدته معاه لما تعلّم هنا
 async function mark(w, item, want) {
   const k = key(item); if (!k) return;
   const ref = doc(db, "custody", String(w.nid));
   S.busy.add(w.nid + item); render();
   try {
-    await runTransaction(db, async tx => {
+    await withLogFirst(log => runTransaction(db, async tx => {
       const snap = await tx.get(ref);
       const cur = snap.exists() ? snap.data() : {};
-      const issues = { ...(cur.issues || {}) };
+      const issues = { ...(cur.issues || {}) }, before = issues[k] ?? null;
       if (want) { if (!issues[k] || issues[k].returned_at) { issues[k] = { at: ymd(new Date()), by: actorEmail(S.user) };
                   // المقاس وقت الاستلام — عشان المخزون بالمقاس في تقرير الاحتياجات
                   const sz = item === "vest" ? "واحد" : w[item]; if (sz) issues[k].size = String(sz); } }
       else delete issues[k];
-      tx.set(ref, { nid: String(w.nid), code: String(w.code || ""), name: String(w.name || "").slice(0, 200), job: String(w.job || "").slice(0, 100),
-                    site: S.site, issues, updated_by: S.user.uid, updated_at: serverTimestamp() });
-    });
+      const data = { nid: String(w.nid), code: String(w.code || ""), name: String(w.name || "").slice(0, 200), job: String(w.job || "").slice(0, 100),
+                     site: S.site, issues, updated_by: S.user.uid, updated_at: serverTimestamp() };
+      if (log) data.log = logLine(tx, w.nid, S.site, k, want ? "issue" : "undo", before, issues[k] ?? null);
+      tx.set(ref, data);
+    }));
   } catch (err) {
-    show($("w-msg"), "err", "ماتسجلش: " + (err.code === "permission-denied" ? "مفيش صلاحية" : err.message));
+    show($("w-msg"), "err", "ماتسجلش: " + (err.code === "permission-denied" ? DENIED : err.message));
   } finally { S.busy.delete(w.nid + item); render(); }
 }
 // رجّع القطعة (للي خرج): بتفضل في السجل، بس بترجع للمخزون ومش بتتحسب عليه
@@ -293,16 +308,18 @@ $("left").addEventListener("click", async e => {
   if (!d || !k || !await ask(`${d.name} رجّع ${ITEM[item].ar}؟ القطعة هترجع للمخزون.`, { ok: "رجّع" })) return;
   b.disabled = true;
   try {
-    await runTransaction(db, async tx => {
+    await withLogFirst(log => runTransaction(db, async tx => {
       const ref = doc(db, "custody", String(d.nid));
       const snap = await tx.get(ref);
       if (!snap.exists()) return;
-      const cur = snap.data(), issues = { ...(cur.issues || {}) };
-      if (!issues[k]) return;
+      const { log: oldLog, ...cur } = snap.data(), issues = { ...(cur.issues || {}) }, before = issues[k] ?? null;
+      if (!issues[k] || issues[k].returned_at) return;
       issues[k] = { ...issues[k], returned_at: ymd(new Date()), returned_by: actorEmail(S.user) };
-      tx.set(ref, { ...cur, issues, updated_by: S.user.uid, updated_at: serverTimestamp() });
-    });
-  } catch (err) { b.disabled = false; show($("w-msg"), "err", "ماتسجلش: " + (err.code === "permission-denied" ? "مفيش صلاحية" : err.message)); }
+      const data = { ...cur, issues, updated_by: S.user.uid, updated_at: serverTimestamp() };
+      if (log) data.log = logLine(tx, d.nid, cur.site, k, "return", before, issues[k]);
+      tx.set(ref, data);
+    }));
+  } catch (err) { b.disabled = false; show($("w-msg"), "err", "ماتسجلش: " + (err.code === "permission-denied" ? DENIED : err.message)); }
 });
 
 // ===== البحث والفلتر =====
@@ -464,6 +481,61 @@ $("rep-left").onclick = async () => {
     rows.sort((a, b) => String(a[4]).localeCompare(String(b[4]), "ar") || String(a[0]).localeCompare(String(b[0]), "ar"));
     $("rep-out").innerHTML = `<p class="muted" style="margin-bottom:6px;">«باقي» = الشهور من الخروج لحد نهاية دورة الفرع. اللي رجّع القطعة مش ظاهر هنا.</p>`
       + repTable(["الاسم", "الكود", "الرقم القومى", "الوظيفة", "الفرع", "استلم", "تاريخ الاستلام", "تاريخ الخروج", "السبب", "باقى (شهور)"], rows, "خصم عهدة", "خرجوا قبل الدورة");
+  } catch (e) { $("rep-out").innerHTML = ""; repErr(e); }
+};
+
+// 3) سجل العهدة للي خرجوا: كل صنف من الدورة الحالية كان مع حد خرج — لسه معاه، رجع (مين علّم وامتى)، أو العلامة اتشالت (مين وامتى).
+// «رجع» من مستند العهدة نفسه. «العلامة اتشالت» من custody_log (الصنف بيتمسح من المستند، فالسجل هو اللي فاكره) — من يوم ما السجل بدأ.
+const whenOf = t => { const d = t?.toDate ? t.toDate() : null; return d ? ymd(d) + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0") : ""; };
+async function loadLog(site, cycle) {
+  const c = collection(db, "custody_log"), keys = ITEMS.map(i => cycle.start + "__" + i.id), out = [];
+  let snap;
+  try { snap = await getDocs(query(c, where("site", "==", site), where("key", "in", keys.slice(0, 30)))); }
+  catch (e) { if (e.code === "permission-denied") throw e; snap = await getDocs(query(c, where("site", "==", site))); }
+  snap.forEach(d => { const r = d.data(); if (keys.includes(r.key)) out.push(r); });
+  return out;
+}
+$("rep-log").onclick = async () => {
+  hide($("rep-msg")); $("rep-out").innerHTML = `<p class="muted">بيتحمل…</p>`;
+  try {
+    let noLog = false;
+    const data = await Promise.all(repSites().map(async s => {
+      const d = await loadSite(s, true); d.log = [];
+      if (d.cycle) try { d.log = await loadLog(s, d.cycle); } catch (e) { if (e.code !== "permission-denied") throw e; noLog = true; }
+      return d;
+    }));
+    const rows = [];
+    data.forEach(d => {
+      if (!d.cycle) return;
+      const inRoster = new Set(d.roster.map(w => String(w.nid))), byKey = {};
+      d.log.forEach(r => (byKey[r.nid + "|" + r.key] = byKey[r.nid + "|" + r.key] || []).push(r));
+      Object.values(byKey).forEach(a => a.sort((x, y) => (x.at?.toMillis?.() || 0) - (y.at?.toMillis?.() || 0)));
+      d.docs.filter(c => !inRoster.has(String(c.nid))).forEach(c => {
+        const rem = d.removals[c.code], ov = d.gone[c.code];
+        if (rem && rem.reason === "نقل لموقع تاني") return;   // اتنقل = العهدة معاه، مش خروج
+        const exitDate = rem?.at?.toDate ? ymd(rem.at.toDate()) : (ov?.from || "");
+        const why = rem ? (rem.reason || "اتشال من الكشف") : ov ? "مشي (الإدارة)" : "مش في الكشف";
+        ITEMS.forEach(i => {
+          const k = d.cycle.start + "__" + i.id, e = c.issues?.[k], lg = byKey[c.nid + "|" + k] || [], last = lg[lg.length - 1];
+          if (!e && !lg.length) return;
+          let given, giver, state, chAt = "", chBy = "";
+          if (e) {
+            given = e.at || ""; giver = e.by || "";
+            if (e.returned_at) { state = "رجع"; chAt = e.returned_at; chBy = e.returned_by || ""; } else state = "لسه معاه";
+          } else {
+            const b = last.before || {};
+            given = b.at || ""; giver = b.by || ""; state = "العلامة اتشالت"; chAt = whenOf(last.at); chBy = last.by_email || "";
+          }
+          const after = chAt && exitDate ? (chAt.slice(0, 10) >= exitDate ? "أيوه" : "لأ") : "";
+          rows.push([c.name, c.code, i.ar, state, chAt, chBy, exitDate || "—", why, after, given, giver, c.nid, c.job, d.site]);
+        });
+      });
+    });
+    const note = noLog ? `<p class="muted" style="margin-bottom:6px;">سجل التغييرات لسه مش متاح — «العلامة اتشالت» مش ظاهرة.</p>` : "";
+    if (!rows.length) { $("rep-out").innerHTML = note + `<p class="muted">مفيش حد خرج وعليه عهدة من الدورة الحالية.</p>`; return; }
+    rows.sort((a, b) => String(a[13]).localeCompare(String(b[13]), "ar") || String(a[0]).localeCompare(String(b[0]), "ar") || String(a[2]).localeCompare(String(b[2]), "ar"));
+    $("rep-out").innerHTML = note + `<p class="muted" style="margin-bottom:6px;">كل صنف من الدورة الحالية كان مع حد خرج. «بعد الخروج» = الرجوع أو شيل العلامة اتسجل يوم الخروج أو بعده. «العلامة اتشالت» بتظهر من يوم ما سجل التغييرات بدأ.</p>`
+      + repTable(["الاسم", "الكود", "الصنف", "الحالة", "تاريخ الرجوع / الشيل", "مين علّم", "تاريخ الخروج", "السبب", "بعد الخروج", "تاريخ التسليم", "سلّمه", "الرقم القومى", "الوظيفة", "الفرع"], rows, "سجل عهدة اللي خرجوا", "سجل العهدة");
   } catch (e) { $("rep-out").innerHTML = ""; repErr(e); }
 };
 
