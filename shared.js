@@ -232,10 +232,32 @@ const ckey = (loc, pos) => pnorm(loc) + "|" + pkey(pos);
 
 // بيانات المخطط الساري لشهر: آخر شيت متسجل لحد الشهر ده + تعديلاته + جدول المطابقة.
 // بيرجّع null لو مفيش شيت أو مفيش إعدادات.
-export async function fetchPlanBase(month) {
+// الشيت: شيت الشهر نفسه، ولو مش موجود اللى قبله شهر شهر (لحد سنة) — قراية واحدة غالباً بدل كل الشهور (ب10).
+// النتيجة محفوظة دقيقتين لكل شهر (التقرير بيطلبها مع كل يوم بيتفتح). fresh = من غير المحفوظ (بعد رفع شيت).
+const PLAN_MEMO = new Map(), PLAN_MEMO_MS = 120000, PLAN_BACK = 12;
+const prevMonth = m => { const [y, mm] = m.split("-").map(Number); return mm > 1 ? `${y}-${String(mm - 1).padStart(2, "0")}` : `${y - 1}-12`; };
+async function latestPlan(month) {
+  let m = month;
+  for (let i = 0; i <= PLAN_BACK && /^\d{4}-\d{2}$/.test(m); i++, m = prevMonth(m)) {
+    const s = await getDoc(doc(db, "plans", m));
+    if (s.exists()) return [m, s.data()];
+  }
+  // أقدم من سنة (أو شهر مكتوب بشكل تاني): زي الأول — كل الشهور
   const plans = await getDocs(collection(db, "plans"));
   let pm = null, plan = null;
   plans.forEach(d => { if (d.id <= month && (!pm || d.id > pm)) { pm = d.id; plan = d.data(); } });
+  return [pm, plan];
+}
+export function fetchPlanBase(month, fresh = false) {
+  const hit = PLAN_MEMO.get(month);
+  if (!fresh && hit && Date.now() - hit.at < PLAN_MEMO_MS) return hit.p;
+  const p = loadPlanBase(month);
+  PLAN_MEMO.set(month, { at: Date.now(), p });
+  p.catch(() => { if (PLAN_MEMO.get(month)?.p === p) PLAN_MEMO.delete(month); });
+  return p;
+}
+async function loadPlanBase(month) {
+  const [pm, plan] = await latestPlan(month);
   if (!plan) return null;
   const [am, st] = await Promise.all([
     getDocs(query(collection(db, "plan_amendments"), where("month", "==", pm))),
@@ -552,4 +574,4 @@ window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-if (FIRST_COPY) import('./notify.js?v=20261118a').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+if (FIRST_COPY) import('./notify.js?v=20261118b').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));

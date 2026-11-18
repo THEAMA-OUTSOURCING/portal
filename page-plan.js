@@ -1,10 +1,10 @@
 // page-plan.js — سكريبت صفحة plan.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead } from './shared.js?v=20261118a';
-import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261118a';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261118a';
-import { keyOf, splitJob } from './sheet.js?v=20261118a';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead } from './shared.js?v=20261118b';
+import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261118b';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261118b';
+import { keyOf, splitJob } from './sheet.js?v=20261118b';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====
@@ -356,7 +356,7 @@ const BODY_MAX = 2900;   // الـ Rules: نص الإشعار لحد 3000 حرف
 async function siteChanges(m) {
   const pm = prevMonthKey(m);
   if (!pm) throw new Error("مفيش شهر سابق للمقارنة.");
-  const [cb, pb] = await Promise.all([fetchPlanBase(m), fetchPlanBase(pm)]);
+  const [cb, pb] = await Promise.all([fetchPlanBase(m, true), fetchPlanBase(pm, true)]);
   if (!cb || !pb) throw new Error("مش قادر أحمّل شيت الاحتياج أو إعدادات الربط.");
   const cur = planBySite(cb, m + "-01"), prev = planBySite(pb, monthEnd(pm));
   const out = {};
