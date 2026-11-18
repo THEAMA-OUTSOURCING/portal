@@ -1,7 +1,7 @@
 // page-hr.js — سكريبت صفحة hr.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask } from './shared.js?v=20261118b';
+import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask, hasRestSubs } from './shared.js?v=20261118c';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
@@ -779,6 +779,8 @@ const WQ_RET = { fiche: "الفيش ناقص", card: "صورة البطاقة م
 // الرفض نهائي: للحالات اللي مش هتتقبل خالص
 const WQ_REJ = ["موجود فعلاً / مكرر", "بلاك ليست", "مش مطابق للشروط", "العميل رفض", "البيانات غلط", "أخرى"];
 const WQ_TYPES = ["اساسي", "يومية", "بديل راحات"];
+// «بديل راحات» في المواقع اللي فيها بدلاء راحات بس (مصنع العامرية، فرع العجمى، طنطا مصنع — shared.js)
+const wqTypes = e => hasRestSubs(e.branch || e.site) ? WQ_TYPES : WQ_TYPES.filter(t => t !== "بديل راحات");
 const WQ_FIELD = { type: "النوع", job: "الوظيفة", site: "الموقع" };
 const WQ_REASONS = ["استقالة", "انقطاع", "نقل لموقع تاني", "فصل", "أخرى"];
 function wqQ(...w) {
@@ -820,7 +822,7 @@ function wqFields(e, edit) {
     out.push(edit ? ed("الرقم القومي", wqInp("nid", e.nid, 'dir="ltr" maxlength="14" inputmode="numeric"')) : ro("الرقم القومي", e.nid));
     out.push(edit ? ed("التليفون", wqInp("phone", e.phone, 'dir="ltr" maxlength="11" inputmode="numeric"')) : ro("التليفون", e.phone));
     out.push(edit ? ed("الوظيفة", wqInp("job", e.job)) : ro("الوظيفة", e.job));
-    out.push(edit ? ed("النوع", wqSel("type", e.type, WQ_TYPES)) : ro("النوع", e.type));
+    out.push(edit ? ed("النوع", wqSel("type", e.type, wqTypes(e))) : ro("النوع", e.type));
     out.push(edit ? ed("أول يوم", wqInp("first_day", e.first_day, 'type="date"')) : ro("أول يوم", e.first_day));
     if (e.branch === "الشرقية للدخان") out.push(edit ? ed("القطاع / المكان", wqInp("site", e.site)) : ro("القطاع / المكان", e.site));
     if (e.portal_code) out.push(ro("كود البوابة", e.portal_code));
@@ -833,7 +835,7 @@ function wqFields(e, edit) {
     out.push(ro("الكود", e.code));
     for (const [k, v] of Object.entries(e.to || {})) {
       const was = (e.from || {})[k] ?? "";
-      out.push(edit && k !== "site" ? ed(WQ_FIELD[k] || k, k === "type" ? wqSel("to." + k, v, WQ_TYPES) : wqInp("to." + k, v))
+      out.push(edit && k !== "site" ? ed(WQ_FIELD[k] || k, k === "type" ? wqSel("to." + k, v, wqTypes(e)) : wqInp("to." + k, v))
         : ro(WQ_FIELD[k] || k, (was ? was + " ← " : "") + v));
     }
     out.push(edit ? ed("من تاريخ", wqInp("effective", e.effective, 'type="date"')) : ro("من تاريخ", e.effective));
@@ -921,7 +923,8 @@ function wqCheck(e, upd) {
     if (!/^[23][0-9]{13}$/.test(x.nid || "")) return "الرقم القومي لازم 14 رقم.";
     if (!/^01[0125][0-9]{8}$/.test(x.phone || "")) return "التليفون لازم 11 رقم ويبدأ بـ 01.";
     if (!x.job) return "اكتب الوظيفة.";
-    if (!WQ_TYPES.includes(x.type)) return "اختار النوع (أساسي / يومية / بديل راحات).";
+    if (!wqTypes(x).includes(x.type)) return hasRestSubs(x.branch || x.site) ? "اختار النوع (أساسي / يومية / بديل راحات)."
+      : "اختار النوع (أساسي / يومية) — الموقع ده مفيهوش بدلاء راحات.";
   }
   return "";
 }

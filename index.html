@@ -320,7 +320,9 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
         <label for="search-sal-code" style="font-size:13px;color:#6b6b6b;display:block;margin-bottom:6px;">كود الموظف</label>
         <input type="text" id="search-sal-code" placeholder="ادخل كود الموظف"/>
       </div>
+      <p id="search-sal-hint" style="display:none;font-size:11px;color:#767676;margin:-6px 0 10px;">لعمال مواقعك بس — 5 عمال مختلفين في اليوم بالكتير (نفس العامل تانى مش بيتحسب)</p>
       <button class="btn-primary" data-call="lookupSalary" id="search-sal-btn"><i class="ti ti-search" style="font-size:15px;vertical-align:-2px;margin-left:4px;"></i>عرض المرتب</button>
+      <div class="success-box" id="search-sal-ok"><i class="ti ti-circle-check" style="font-size:14px;vertical-align:-2px;margin-left:4px;"></i><span id="search-sal-ok-msg"></span></div>
       <div class="error-box" id="search-sal-error"><i class="ti ti-alert-circle" style="font-size:14px;vertical-align:-2px;margin-left:4px;"></i><span id="search-sal-error-msg"></span></div>
     </div>
     <div class="card card-look" style="margin-top:0;">
@@ -445,6 +447,6 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
 </div>
 
 <!-- Firebase SDKs -->
-<script type="module" src="page-index.js?v=20261118b"></script>
+<script type="module" src="page-index.js?v=20261118c"></script>
 </body>
 </html>

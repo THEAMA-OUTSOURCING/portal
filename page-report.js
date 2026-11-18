@@ -1,8 +1,8 @@
 // page-report.js — سكريبت صفحة report.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite, alignPlan, ask, compressPage, replacePage, replacedBy } from './shared.js?v=20261118b';
-import { printOrder } from './sheet.js?v=20261118b';
+import { db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite, alignPlan, ask, compressPage, replacePage, replacedBy } from './shared.js?v=20261118c';
+import { printOrder } from './sheet.js?v=20261118c';
 
 // مواقع الساعات: الإضافي النهاري والليلي (بالدقايق) على خانة اليوم — والوقت اللي محتاج مراجعة بيتعلّم ومايتحسبش
 const TB_TIP = "الوقت محتاج مراجعة — اليوم ده مش محسوب في الإضافي";
@@ -51,6 +51,8 @@ onAuthStateChanged(auth, async user => {
   $("tab-approve").classList.toggle("hidden", !S.canApprove && !S.view);
   $("a-all").classList.toggle("hidden", !S.canApprove);
   $("tab-fp").classList.toggle("hidden", c.role !== "admin");   // مؤقتاً للأدمن بس
+  // تابة العطلات: للمكتب والمشاهد بس — المشرف والإقليمي مالهمش (التقرير نفسه بيلوّن العطلات عادي)
+  $("tab-hol").classList.toggle("hidden", c.role === "supervisor");
   // أزرار التنقل بين الصفحات بقت في shared.js (حسب الدور)
   if (S.view) { $("tab-approve").textContent = "حالة الاعتماد"; }
   // الشرقية بتظهر في الاختيار اتنين: الشرقية 1 (16→15) والشرقية 2 (الشهر الميلادي)

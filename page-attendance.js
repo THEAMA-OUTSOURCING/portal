@@ -1,9 +1,9 @@
 // page-attendance.js — سكريبت صفحة attendance.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, isBasic, nearWorkers, nameParts, ask, tell, compressPage, replacePage, replacedBy } from './shared.js?v=20261118b';
-import { openPrintView, openOrderEditor, printOrder } from './sheet.js?v=20261118b';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261118b';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, hasRestSubs, isBasic, nearWorkers, nameParts, ask, tell, compressPage, replacePage, replacedBy } from './shared.js?v=20261118c';
+import { openPrintView, openOrderEditor, printOrder } from './sheet.js?v=20261118c';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261118c';
 
 
 const $ = id => document.getElementById(id);
@@ -1317,7 +1317,16 @@ function knownWorkers() {
   return [...(S.rosterNow || []), ...(S.roster || []), ...(S.pool || []),
     ...(S.newWorkers || []).map(x => ({ ...x, nid: x.nid || x.id })), ...(ELSE_LIST || [])];
 }
+// «بديل راحات» بيظهر في اختيار النوع في المواقع اللي فيها بدلاء راحات بس (shared.js — REST_SUB_SITES)
+// (بيتشال من القايمة خالص مش مخفي بس — موبايلات iPhone بتعرض الاختيار المخفي)
+function restSubOpt(sel) {
+  sel.dataset.full ??= sel.innerHTML;
+  sel.innerHTML = sel.dataset.full;
+  if (!hasRestSubs(S.site)) sel.querySelector('option[value="بديل راحات"]')?.remove();
+}
+const NO_REST_SUB = "الموقع ده مفيهوش بدلاء راحات — اختار أساسي أو يومية.";
 function openNc() {
+  restSubOpt($("nc-type"));
   const jobs = [...new Set([...S.rosterNow.map(x => x.job), ...Object.keys(planNow())].filter(Boolean))];
   $("nc-job").innerHTML = jobs.map(j => `<option>${esc(j)}</option>`).join("");
   ["nc-name", "nc-nid", "nc-phone"].forEach(id => $(id).value = ""); $("nc-type").value = "";
@@ -1331,6 +1340,7 @@ $("nc-ok").addEventListener("click", async () => {
   if (bad) return show($("nc-msg"), "err", bad);
   if (!job) return show($("nc-msg"), "err", "اختار الوظيفة.");
   if (!typ) return show($("nc-msg"), "err", "اختار نوع العامل.");
+  if (typ === "بديل راحات" && !hasRestSubs(S.site)) return show($("nc-msg"), "err", NO_REST_SUB);
   if (S.rosterNow.some(x => x.nid === nid)) return show($("nc-msg"), "err", "العامل ده موجود في الكشف أصلاً.");
   if (S.pool.some(x => x.nid === nid)) return show($("nc-msg"), "err", "العامل ده موجود في قايمة البدلاء أصلاً.");
   const near = nearWorkers(nid, name, knownWorkers());
@@ -1431,6 +1441,7 @@ function openId(purpose, target) {
   $("idm-job-wrap").classList.toggle("hidden", purpose !== "roster");
   $("idm-type-wrap").classList.toggle("hidden", purpose === "complete");
   // النوع للاتنين: البديل الجديد يومية أو بديل راحات بس
+  restSubOpt($("idm-type"));   // الأول: بيرجّع القايمة من الأول، وبعدين الأساسي يتقفل للبديل
   $("idm-type").querySelector('option[value="اساسي"]').disabled = purpose !== "roster";
   $("idm-type").value = purpose === "roster" ? "" : "يومية";
   ["idm-in-name", "idm-in-nid", "idm-in-phone"].forEach(id => $(id).value = ""); ID.typed = null;
@@ -1501,6 +1512,7 @@ $("idm-ok").addEventListener("click", async () => {
   // النوع: أساسي بيدخل الكشف، بديل راحات/يومية بيروحوا قايمة البدلاء (السيرفر بيقسّمهم بالنوع)
   const typ = $("idm-type").value;
   if (!typ) return show($("idm-msg"), "err", "اختار نوع العامل الأول.");
+  if (typ === "بديل راحات" && !hasRestSubs(S.site)) return show($("idm-msg"), "err", NO_REST_SUB);
   const toRoster = typ === "اساسي";
   const inRoster = S.rosterNow.find(x => x.nid === d.nid), inPool = S.pool.find(x => x.nid === d.nid);
   const u = auth.currentUser;

@@ -1,7 +1,7 @@
 // page-index.js — سكريبت صفحة index.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, getDocs, addDoc, deleteDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead } from './shared.js?v=20261118b';
+import { db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead } from './shared.js?v=20261118c';
 
 
 let loggedUser = null;
@@ -170,9 +170,16 @@ onAuthStateChanged(auth, async (user)=>{
       el.style.display = (isStaffRole || isViewer || role === 'hr') ? '' : 'none';
     });
     // المرتبات: الأدمن والمشاهد واللي بيرفع المرتبات (المحاسبين التانيين المرتبات مقفولة عليهم — زي الـ Rules)
+    // والمشرف والإقليمي: عمال مواقعهم بس، عن طريق السيرفر وبحد يومي (5 عمال، مشرف الشرقية 20)
     document.querySelectorAll('.salary-look').forEach(el=>{
-      el.style.display = (isViewer || canPayroll) ? '' : 'none';
+      el.style.display = (isViewer || canPayroll || role === 'supervisor') ? '' : 'none';
     });
+    const salHint = document.getElementById('search-sal-hint');
+    if(salHint){
+      salHint.style.display = role === 'supervisor' ? '' : 'none';
+      salHint.textContent = (userSites && userSites.length ? 'لعمال مواقعك بس — 5' : 'لعمال الشرقية بس — 20')
+        + ' عمال مختلفين في اليوم بالكتير (نفس العامل تانى مش بيتحسب)';
+    }
     const isAttRole = (role === 'admin' || (role === 'supervisor' && userSites && userSites.length));
     document.querySelectorAll('.rep-only').forEach(el=>{
       el.style.display = (isAttRole || isOfficeRole || isViewer) ? '' : 'none';
@@ -914,34 +921,66 @@ function renderSalary(src, viewOnly){
   });
 }
 
-// ===== عرض مرتب موظف (الأدمن والمشاهد والمحاسب) — نفس شاشة الموظف بالظبط، من غير أزرار الموظف =====
+// ===== عرض مرتب موظف (الأدمن والمشاهد والمحاسب، والمشرف والإقليمي عن طريق السيرفر) — نفس شاشة الموظف بالظبط، من غير أزرار الموظف =====
 let staffView = false;
 async function lookupSalary(){
   const code = staffCode(document.getElementById('search-sal-code').value);
   const errEl = document.getElementById('search-sal-error');
   const msgEl = document.getElementById('search-sal-error-msg');
   const btn = document.getElementById('search-sal-btn');
+  const okEl = document.getElementById('search-sal-ok');
   if(btn.disabled) return;   // Enter مرتين بسرعة مايبدأش بحثين
   const fail = m=>{ msgEl.textContent = m; errEl.style.display = 'block'; };
-  errEl.style.display = 'none';
+  errEl.style.display = 'none'; okEl.style.display = 'none';
   if(!code){ fail('ادخل كود الموظف'); return; }
   btn.disabled = true;
+  let sup = false, shownCode = code;
   try{
-    const snap = await freshRead('payroll', ()=>getDocs(query(collection(db,'payroll'), where('employee_code','==',code))));
-    if(snap.empty){ fail('مفيش كشف راتب متسجّل على الكود ده حالياً'); return; }
-    // زي شاشة الموظف: أحدث رفعة لكل شركة، وبترتيبها في الشيت
-    const docs = latestPerTab(snap.docs);
+    sup = ((await auth.currentUser.getIdTokenResult()).claims || {}).role === 'supervisor';
+    let rows;
+    if(sup){
+      // المشرف والإقليمي: طلب للسيرفر (بيتأكد إن العامل من مواقعه وبيعدّ الحد اليومي) والمرتب بيرجع في الطلب نفسه
+      const r = await salaryByServer(code);
+      if(r.status === 'timeout'){ fail('الطلب اتسجّل بس السيرفر مردّش لسه — جرّب تانى بعد شوية'); return; }
+      if(r.status !== 'done'){ fail(r.message || 'حصل خطأ، حاول تاني'); return; }
+      try{ rows = JSON.parse(r.secret || '[]'); }catch(e){ rows = []; }
+      if(!rows.length){ fail('مفيش كشف راتب متسجّل على الكود ده حالياً'); return; }
+      shownCode = r.code || code;
+      document.getElementById('search-sal-ok-msg').textContent = r.message || '';
+      okEl.style.display = r.message ? 'block' : 'none';
+    } else {
+      const snap = await freshRead('payroll', ()=>getDocs(query(collection(db,'payroll'), where('employee_code','==',code))));
+      if(snap.empty){ fail('مفيش كشف راتب متسجّل على الكود ده حالياً'); return; }
+      // زي شاشة الموظف: أحدث رفعة لكل شركة، وبترتيبها في الشيت
+      rows = latestPerTab(snap.docs).map(d=>d.data().data);
+    }
     staffView = true;
-    renderSalary({code, rows: docs.map(d=>d.data().data)}, true);
+    renderSalary({code: shownCode, rows}, true);
     document.getElementById('sv-out').textContent = 'رجوع';
     document.getElementById('sv-note').style.display = 'none';
     showScreen('salary-screen');
   }catch(e){
     console.error('salary lookup error:', e);
-    fail(e && e.code==='reauth-cancelled' ? e.message : e && e.code==='permission-denied' ? 'الحساب ده مالوش صلاحية يشوف المرتبات' : 'خطأ في الاتصال، حاول تاني');
+    fail(e && e.code==='reauth-cancelled' ? e.message : e && e.code==='permission-denied' ? (sup ? 'الموظف ده مش ضمن العمال المسموحلك بيهم' : 'الحساب ده مالوش صلاحية يشوف المرتبات') : 'خطأ في الاتصال، حاول تاني');
   }finally{ btn.disabled = false; }
 }
 window.lookupSalary = lookupSalary;
+
+// طلب عرض مرتب من السيرفر (المشرف والإقليمي) — الـ Rules بتشترط الباسورد مكتوب من أقل من 12 ساعة
+// والعامل من مواقعه؛ زي الريسيت: لو الكود بالشكل ده اترفض نجرب التاني (بـ T)
+async function salaryByServer(code){
+  const codes = staffCodes(code);
+  let used = code;
+  const ref = await freshRead('cards', async ()=>{
+    let denied = null;
+    for(const c of codes){
+      try{ const r = await createTask('salary', c); used = c; return r; }
+      catch(e){ if(e && e.code==='permission-denied'){ denied = e; continue; } throw e; }
+    }
+    throw denied;
+  });
+  return { ...(await waitTask(ref, null, 30000)), code: used };
+}
 
 // زرار الشاشة: للموظف = خروج، ولما الإدارة بتتفرج = رجوع للوحة
 function svOut(){
