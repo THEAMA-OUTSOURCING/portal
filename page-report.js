@@ -718,7 +718,7 @@ $("a-list").onclick = async e => {
     }
     $("a-dhead").innerHTML = `<th>الاسم</th><th>الوظيفة</th><th>الحالة</th>${timedDay ? "<th>الساعات</th>" : ""}<th>قراءة الصورة</th><th>البديل</th><th>ملاحظة</th>`;
     $("a-dlist").innerHTML = rowsSorted.map(x =>
-      `<tr data-q="${esc(qNorm([x.name, x.nid, x.code, x.rep?.name, x.rep?.nid, x.rep?.code].filter(Boolean).join(" ")))}"><td>${esc(x.name || "")}</td><td>${esc(x.job || "")}</td><td>${x.s === "P" || x.s === "A" || (stop3 && isQ(x)) ? `<select data-ecode="${esc(Object.keys(d.entries).find(k => d.entries[k] === x))}"${dis}><option value="P" ${x.s === "P" ? "selected" : ""}>حاضر</option><option value="A" ${x.s === "A" ? "selected" : ""}>غايب</option>${stop3 ? `<option value="Q" ${isQ(x) ? "selected" : ""}>توقف</option>` : ""}</select>${TIME_SITES.includes(d.site) ? tmCell(x, dis, Object.keys(d.entries).find(k => d.entries[k] === x)) : ""}` : esc(x.c || "")}</td>${timedDay ? `<td class="a-hrs">${hrsCell(x)}</td>` : ""}<td>${ai[x.ai ?? ""] || ""}${x.by === "sup" ? " <span class='pill p-wait'>المشرف غيّرها</span>" : ""}</td><td>${esc(x.rep?.name || "")}${x.rep && TIME_SITES.includes(d.site) ? repTm(x, dis) : ""}${!x.rep && !x.sub && canEdit && (x.s === "P" || x.s === "A") ? addRepCell(d, x, Object.keys(d.entries).find(k => d.entries[k] === x)) : ""}</td><td>${esc(x.note || "")}</td></tr>`).join("");
+      `<tr data-q="${esc(qNorm([x.name, x.nid, x.code, x.rep?.name, x.rep?.nid, x.rep?.code].filter(Boolean).join(" ")))}"><td>${esc(x.name || "")}</td><td>${esc(x.job || "")}</td><td>${x.s === "P" || x.s === "A" || (stop3 && isQ(x)) ? `<select data-ecode="${esc(Object.keys(d.entries).find(k => d.entries[k] === x))}"${dis}><option value="P" ${x.s === "P" ? "selected" : ""}>حاضر</option><option value="A" ${x.s === "A" ? "selected" : ""}>غايب</option>${stop3 ? `<option value="Q" ${isQ(x) ? "selected" : ""}>توقف</option>` : ""}</select>${TIME_SITES.includes(d.site) ? tmCell(x, dis, Object.keys(d.entries).find(k => d.entries[k] === x)) : ""}` : esc(x.c || "")}</td>${timedDay ? `<td class="a-hrs">${hrsCell(x)}</td>` : ""}<td>${ai[x.ai ?? ""] || ""}${x.by === "sup" ? " <span class='pill p-wait'>المشرف غيّرها</span>" : ""}</td><td>${esc(x.rep?.name || "")}${x.rep && stop3 ? `<div class="a-repst" style="display:${x.s === "A" ? "block" : "none"};margin-top:4px;"><select data-repst${dis}><option value="P">حاضر</option><option value="Q">توقف</option></select></div>` : ""}${x.rep && TIME_SITES.includes(d.site) ? repTm(x, dis) : ""}${!x.rep && !x.sub && canEdit && (x.s === "P" || x.s === "A") ? addRepCell(d, x, Object.keys(d.entries).find(k => d.entries[k] === x)) : ""}</td><td>${esc(x.note || "")}</td></tr>`).join("");
     renderMissed(d, canEdit && stop3);
     $("a-dq").value = ""; filterDay();
     $("a-detail").classList.remove("hidden"); $("a-detail").scrollIntoView({ behavior: "smooth" });
@@ -901,10 +901,15 @@ $("a-dlist").addEventListener("click", e => {
   refreshHrs(b.closest("tr"));
 });
 $("a-dlist").addEventListener("change", e => {
+  if (!e.target.matches("[data-repst]")) return;
+  const rt = e.target.closest("tr").querySelector(".a-rtm:not(.a-nrtm)"); if (rt) rt.style.display = e.target.value === "Q" ? "none" : "flex";
+});
+$("a-dlist").addEventListener("change", e => {
   if (!e.target.matches("[data-ecode]")) return;
   const tm = e.target.closest("td").querySelector(".a-tm"); if (tm) tm.style.display = e.target.value === "P" ? "flex" : "none";
   const rt = e.target.closest("tr").querySelector(".a-rtm:not(.a-nrtm)"); if (rt) rt.style.display = e.target.value === "A" ? "flex" : "none";
   const nr = e.target.closest("tr").querySelector(".a-nrep"); if (nr) nr.style.display = e.target.value === "A" ? "block" : "none";
+  const rs = e.target.closest("tr").querySelector(".a-repst"); if (rs) rs.style.display = e.target.value === "A" ? "block" : "none";
   refreshHrs(e.target.closest("tr"));
 });
 $("a-esave").onclick = async () => {
@@ -939,6 +944,15 @@ $("a-esave").onclick = async () => {
     }
     if (!timed) return;
     const TF = ["in", "out", "min", "dmin", "nmin", "ot", "otd", "otn"];
+    // بديل الراحات قدام الغايب اتحط «توقف» (المصنعين): بيبقى سطر بديل لوحده ق (زي اللي المشرف بيسجله)، والغايب من غير بديل
+    if (e.s === "A" && e.rep && sel.closest("tr").querySelector("[data-repst]")?.value === "Q") {
+      const r = e.rep, rk = "R" + String(r.nid || r.code || "");
+      if (!/^R[A-Za-z0-9]+$/.test(rk) || entries[rk]) { bad.push(r.name + " (البديل متسجل في سطر تاني)"); return; }
+      entries[rk] = { name: r.name || "", nid: r.nid || "", ...(r.code ? { code: r.code } : {}), job: e.job, type: "بديل راحات", sub: true,
+        s: "L", c: "ق", note: "توقف", by: "acc", ai: "", page: e.page || "", ord: (e.ord ?? 1e5) + 0.5 };
+      delete e.rep; e.by = "acc"; n++;
+      return;
+    }
     // بديل الراحات قدام الغايب
     if (e.s === "A" && e.rep) {
       const row = sel.closest("tr");
