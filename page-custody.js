@@ -495,7 +495,9 @@ async function loadLog(site, cycle) {
   snap.forEach(d => { const r = d.data(); if (keys.includes(r.key)) out.push(r); });
   return out;
 }
-$("rep-log").onclick = async () => {
+// الصفحة جت قديمة من الكاش (قبل زرار «سجل العهدة») والسكريبت جديد: بنحمّلها من جديد مرة واحدة بدل ما الصفحة كلها تقف
+if (!$("rep-log")) { try { if (!sessionStorage.getItem("custody-reload")) { sessionStorage.setItem("custody-reload", "1"); location.reload(); } } catch (e) {} }
+else $("rep-log").onclick = async () => {
   hide($("rep-msg")); $("rep-out").innerHTML = `<p class="muted">بيتحمل…</p>`;
   try {
     let noLog = false;
