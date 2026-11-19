@@ -1097,8 +1097,11 @@ function repBlock(w, r, key = w.code) {
     // يمكن يكون عامل أساسي على الكشف (مثلاً كان يومية واتحوّل أساسي، والورقة المطبوعة لسه قديمة) —
     // ده مابيتسجلش بديل، بيتحضر في سطره هو. لو اسمه أقرب للملاحظة من أقرب بديل، بنقول كده بدل ما نقترح بديل غلط
     // (فرع العامرية 15 نوفمبر: «معروف عصام مبروك» اتقترح له «خالد معروف» من البدلاء، و«أحمد حميده موسى» اتقترح له «محمد موسى»)
-    const ownHit = [...S.roster, ...laterRoster()].filter(x => x.code && x.code !== w.code)
-      .map(x => ({ x, sc: nameFlex(r.note, x.name) })).filter(z => z.sc >= 0.6).sort((a, b) => b.sc - a.sc)[0];
+    // بس لو الأساسي ده مش متقري في أي صورة (اسمه مش مطبوع في الورقة القديمة) واسمه قريب جداً من الملاحظة —
+    // غير كده «محمد مشرف محمود» (ثروت متقري غلط) بيطلع «محمد اشرف» اللي حاضر في سطره المطبوع (16 نوفمبر)
+    const inPics = aiStateBase();
+    const ownHit = [...S.roster, ...laterRoster()].filter(x => x.code && x.code !== w.code && !inPics[x.code])
+      .map(x => ({ x, sc: nameFlex(r.note, x.name) })).filter(z => z.sc >= 0.85).sort((a, b) => b.sc - a.sc)[0];
     const own = ownHit && (!pBest || ownHit.sc >= nameFlex(r.note, pBest.name)) ? ownHit.x : null;
     const best = own ? null : pBest;
     const ownSt = own ? ({ P: "حاضر", A: "غايب", L: "إجازة / مرضي", Q: "توقف" }[S.choice[own.code] ?? S.day?.entries?.[own.code]?.s] || "لسه ماتحددتش") : "";
