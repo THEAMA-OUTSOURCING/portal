@@ -680,10 +680,16 @@ function render() {
         // اللي مشي ومكتوب قصاده بديل بخط اليد: البديل ده اشتغل فعلاً — مايتعدّش «مش محتاج حاجة» ويضيع
         // (فرع العامرية 14 نوفمبر: سيف علي أحمد مكتوب قصاد سطر مشطوب، ومااتسجلش لحد ما اتحط بديل مكان غايب بإيد)
         if (!r.note) { goneAbs++; return; }
-        const c = candidates(r.note, null, 1)[0];
+        // أقرب بديل للاسم المكتوب من كل البدلاء (حتى اللي اتختار): لو هو نفسه اتسجل بديل مكان حد غايب، السطر ده خلصان —
+        // بنقول كده بدل ما نقترح أقرب واحد فاضل (فرع العامرية 17 نوفمبر: وليد عبدالفتاح كان اتسجل، والسطر اقترح «محمد زغلول»)
+        const top = (S.pool || []).map(q => ({ q, sc: nameFlex(r.note, q.name) })).filter(z => z.sc >= 0.6).sort((a, b) => b.sc - a.sc)[0]?.q;
+        const usedFor = top ? Object.entries(S.rep).find(([, v]) => (v.nid || v.code) === (top.nid || top.code)) : null;
+        const forName = usedFor ? ([...S.roster, ...(S.rosterNow || [])].find(x => x.code === usedFor[0])?.name || (S.pool || []).find(x => "R" + x.nid === usedFor[0])?.name || "") : "";
         loose.push(`صورة ${fmt(picNo(p))}، صف ${esc(r.n)}: عامل مش على الكشف دلوقتي (غالباً مشي)، ومكتوب قصاده بخط اليد <b>«${esc(r.note)}»</b>`
-          + `<div style="margin-top:3px;color:#8a5a10;">${c ? `ده غالباً <b>${esc(c.name)}</b>${c.code ? ` (${esc(c.code)})` : ""} من البدلاء. ` : ""}`
-          + `اختاره <b>بديل</b> مكان أي عامل غايب من نفس الوظيفة في الكشف فوق (من خانة «لو فيه بديل»)، عشان يتحسب حاضر.</div>`);
+          + (usedFor
+            ? `<div style="margin-top:3px;"><span class="pill p-ok">✓ ${esc(top.name)} اتسجل بديل${forName ? ` مكان ${esc(forName)}` : ""}</span> — مش محتاج حاجة تانية.</div>`
+            : `<div style="margin-top:3px;color:#8a5a10;">${top ? `ده غالباً <b>${esc(top.name)}</b>${top.code ? ` (${esc(top.code)})` : ""} من البدلاء. ` : ""}`
+              + `اختاره <b>بديل</b> مكان أي عامل غايب من نفس الوظيفة في الكشف فوق (من خانة «لو فيه بديل»)، عشان يتحسب حاضر.</div>`));
         return;
       }
       const nid = String(r.nid || "").replace(/\D/g, "");
