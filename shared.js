@@ -302,6 +302,57 @@ export const TIME_SITES = ["مصنع العامرية", "فرع العجمى", "
 // في إضافة العامل (صفحة الحضور) ولا في اختيار النوع عند الـ HR — أساسي أو يومية بس.
 export const REST_SUB_SITES = ["مصنع العامرية", "فرع العجمى", "طنطا مصنع"];
 export const hasRestSubs = site => REST_SUB_SITES.includes(String(site || "").trim());
+// والعكس (قرار محمود 19/11): «يومية» مقفولة في التلات مواقع دول — أساسي أو بديل راحات بس. باقى المواقع أساسي أو يومية.
+export const typeOk = (site, type) => type !== (hasRestSubs(site) ? "يومية" : "بديل راحات");
+export const typeErr = site => hasRestSubs(site) ? "الموقع ده مفيهوش يومية — اختار أساسي أو بديل راحات."
+  : "الموقع ده مفيهوش بدلاء راحات — اختار أساسي أو يومية.";
+// بيشيل النوع المقفول من أي <select> للنوع (بيتشال خالص مش مخفي — موبايلات iPhone بتعرض الاختيار المخفي)
+export function typeSelect(sel, site) {
+  if (!sel) return;
+  sel.dataset.full ??= sel.innerHTML;
+  sel.innerHTML = sel.dataset.full;
+  sel.querySelectorAll("option").forEach(o => { if (o.value && !typeOk(site, o.value)) o.remove(); });
+}
+
+// ===== الوظايف: قايمة ثابتة لكل شركة (قرار محمود 19/11) =====
+// مفيش كتابة حرة للوظيفة لأي حساب (مشرف، إقليمي، محاسب، HR، أدمن) — الاختيار من القايمة دي بس.
+// وظيفة جديدة = تتضاف هنا. القايمة من وظايف العمال الشغالين في السجل يوم 19/11/2026 + وظايف شيت احتياج بيبسي،
+// من غير الغلطات (مخازن تعبئة، عامل مخزن منوف) ومن غير وظايف المشرفين والإقليميين.
+// «سائق شحن امداد» اتلغت (محمود 19/11) — مش في القايمة.
+export const JOBS = {
+  pepsi: ["مساعد بيع", "عامل", "سائق ونش", "عامل تحميل ليلى", "سائق تحميل ليلى", "سائق مشتريات"],
+  chipsy: ["مساعد بيع", "مساعد بيع بالجملة", "مدخل بيانات", "عامل"],
+  emdad: ["مساعد امداد", "منسق ساحة امداد"],
+  sharqia: ["عامل", "فنى مشغل", "مساعد مشغل", "سائق ونش", "سائق ونش مستوى اول", "مدخل بيانات",
+    "مرقاب جودة", "فنى وقاية ادخنة", "فنى توليفات وتجهيزات تجارب", "فنى عينات دخان",
+    "عامل مخزن", "عامل مخزن مالية", "عامل مالية", "عامل مخزن مبيعات",
+    "سائق نقل مبيعات", "سائق ملاكى", "سائق نقل ثقيل", "خدمات معاونة", "مشرف ادارى", "فنى صيانة سيارات"],
+  swvl: ["كابتن سائق سويفل"],
+};
+const CHIPSY_JOB_SITES = ["قطامية", "ابوصير"];
+// الشركة من الموقع (أو الفرع/الشركة لطلبات الإكسيل وشيت الشرقية)
+// الموقع الأول، ولو مش معروف من الموقع: الشركة
+function groupOfText(t) {
+  if (/سويفل|swvl|swivel/i.test(t)) return "swvl";
+  if (/شرقي|sharqia/i.test(t)) return "sharqia";
+  if (/شيبس|chipsy|cfi/i.test(t) || CHIPSY_JOB_SITES.some(s => t.includes(s))) return "chipsy";
+  if (/امداد|emdad/i.test(t)) return "emdad";
+  if (/pepsi|بيبس/i.test(t)) return "pepsi";
+  return "";
+}
+export function jobGroup(site, company) {
+  const s = String(site || "").trim();
+  if (ATT_SITES.includes(s)) return "pepsi";
+  return groupOfText(s) || groupOfText(String(company || "")) || "sharqia";   // أي مكان تاني = قطاع/مكان من الشرقية
+}
+export const jobsFor = (site, company) => JOBS[jobGroup(site, company)];
+export const jobOk = (site, job, company) => jobsFor(site, company).includes(String(job || "").trim());
+// <option> للوظايف — لو القيمة الحالية مش في القايمة (وظيفة قديمة/غلط): «— اختار —» عشان يختار واحدة صح
+export const jobOptions = (site, cur, company) => {
+  const list = jobsFor(site, company), c = String(cur || "").trim();
+  return (list.includes(c) ? "" : `<option value="" selected>— اختار الوظيفة —</option>`)
+    + list.map(j => `<option ${j === c ? "selected" : ""}>${String(j).replace(/[<>&"]/g, "")}</option>`).join("");
+};
 const SHIFT_STARTS = [6, 7, 8, 9, 15, 20, 22].map(h => h * 60);   // نهار 6/7/8/9، عصر 15، ليل 20/22
 // الورديات المعروفة في المواقع الثلاثة (من محمود 8/11/2026):
 // المخازن والعمومية والتعبئة (عمال وونش) في مصنع العامرية وطنطا مصنع: 8→15، 15→22، 22→8
@@ -578,4 +629,4 @@ window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-if (FIRST_COPY) import('./notify.js?v=20261118c').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+if (FIRST_COPY) import('./notify.js?v=20261119f').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));

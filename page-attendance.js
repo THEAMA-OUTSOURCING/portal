@@ -1,9 +1,9 @@
 // page-attendance.js — سكريبت صفحة attendance.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, hasRestSubs, isBasic, nearWorkers, nameParts, ask, tell, compressPage, replacePage, replacedBy } from './shared.js?v=20261118c';
-import { openPrintView, openOrderEditor, printOrder } from './sheet.js?v=20261118c';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261118c';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, hasRestSubs, typeOk, typeErr, typeSelect, jobOk, jobOptions, isBasic, nearWorkers, nameParts, ask, tell, compressPage, replacePage, replacedBy } from './shared.js?v=20261119f';
+import { openPrintView, openOrderEditor, printOrder, secsForJob, secOptions } from './sheet.js?v=20261119f';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261119f';
 
 
 const $ = id => document.getElementById(id);
@@ -1374,7 +1374,7 @@ $("mt-save").addEventListener("click", async () => {
   if (!w) return show($("m-msg"), "err", "اختار العامل من القايمة الأول.");
   const type = $("mt-type").value, from = $("mt-from").value, note = $("mt-note").value.trim();
   if (!type || type === w.typeNow) return show($("m-msg"), "err", "اختار نوع غير نوعه الحالي.");
-  if (type === "بديل راحات" && !hasRestSubs(S.site)) return show($("m-msg"), "err", NO_REST_SUB);
+  if (!typeOk(S.site, type)) return show($("m-msg"), "err", typeErr(S.site));
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) return show($("m-msg"), "err", "اختار التاريخ.");
   if (!await ask(`تبعت طلب تغيير نوع ${w.name} من «${w.typeNow}» لـ «${type}» من ${from}؟\nالنوع مش هيتغير غير بعد ما الـ HR يعتمد الطلب.`, { ok: "ابعت للـ HR" })) return;
   $("mt-save").disabled = true;
@@ -1413,18 +1413,36 @@ function knownWorkers() {
   return [...(S.rosterNow || []), ...(S.roster || []), ...(S.pool || []),
     ...(S.newWorkers || []).map(x => ({ ...x, nid: x.nid || x.id })), ...(ELSE_LIST || [])];
 }
-// «بديل راحات» بيظهر في اختيار النوع في المواقع اللي فيها بدلاء راحات بس (shared.js — REST_SUB_SITES)
-// (بيتشال من القايمة خالص مش مخفي بس — موبايلات iPhone بتعرض الاختيار المخفي)
-function restSubOpt(sel) {
-  sel.dataset.full ??= sel.innerHTML;
-  sel.innerHTML = sel.dataset.full;
-  if (!hasRestSubs(S.site)) sel.querySelector('option[value="بديل راحات"]')?.remove();
+// اختيار النوع حسب الموقع (shared.js — typeSelect): «بديل راحات» في مصنع العامرية وفرع العجمى وطنطا مصنع بس،
+// و«يومية» مقفولة فيهم. الاختيار المقفول بيتشال من القايمة خالص.
+const restSubOpt = sel => typeSelect(sel, S.site);
+const subType = () => hasRestSubs(S.site) ? "بديل راحات" : "يومية";   // النوع الافتراضي للبديل الجديد
+// القسم في المواقع المتقسمة (مصنع العامرية، طنطا مصنع، كفر الدوار، شيبسي…): اختيار من أقسام الوظيفة في «ترتيب الكشف» بس.
+// بيظهر لو الوظيفة ليها أقسام في الموقع، وبيتحفظ في sheet_order/{الموقع}.sections بمفتاح «N+الرقم القومي» (تحديد لأول مرة)
+async function fillSec(p, cur = "") {
+  const secs = secsForJob(await ensureOrder(), $(p + "-job").value);
+  $(p + "-sec").innerHTML = secOptions(secs, cur);
+  $(p + "-sec-wrap").classList.toggle("hidden", !secs.length || (p === "idm" && ID.purpose !== "roster"));
 }
-const NO_REST_SUB = "الموقع ده مفيهوش بدلاء راحات — اختار أساسي أو يومية.";
+// القسم اللي اتختار: "" لو الوظيفة مالهاش أقسام، null لو ليها ومااتختارش
+async function pickedSec(p) {
+  const secs = secsForJob(await ensureOrder(), $(p + "-job").value), v = $(p + "-sec").value;
+  return !secs.length ? "" : secs.includes(v) ? v : null;
+}
+async function saveNewSec(nid, sec) {
+  if (!sec) return true;
+  const u = auth.currentUser;
+  try {
+    await updateDoc(doc(db, "sheet_order", S.site), { ["sections.N" + nid]: sec, updated_by: u.uid, updated_email: actorEmail(u), updated_at: serverTimestamp() });
+    SORD.site = null; return true;
+  } catch (e) { return false; }
+}
+$("nc-job").addEventListener("change", () => fillSec("nc"));
+$("idm-job").addEventListener("change", () => fillSec("idm"));
 function openNc() {
   restSubOpt($("nc-type"));
-  const jobs = [...new Set([...S.rosterNow.map(x => x.job), ...Object.keys(planNow())].filter(Boolean))];
-  $("nc-job").innerHTML = jobs.map(j => `<option>${esc(j)}</option>`).join("");
+  $("nc-job").innerHTML = jobOptions(S.site, "");   // قايمة الوظايف الثابتة (shared.js — JOBS)، مفيش كتابة حرة
+  fillSec("nc");
   ["nc-name", "nc-nid", "nc-phone"].forEach(id => $(id).value = ""); $("nc-type").value = "";
   hide($("nc-msg")); $("ncm").classList.remove("hidden"); $("nc-name").focus();
 }
@@ -1434,9 +1452,11 @@ $("nc-ok").addEventListener("click", async () => {
   const phone = cleanPhone($("nc-phone").value);
   const bad = typedProblem(name, nid, phone);
   if (bad) return show($("nc-msg"), "err", bad);
-  if (!job) return show($("nc-msg"), "err", "اختار الوظيفة.");
+  if (!jobOk(S.site, job)) return show($("nc-msg"), "err", "اختار الوظيفة من القايمة.");
+  const sec = await pickedSec("nc");
+  if (sec === null) return show($("nc-msg"), "err", "اختار القسم.");
   if (!typ) return show($("nc-msg"), "err", "اختار نوع العامل.");
-  if (typ === "بديل راحات" && !hasRestSubs(S.site)) return show($("nc-msg"), "err", NO_REST_SUB);
+  if (!typeOk(S.site, typ)) return show($("nc-msg"), "err", typeErr(S.site));
   if (S.rosterNow.some(x => x.nid === nid)) return show($("nc-msg"), "err", "العامل ده موجود في الكشف أصلاً.");
   if (S.pool.some(x => x.nid === nid)) return show($("nc-msg"), "err", "العامل ده موجود في قايمة البدلاء أصلاً.");
   const near = nearWorkers(nid, name, knownWorkers());
@@ -1450,8 +1470,10 @@ $("nc-ok").addEventListener("click", async () => {
       no_card: true, first_day, event_id: evRef.id, added_by: u.uid, added_email: actorEmail(u), at: serverTimestamp() });
     bt.set(evRef, hireEvent(u, { name, nid, phone, job, type: typ, first_day }));
     await bt.commit();
+    const secSaved = await saveNewSec(nid, sec);
     $("ncm").classList.add("hidden");
-    show($("m-msg"), "ok", `${name} اتبعت للـ HR يعتمده، وهيظهر ${toRoster ? "على الكشف" : "في قايمة البدلاء"} بكود مؤقت لحد ما ياخد كود.`);
+    show($("m-msg"), secSaved ? "ok" : "warn", `${name} اتبعت للـ HR يعتمده، وهيظهر ${toRoster ? "على الكشف" : "في قايمة البدلاء"} بكود مؤقت لحد ما ياخد كود.`
+      + (secSaved ? "" : ` بس القسم (${sec}) ماتحفظش — حدده من «ترتيب الكشف».`));
   } catch (err) {
     show($("nc-msg"), "err", err.code === "permission-denied" ? "مااتضافش: يا إما العامل ده متسجل قبل كده، يا إما ممنوع تشغيله في تيما (البلاك ليست)." : err.message);
   }
@@ -1531,15 +1553,14 @@ function openId(purpose, target) {
     : (purpose === "roster" ? "اكتب بيانات العامل وصوّر بطاقته وش وضهر."
     : `بديل لـ ${w?.name || ""}. اكتب بياناته وصوّر بطاقته، وبعدها هيفضل في قايمة البدلاء.`)
     + " اللي هتكتبه لازم يطابق البطاقة، والطلب بيروح للـ HR يعتمده.";
-  const jobs = [...new Set(S.rosterNow.map(x => x.job).filter(Boolean))];
-  $("idm-job").innerHTML = jobs.map(j => `<option>${esc(j)}</option>`).join("");
-  if (w) $("idm-job").value = w.job;
+  $("idm-job").innerHTML = jobOptions(S.site, w?.job || "");   // قايمة الوظايف الثابتة (shared.js — JOBS)
   $("idm-job-wrap").classList.toggle("hidden", purpose !== "roster");
+  $("idm-sec-wrap").classList.add("hidden"); fillSec("idm");   // البديل الجديد بياخد قسم الغايب (تحت)
   $("idm-type-wrap").classList.toggle("hidden", purpose === "complete");
   // النوع للاتنين: البديل الجديد يومية أو بديل راحات بس
   restSubOpt($("idm-type"));   // الأول: بيرجّع القايمة من الأول، وبعدين الأساسي يتقفل للبديل
   $("idm-type").querySelector('option[value="اساسي"]').disabled = purpose !== "roster";
-  $("idm-type").value = purpose === "roster" ? "" : "يومية";
+  $("idm-type").value = purpose === "roster" ? "" : subType();
   ["idm-in-name", "idm-in-nid", "idm-in-phone"].forEach(id => $(id).value = ""); ID.typed = null;
   if (purpose === "complete" && RT.ev) { $("idm-in-name").value = RT.ev.name || ""; $("idm-in-nid").value = RT.ev.nid || ""; $("idm-in-phone").value = RT.ev.phone || ""; }
   $("idm-ok").textContent = purpose === "complete" ? "ابعت للـ HR" : "تأكيد الإضافة";
@@ -1608,7 +1629,10 @@ $("idm-ok").addEventListener("click", async () => {
   // النوع: أساسي بيدخل الكشف، بديل راحات/يومية بيروحوا قايمة البدلاء (السيرفر بيقسّمهم بالنوع)
   const typ = $("idm-type").value;
   if (!typ) return show($("idm-msg"), "err", "اختار نوع العامل الأول.");
-  if (typ === "بديل راحات" && !hasRestSubs(S.site)) return show($("idm-msg"), "err", NO_REST_SUB);
+  if (!typeOk(S.site, typ)) return show($("idm-msg"), "err", typeErr(S.site));
+  if (ID.purpose === "roster" && !jobOk(S.site, $("idm-job").value)) return show($("idm-msg"), "err", "اختار الوظيفة من القايمة.");
+  const newSec = ID.purpose === "roster" ? await pickedSec("idm") : "";
+  if (newSec === null) return show($("idm-msg"), "err", "اختار القسم.");
   const toRoster = typ === "اساسي";
   const inRoster = S.rosterNow.find(x => x.nid === d.nid), inPool = S.pool.find(x => x.nid === d.nid);
   const u = auth.currentUser;
@@ -1657,6 +1681,7 @@ $("idm-ok").addEventListener("click", async () => {
       bt.set(evRef, hireEvent(u, { name: d.name, nid: d.nid, phone, job, type: typ,
         first_day: S.date, check_id: ID.check, card_img: await cardThumb(ID.front) }));
       await bt.commit();
+      if (newSec && !await saveNewSec(d.nid, newSec)) tell(`${d.name} اتضاف، بس القسم (${newSec}) ماتحفظش — حدده من «ترتيب الكشف».`);
       // بديل جديد: بياخد قسم الغايب اللى جه مكانه (تحديد لأول مرة)
       if (ID.purpose === "replacement" && ID.target) {
         try {

@@ -371,14 +371,14 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
         <h2 id="w-title"></h2>
         <div class="grid-form">
           <label>النوع<select id="w-type"><option value="اساسي">أساسي</option><option value="بديل راحات">بديل راحات</option><option value="يومية">يومية</option><option value="مشي">مشي</option></select></label>
-          <label>الوظيفة<input type="text" id="w-job" list="w-jobs"></label>
+          <label>الوظيفة<select id="w-job"></select></label>
+          <label id="w-sec-wrap" class="hidden">القسم<select id="w-sec"></select></label>
           <label>الموقع<select id="w-site2"></select></label>
           <label>ساري من<input type="date" id="w-from"></label>
           <label id="w-reason-wrap" class="hidden">سبب الخروج<select id="w-reason"><option>استقالة</option><option>انقطاع</option><option>نقل لموقع تاني</option><option>فصل</option><option>أخرى</option></select></label>
           <label class="wide">ملاحظة (اختياري)<input type="text" id="w-note"></label>
           <div class="row"><button class="btn" id="w-save">ابعت التعديل</button><button class="btn sec" id="w-cancel">إلغاء</button></div>
         </div>
-        <datalist id="w-jobs"></datalist>
         <div class="msg" id="w-msg"></div>
       </div>
     </section>
@@ -454,6 +454,6 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
   </div>
 </div>
 
-<script type="module" src="page-plan.js?v=20261118c"></script>
+<script type="module" src="page-plan.js?v=20261119f"></script>
 </body>
 </html>

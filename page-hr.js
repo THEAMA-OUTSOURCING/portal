@@ -1,7 +1,8 @@
 // page-hr.js — سكريبت صفحة hr.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask, hasRestSubs } from './shared.js?v=20261118c';
+import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask, typeOk, typeErr, jobsFor } from './shared.js?v=20261119f';
+import { secsForJob, secOptions } from './sheet.js?v=20261119f';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
@@ -779,9 +780,28 @@ const WQ_RET = { fiche: "الفيش ناقص", card: "صورة البطاقة م
 // الرفض نهائي: للحالات اللي مش هتتقبل خالص
 const WQ_REJ = ["موجود فعلاً / مكرر", "بلاك ليست", "مش مطابق للشروط", "العميل رفض", "البيانات غلط", "أخرى"];
 const WQ_TYPES = ["اساسي", "يومية", "بديل راحات"];
-// «بديل راحات» في المواقع اللي فيها بدلاء راحات بس (مصنع العامرية، فرع العجمى، طنطا مصنع — shared.js)
-const wqTypes = e => hasRestSubs(e.branch || e.site) ? WQ_TYPES : WQ_TYPES.filter(t => t !== "بديل راحات");
+// «بديل راحات» في مصنع العامرية وفرع العجمى وطنطا مصنع بس، و«يومية» مقفولة فيهم (shared.js — typeOk)
+const wqSite = e => e.branch || e.site;
+const wqTypes = e => WQ_TYPES.filter(t => typeOk(wqSite(e), t));
+// الوظيفة اختيار من القايمة الثابتة بس (shared.js — JOBS) — مفيش كتابة حرة
+const wqJobs = e => jobsFor(wqSite(e), e.company);
 const WQ_FIELD = { type: "النوع", job: "الوظيفة", site: "الموقع" };
+// القسم (المواقع المتقسمة): اختيار من أقسام الوظيفة في «ترتيب الكشف» (sheet_order/{الموقع}) — مفتاح العامل الجديد «N+الرقم القومي»
+const WQ_ORD = {};
+function wqOrd(site) {
+  if (!site || site in WQ_ORD) return;
+  WQ_ORD[site] = undefined;
+  getDoc(doc(db, "sheet_order", site)).then(d => { WQ_ORD[site] = d.exists() ? d.data() : null; }, () => { WQ_ORD[site] = null; }).then(wqRender);
+}
+const wqSecNow = e => WQ_ORD[wqSite(e)]?.sections?.["N" + e.nid] || "";
+const wqSecs = (e, job) => secsForJob(WQ_ORD[wqSite(e)], job ?? e.job);
+// الوظيفة اتغيرت في الكارت: أقسام الوظيفة الجديدة
+function wqSecRefresh(card) {
+  const sel = card?.querySelector("[data-wsec]"), e = WQ.open.get(card?.dataset.wq || ""); if (!sel || !e) return;
+  const job = card.querySelector('[data-wf="job"]')?.value ?? e.job, secs = wqSecs(e, job);
+  sel.innerHTML = secOptions(secs, secs.includes(sel.value) ? sel.value : wqSecNow(e));
+  sel.closest(".wq-secf")?.classList.toggle("hidden", !secs.length);
+}
 const WQ_REASONS = ["استقالة", "انقطاع", "نقل لموقع تاني", "فصل", "أخرى"];
 function wqQ(...w) {
   const c = collection(db, "worker_events");
@@ -821,8 +841,12 @@ function wqFields(e, edit) {
     out.push(edit ? ed("الاسم", wqInp("name", e.name)) : ro("الاسم", e.name));
     out.push(edit ? ed("الرقم القومي", wqInp("nid", e.nid, 'dir="ltr" maxlength="14" inputmode="numeric"')) : ro("الرقم القومي", e.nid));
     out.push(edit ? ed("التليفون", wqInp("phone", e.phone, 'dir="ltr" maxlength="11" inputmode="numeric"')) : ro("التليفون", e.phone));
-    out.push(edit ? ed("الوظيفة", wqInp("job", e.job)) : ro("الوظيفة", e.job));
+    out.push(edit ? ed("الوظيفة", wqSel("job", e.job, wqJobs(e))) : ro("الوظيفة", e.job));
     out.push(edit ? ed("النوع", wqSel("type", e.type, wqTypes(e))) : ro("النوع", e.type));
+    wqOrd(wqSite(e));
+    const secs = wqSecs(e), secNow = wqSecNow(e);
+    if (edit) out.push(`<span class="muted wq-secf${secs.length ? "" : " hidden"}">القسم</span><span class="wq-secf${secs.length ? "" : " hidden"}"><select data-wsec>${secOptions(secs, secNow)}</select></span>`);
+    else if (secNow) out.push(ro("القسم", secNow));
     out.push(edit ? ed("أول يوم", wqInp("first_day", e.first_day, 'type="date"')) : ro("أول يوم", e.first_day));
     if (e.branch === "الشرقية للدخان") out.push(edit ? ed("القطاع / المكان", wqInp("site", e.site)) : ro("القطاع / المكان", e.site));
     if (e.portal_code) out.push(ro("كود البوابة", e.portal_code));
@@ -835,7 +859,7 @@ function wqFields(e, edit) {
     out.push(ro("الكود", e.code));
     for (const [k, v] of Object.entries(e.to || {})) {
       const was = (e.from || {})[k] ?? "";
-      out.push(edit && k !== "site" ? ed(WQ_FIELD[k] || k, k === "type" ? wqSel("to." + k, v, wqTypes(e)) : wqInp("to." + k, v))
+      out.push(edit && k !== "site" ? ed(WQ_FIELD[k] || k, k === "type" ? wqSel("to." + k, v, wqTypes(e)) : k === "job" ? wqSel("to." + k, v, wqJobs(e)) : wqInp("to." + k, v))
         : ro(WQ_FIELD[k] || k, (was ? was + " ← " : "") + v));
     }
     out.push(edit ? ed("من تاريخ", wqInp("effective", e.effective, 'type="date"')) : ro("من تاريخ", e.effective));
@@ -901,10 +925,13 @@ function wqRender() {
   // قايمة أسامى تحت بعض — دوس على الاسم يفتح الكارت تحته.
   // اللي اتكتب في الكارت المفتوح بيفضل لو القايمة اتحدّثت (طلب تاني اتغير)
   const keep = {};
-  document.querySelectorAll("#wq-list .wq-open [data-wf], #wq-list .wq-open [data-wqwhy], #wq-list .wq-open [data-wqr]").forEach(el => keep[el.dataset.wf || ("wqr" in el.dataset ? "_r" : "_why")] = el.value);
+  const kk = el => el.dataset.wf || ("wsec" in el.dataset ? "_sec" : "wqr" in el.dataset ? "_r" : "_why");
+  document.querySelectorAll("#wq-list .wq-open [data-wf], #wq-list .wq-open [data-wqwhy], #wq-list .wq-open [data-wqr], #wq-list .wq-open [data-wsec]").forEach(el => keep[kk(el)] = el.value);
   $("wq-list").innerHTML = rows.length ? rows.slice(0, 300).map(e => wqRow(e) + (WQ.sel === e.id ? `<div class="wq-open">${wqCard(e)}</div>` : "")).join("")
     : `<p class="muted">${WQ.view === "open" ? "مفيش طلبات مستنية." : WQ.view === "returned" ? "مفيش طلبات مرتجعة للمشرفين." : "مفيش."}</p>`;
-  document.querySelectorAll("#wq-list .wq-open [data-wf], #wq-list .wq-open [data-wqwhy], #wq-list .wq-open [data-wqr]").forEach(el => { const k = el.dataset.wf || ("wqr" in el.dataset ? "_r" : "_why"); if (k in keep) el.value = keep[k]; });
+  document.querySelectorAll("#wq-list .wq-open [data-wf], #wq-list .wq-open [data-wqwhy], #wq-list .wq-open [data-wqr]").forEach(el => { const k = kk(el); if (k in keep) el.value = keep[k]; });
+  const oc = document.querySelector("#wq-list .wq-open [data-wq]");
+  if (oc) { wqSecRefresh(oc); const ss = oc.querySelector("[data-wsec]"); if (ss && "_sec" in keep && [...ss.options].some(o => o.value === keep._sec)) ss.value = keep._sec; }
 }
 // البيانات اللي الـ HR عدّلها في الكارت (اللي اتغير بس)
 function wqEdits(card, e) {
@@ -922,14 +949,18 @@ function wqCheck(e, upd) {
     if (nameParts(x.name) < 4) return "الاسم لازم يكون رباعي على الأقل.";
     if (!/^[23][0-9]{13}$/.test(x.nid || "")) return "الرقم القومي لازم 14 رقم.";
     if (!/^01[0125][0-9]{8}$/.test(x.phone || "")) return "التليفون لازم 11 رقم ويبدأ بـ 01.";
-    if (!x.job) return "اكتب الوظيفة.";
-    if (!wqTypes(x).includes(x.type)) return hasRestSubs(x.branch || x.site) ? "اختار النوع (أساسي / يومية / بديل راحات)."
-      : "اختار النوع (أساسي / يومية) — الموقع ده مفيهوش بدلاء راحات.";
+    if (!wqJobs(x).includes(x.job)) return "اختار الوظيفة من القايمة.";
+    if (!wqTypes(x).includes(x.type)) return x.type ? typeErr(wqSite(x)) : "اختار النوع.";
+  }
+  if (x.kind === "change") {
+    if (x.to?.job !== undefined && !wqJobs(x).includes(x.to.job)) return "اختار الوظيفة الجديدة من القايمة.";
+    if (x.to?.type && x.to.type !== "مشي" && !typeOk(wqSite(x), x.to.type)) return typeErr(wqSite(x));
   }
   return "";
 }
 $("wq-st").onchange = () => { WQ.view = $("wq-st").value; wqLoadHist(); };
 $("wq-kind").onchange = wqRender; $("wq-q").oninput = wqRender;
+$("wq-list").addEventListener("change", ev => { if (ev.target.matches('[data-wf="job"]')) wqSecRefresh(ev.target.closest("[data-wq]")); });
 $("wq-list").onclick = async ev => {
   const o = ev.target.closest("[data-wqopen]");
   if (o) { WQ.sel = WQ.sel === o.dataset.wqopen ? null : o.dataset.wqopen; return wqRender(); }
@@ -942,7 +973,7 @@ $("wq-list").onclick = async ev => {
   const card = ev.target.closest("[data-wq]"), upd = wqEdits(card, e), u = auth.currentUser;
   const meta = { decided_by: u.uid, decided_email: actorEmail(u), decided_at: serverTimestamp() };
   if (Object.keys(upd).length) upd.hr_edited = true;
-  let data;
+  let data, secPick = "";
   if (ds.wqno || ds.wqret) {
     const r = card.querySelector("[data-wqr]").value, note = card.querySelector("[data-wqwhy]").value.trim();
     const isRet = !!ds.wqret;
@@ -960,15 +991,28 @@ $("wq-list").onclick = async ev => {
     }
   } else {
     const bad = wqCheck(e, upd); if (bad) return show($("wq-msg"), "err", bad);
-    if (ds.wqsave) { if (!Object.keys(upd).length) return show($("wq-msg"), "info", "مفيش تعديل."); data = { ...upd, status: "pending" }; }
+    if (e.kind === "hire") {   // القسم: لازم يتختار لو الوظيفة ليها أقسام في الموقع
+      const secs = wqSecs(e, upd.job ?? e.job), v = card.querySelector("[data-wsec]")?.value || "";
+      if (secs.length && !secs.includes(v)) return show($("wq-msg"), "err", "اختار القسم.");
+      secPick = secs.length && v !== wqSecNow(e) ? v : "";
+    }
+    if (ds.wqsave) { if (!Object.keys(upd).length && !secPick) return show($("wq-msg"), "info", "مفيش تعديل."); data = Object.keys(upd).length ? { ...upd, status: "pending" } : null; }
     else data = { ...upd, status: "approved", ...meta };
   }
   ev.target.disabled = true;
   try {
-    await updateDoc(doc(db, "worker_events", id), data);
+    if (data) await updateDoc(doc(db, "worker_events", id), data);
+    let secErr = "";
+    if (secPick) {
+      try {
+        await updateDoc(doc(db, "sheet_order", wqSite(e)), { ["sections.N" + e.nid]: secPick, updated_by: u.uid, updated_email: actorEmail(u), updated_at: serverTimestamp() });
+        WQ_ORD[wqSite(e)] = { ...(WQ_ORD[wqSite(e)] || {}), sections: { ...(WQ_ORD[wqSite(e)]?.sections || {}), ["N" + e.nid]: secPick } };
+      } catch (er) { secErr = ` — بس القسم (${secPick}) ماتحفظش: حدده من «ترتيب الكشف».`; }
+    }
     if (!ds.wqsave) { WQ.sel = null; wqRender(); }
     show($("wq-msg"), "ok", ds.wqno ? "اترفض — المشرف هيشوف السبب." : ds.wqret ? "تم رده للمشرف — هيوصله إشعار بالناقص، والطلب هيرجعلك «مستني» أول ما يستكمل."
       : ds.wqsave ? "اتحفظ التعديل."
       : e.kind === "hire" ? "تم الاعتماد — الكود هيطلع خلال ثواني (هيظهر في «اتنفذ» وفي «بيانات العمال ← أكواد جديدة»)." : "تم الاعتماد — هيتسجل في السجل خلال ثواني.");
+    if (secErr) show($("wq-msg"), "warn", $("wq-msg").textContent + secErr);
   } catch (err) { ev.target.disabled = false; show($("wq-msg"), "err", "ماتحفظش: " + (err.code === "permission-denied" ? "مش مسموح (يمكن الطلب مش من فروعك، أو اتعدل من حد تاني)." : err.message)); }
 };

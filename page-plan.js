@@ -1,10 +1,10 @@
 // page-plan.js — سكريبت صفحة plan.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead } from './shared.js?v=20261118c';
-import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261118c';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261118c';
-import { keyOf, splitJob } from './sheet.js?v=20261118c';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions } from './shared.js?v=20261119f';
+import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261119f';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261119f';
+import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261119f';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====
@@ -895,7 +895,6 @@ async function initWorkers() {
   const snaps = await Promise.all(W_SITES.map(s => getDoc(doc(db, "rosters_base", s)).catch(() => null)));
   WS.base = [];
   snaps.forEach((sn, i) => { if (sn?.exists()) (sn.data().workers || []).forEach(w => WS.base.push({ ...w, site: W_SITES[i] })); });
-  $("w-jobs").innerHTML = [...new Set(WS.base.map(w => w.job).filter(Boolean))].sort().map(j => `<option value="${esc(j)}">`).join("");
   onSnapshot(bySites("roster_overrides"), snap => {
     WS.ovr = {}; snap.forEach(d => WS.ovr[d.id] = d.data());
     renderWorkers(); renderOverrides();
@@ -1240,14 +1239,39 @@ $("w-list")?.addEventListener("click", e => {
   const w = current(WS.base.find(x => x.code === code));
   WS.edit = WS.base.find(x => x.code === code);
   $("w-title").textContent = `${w.name} — ${w.code}`;
-  $("w-type").value = ["اساسي", "بديل راحات", "يومية", "مشي"].includes(w.type) ? w.type : "يومية";
-  $("w-job").value = w.job || ""; $("w-site2").value = w.site; $("w-note").value = WS.ovr[code]?.note || "";
+  $("w-site2").value = w.site; wFormSite(w.type, w.job || "");
+  $("w-note").value = WS.ovr[code]?.note || "";
   $("w-from").value = today();
   $("w-reason-wrap").classList.toggle("hidden", $("w-type").value !== "مشي");
   hide($("w-msg")); $("w-form").classList.remove("hidden"); $("w-form").scrollIntoView({ behavior: "smooth", block: "center" });
 });
+// النوع والوظيفة حسب الموقع: النوع المقفول بيتشال (shared.js — typeSelect)، والوظيفة اختيار من القايمة الثابتة بس
+function wFormSite(type, job) {
+  const site = $("w-site2").value;
+  typeSelect($("w-type"), site);
+  $("w-type").value = [...$("w-type").options].some(o => o.value === type) ? type : "";
+  $("w-job").innerHTML = jobOptions(site, job);
+  $("w-reason-wrap").classList.toggle("hidden", $("w-type").value !== "مشي");
+  wFillSec();
+}
+// القسم (المواقع المتقسمة): اختيار من أقسام الوظيفة في «ترتيب الكشف» (sheet_order/{الموقع}.sections بكود العامل).
+// تغيير القسم بيمشي على طول (الكشف المطبوع بس، مش محتاج HR). غير الأدمن: من يوم 1 ليوم 5 في الشهر، أو لو العامل لسه مالوش قسم
+const W_ORD = {};
+const wOrd = async site => { if (!(site in W_ORD)) { try { const d = await getDoc(doc(db, "sheet_order", site)); W_ORD[site] = d.exists() ? d.data() : null; } catch (e) { W_ORD[site] = null; } } return W_ORD[site]; };
+const wSecOf = (o, w) => w ? (o?.sections?.[keyOf(w)] || (w.nid ? o?.sections?.["N" + w.nid] : "") || "") : "";
+async function wFillSec() {
+  const site = $("w-site2").value, o = await wOrd(site), w = WS.edit;
+  const secs = $("w-type").value === "مشي" ? [] : secsForJob(o, $("w-job").value), cur = wSecOf(o, w);
+  const keep = $("w-sec").value;
+  $("w-sec").innerHTML = secOptions(secs, secs.includes(keep) ? keep : cur);
+  $("w-sec").disabled = !!cur && S.role !== "admin" && new Date().getDate() > 5;
+  $("w-sec").title = $("w-sec").disabled ? "القسم بيتغير من يوم 1 ليوم 5 في الشهر بس — بعد كده الأدمن بس" : "";
+  $("w-sec-wrap").classList.toggle("hidden", !secs.length);
+}
+$("w-site2")?.addEventListener("change", () => wFormSite($("w-type").value, $("w-job").value));
+$("w-job")?.addEventListener("change", wFillSec);
 $("w-cancel")?.addEventListener("click", () => $("w-form").classList.add("hidden"));
-$("w-type")?.addEventListener("change", () => $("w-reason-wrap").classList.toggle("hidden", $("w-type").value !== "مشي"));
+$("w-type")?.addEventListener("change", () => { $("w-reason-wrap").classList.toggle("hidden", $("w-type").value !== "مشي"); wFillSec(); });
 function ovrDoc(w, type, job, site, from, note) {
   const u = auth.currentUser;
   return { code: w.code, name: w.name || "", nid: w.nid || "", site: type === "مشي" ? (w.site || "") : site, job: job || w.job || "", type,
@@ -1256,14 +1280,28 @@ function ovrDoc(w, type, job, site, from, note) {
 $("w-save")?.addEventListener("click", async () => {
   const w = WS.edit; if (!w) return;
   const type = $("w-type").value, job = $("w-job").value.trim(), site = $("w-site2").value;
-  if (!job && type !== "مشي") return show($("w-msg"), "err", "اكتب الوظيفة.");
+  if (!type) return show($("w-msg"), "err", "اختار النوع.");
+  if (type !== "مشي" && !typeOk(site, type)) return show($("w-msg"), "err", typeErr(site));
+  if (type !== "مشي" && !jobOk(site, job)) return show($("w-msg"), "err", "اختار الوظيفة من القايمة.");
+  const o = await wOrd(site), secs = type === "مشي" ? [] : secsForJob(o, job), sec = $("w-sec").value, secNow = wSecOf(o, w);
+  if (secs.length && !secs.includes(sec)) return show($("w-msg"), "err", "اختار القسم.");
+  const secNew = secs.length && sec !== secNow ? sec : "";
   if (sharqiaBad(w, type, site)) return show($("w-msg"), "err", "الشرقية للدخان: تقدر تغيّر الوظيفة أو تسجّل «مشي» بس — النوع والموقع مايتغيروش.");
-  if (type === w.type && job === w.job && site === w.site) return show($("w-msg"), "info", "مفيش تغيير.");
+  if (type === w.type && job === w.job && site === w.site && !secNew) return show($("w-msg"), "info", "مفيش تغيير.");
   if (!$("w-from").value) return show($("w-msg"), "err", "اختار التاريخ.");
   $("w-save").disabled = true;
   try {
-    const n = await sendForce([[doc(collection(db, "worker_events")), changeEv(w, type, job, site, $("w-from").value, $("w-note").value.trim(), $("w-reason").value)]]);
-    show($("w-msg"), "ok", n ? "اتعتمد — السجل والكشف هيتحدّثوا خلال ثواني." : "اتبعت للـ HR يعتمده (في «اعتماد الحالات ← طلبات القوة»).");
+    const force = !(type === w.type && job === w.job && site === w.site);
+    const n = force ? await sendForce([[doc(collection(db, "worker_events")), changeEv(w, type, job, site, $("w-from").value, $("w-note").value.trim(), $("w-reason").value)]]) : 0;
+    let secMsg = "";
+    if (secNew) {   // القسم: على طول في «ترتيب الكشف» (مش طلب قوة)
+      const u = auth.currentUser;
+      try {
+        await updateDoc(doc(db, "sheet_order", site), { ["sections." + keyOf(w)]: secNew, updated_by: u.uid, updated_email: actorEmail(u), updated_at: serverTimestamp() });
+        delete W_ORD[site]; secMsg = ` القسم بقى «${secNew}».`;
+      } catch (er) { secMsg = ` بس القسم ماتحفظش (${er.code === "permission-denied" ? "مش مسموح للحساب ده" : er.message}) — حدده من «ترتيب الكشف».`; }
+    }
+    show($("w-msg"), secMsg.includes("ماتحفظش") ? "warn" : "ok", (!force ? "تم." : n ? "تم الاعتماد — السجل والكشف هيتحدّثوا خلال ثواني." : "اتبعت للـ HR يعتمده (في «اعتماد الحالات ← طلبات القوة»).") + secMsg);
     setTimeout(() => $("w-form").classList.add("hidden"), 1500);
   } catch (err) { show($("w-msg"), "err", "ماتحفظش: " + (err.code === "permission-denied" ? "مش مسموح للحساب ده." : err.message)); }
   $("w-save").disabled = false;
@@ -1309,7 +1347,8 @@ $("w-file")?.addEventListener("change", async e => {
         const tIn = col(r, "النوع", "نوع الوظيفة"), nt = TYPE_IN[arNorm(tIn)] || TYPE_IN[tIn], site = col(r, "الموقع"), job = col(r, "الوظيفة");
         if (!["اساسي", "يومية"].includes(nt)) { problems.push(`سطر ${i + 2}: النوع لازم أساسي أو يومية`); return; }
         if (!W_SITES.includes(site) || leaveOnly(site)) { problems.push(`سطر ${i + 2}: الموقع "${site}" مش من مواقع الحضور`); return; }
-        if (!job) { problems.push(`سطر ${i + 2}: الوظيفة ناقصة`); return; }
+        if (!typeOk(site, nt)) { problems.push(`سطر ${i + 2}: ${typeErr(site)}`); return; }
+        if (!jobOk(site, job)) { problems.push(`سطر ${i + 2}: الوظيفة "${job}" مش من قايمة الوظايف`); return; }
         WS.pendingNew.push({ nid, name, site, job, type: nt, phone });
         return;
       }
@@ -1320,6 +1359,8 @@ $("w-file")?.addEventListener("change", async e => {
       const job = col(r, "الوظيفة") || cur.job, site = col(r, "الموقع") || cur.site;
       if (type !== "مشي" && !W_SITES.includes(site)) { problems.push(`سطر ${i + 2}: الموقع "${site}" مش من مواقع الحضور`); return; }
       if (sharqiaBad(cur, type, site)) { problems.push(`سطر ${i + 2}: الشرقية للدخان — مسموح تغيير الوظيفة أو «مشي» بس`); return; }
+      if (type !== "مشي" && type !== cur.type && !typeOk(site, type)) { problems.push(`سطر ${i + 2}: ${typeErr(site)}`); return; }
+      if (type !== "مشي" && (job !== cur.job || site !== cur.site) && !jobOk(site, job)) { problems.push(`سطر ${i + 2}: الوظيفة "${job}" مش من قايمة الوظايف`); return; }
       if (type === cur.type && job === cur.job && site === cur.site) { same++; return; }
       WS.pending.push({ w, cur, type, job, site, from: col(r, "ساري من") || today(), note: col(r, "ملاحظة") });
     });
@@ -1353,7 +1394,7 @@ $("w-apply")?.addEventListener("click", async () => {
     }
     const evs = WS.pending.map(p => [doc(collection(db, "worker_events")), changeEv(p.cur, p.type, p.job, p.site, p.from, p.note, "أخرى")]);
     const nOk = await sendForce(evs);
-    show($("w-up-msg"), "ok", `اتبعت ${fmt(WS.pending.length)} تعديل و${fmt(WS.pendingNew.length)} عامل جديد للـ HR` + (nOk ? ` — منهم ${fmt(nOk)} تعديل اتعتمد على طول.` : ".")
+    show($("w-up-msg"), "ok", `اتبعت ${fmt(WS.pending.length)} تعديل و${fmt(WS.pendingNew.length)} عامل جديد للـ HR` + (nOk ? ` — منهم ${fmt(nOk)} تعديل تم اعتماده على طول.` : ".")
       + " الجداد بيظهروا في «اعتماد الحالات ← طلبات القوة».");
     WS.pending = []; WS.pendingNew = []; $("w-preview").classList.add("hidden"); $("w-file").value = "";
   } catch (err) { show($("w-up-msg"), "err", "ماتحفظش: " + err.message); }
