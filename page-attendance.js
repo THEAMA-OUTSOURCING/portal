@@ -1093,14 +1093,17 @@ function repBlock(w, r, key = w.code) {
   if (ro) return "";
   let sug = "";
   if (r?.note) {
-    const best = candidates(r.note, key, 1)[0];
-    // مش في البدلاء: يمكن يكون عامل أساسي على الكشف (مثلاً كان يومية واتحوّل أساسي، والورقة المطبوعة لسه قديمة) —
-    // ده مابيتسجلش بديل، بيتحضر في سطره هو. بنقول كده بدل «مش لاقيه» عشان المشرف مايدوّرش عليه في البدلاء.
-    const own = best ? null : [...S.roster, ...laterRoster()].filter(x => x.code && x.code !== w.code)
-      .map(x => ({ x, sc: nameFlex(r.note, x.name) })).filter(z => z.sc >= 0.6).sort((a, b) => b.sc - a.sc)[0]?.x;
+    const pBest = candidates(r.note, key, 1)[0];
+    // يمكن يكون عامل أساسي على الكشف (مثلاً كان يومية واتحوّل أساسي، والورقة المطبوعة لسه قديمة) —
+    // ده مابيتسجلش بديل، بيتحضر في سطره هو. لو اسمه أقرب للملاحظة من أقرب بديل، بنقول كده بدل ما نقترح بديل غلط
+    // (فرع العامرية 15 نوفمبر: «معروف عصام مبروك» اتقترح له «خالد معروف» من البدلاء، و«أحمد حميده موسى» اتقترح له «محمد موسى»)
+    const ownHit = [...S.roster, ...laterRoster()].filter(x => x.code && x.code !== w.code)
+      .map(x => ({ x, sc: nameFlex(r.note, x.name) })).filter(z => z.sc >= 0.6).sort((a, b) => b.sc - a.sc)[0];
+    const own = ownHit && (!pBest || ownHit.sc >= nameFlex(r.note, pBest.name)) ? ownHit.x : null;
+    const best = own ? null : pBest;
     const ownSt = own ? ({ P: "حاضر", A: "غايب", L: "إجازة / مرضي", Q: "توقف" }[S.choice[own.code] ?? S.day?.entries?.[own.code]?.s] || "لسه ماتحددتش") : "";
     sug = best ? `<div class="muted">مكتوب في الملاحظات: "${esc(r.note)}" — تقصد:</div><span class="chip" data-pick="${esc(key)}" data-who="${esc(best.nid || best.code)}">${esc(best.name)} ✓</span>`
-      : own ? `<div class="muted">مكتوب في الملاحظات: "${esc(r.note)}" — ده <b>${esc(own.name)}</b> (${esc(own.code)})، أساسي على الكشف: بيتحضر في سطره هو مش كبديل. حالته في اليوم ده: <b>${esc(ownSt)}</b>.</div>`
+      : own ? `<div class="muted">مكتوب في الملاحظات: "${esc(r.note)}" — ده <b>${esc(own.name)}</b> (${esc(own.code)})، أساسي على الكشف: بيتحضر في سطره هو مش كبديل. حالته في اليوم ده: <b>${esc(ownSt)}</b>${ownSt === "حاضر" ? "" : " — لو اشتغل، دوس «حاضر» قصاد اسمه"}.</div>`
       : `<div class="muted">مكتوب في الملاحظات: "${esc(r.note)}" — مش لاقيه في قايمة البدلاء ولا الكشف.</div>`;
   }
   return `<div class="rep" data-rep="${esc(key)}">${sug}
