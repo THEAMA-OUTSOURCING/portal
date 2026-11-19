@@ -676,7 +676,16 @@ function render() {
   const picNo = p => SL.no[p.id] || 0;
   livePages().forEach(p => {
     (p.result?.rows || []).filter(r => !rowCode(r) && !subOf(r)).forEach(r => {
-      if (r.s === "A" && /^\d{14}$/.test(String(r.nid || "").replace(/\D/g, ""))) { goneAbs++; return; }
+      if (r.s === "A" && /^\d{14}$/.test(String(r.nid || "").replace(/\D/g, ""))) {
+        // اللي مشي ومكتوب قصاده بديل بخط اليد: البديل ده اشتغل فعلاً — مايتعدّش «مش محتاج حاجة» ويضيع
+        // (فرع العامرية 14 نوفمبر: سيف علي أحمد مكتوب قصاد سطر مشطوب، ومااتسجلش لحد ما اتحط بديل مكان غايب بإيد)
+        if (!r.note) { goneAbs++; return; }
+        const c = candidates(r.note, null, 1)[0];
+        loose.push(`صورة ${fmt(picNo(p))}، صف ${esc(r.n)}: عامل مش على الكشف دلوقتي (غالباً مشي)، ومكتوب قصاده بخط اليد <b>«${esc(r.note)}»</b>`
+          + `<div style="margin-top:3px;color:#8a5a10;">${c ? `ده غالباً <b>${esc(c.name)}</b>${c.code ? ` (${esc(c.code)})` : ""} من البدلاء. ` : ""}`
+          + `اختاره <b>بديل</b> مكان أي عامل غايب من نفس الوظيفة في الكشف فوق (من خانة «لو فيه بديل»)، عشان يتحسب حاضر.</div>`);
+        return;
+      }
       const nid = String(r.nid || "").replace(/\D/g, "");
       const who = nid.length === 14 ? elsewhere(nid) : null;
       if (nid.length === 14 && who === undefined) needLookup = true;
@@ -1085,8 +1094,14 @@ function repBlock(w, r, key = w.code) {
   let sug = "";
   if (r?.note) {
     const best = candidates(r.note, key, 1)[0];
+    // مش في البدلاء: يمكن يكون عامل أساسي على الكشف (مثلاً كان يومية واتحوّل أساسي، والورقة المطبوعة لسه قديمة) —
+    // ده مابيتسجلش بديل، بيتحضر في سطره هو. بنقول كده بدل «مش لاقيه» عشان المشرف مايدوّرش عليه في البدلاء.
+    const own = best ? null : [...S.roster, ...laterRoster()].filter(x => x.code && x.code !== w.code)
+      .map(x => ({ x, sc: nameFlex(r.note, x.name) })).filter(z => z.sc >= 0.6).sort((a, b) => b.sc - a.sc)[0]?.x;
+    const ownSt = own ? ({ P: "حاضر", A: "غايب", L: "إجازة / مرضي", Q: "توقف" }[S.choice[own.code] ?? S.day?.entries?.[own.code]?.s] || "لسه ماتحددتش") : "";
     sug = best ? `<div class="muted">مكتوب في الملاحظات: "${esc(r.note)}" — تقصد:</div><span class="chip" data-pick="${esc(key)}" data-who="${esc(best.nid || best.code)}">${esc(best.name)} ✓</span>`
-      : `<div class="muted">مكتوب في الملاحظات: "${esc(r.note)}" — مش لاقيه في قايمة البدلاء.</div>`;
+      : own ? `<div class="muted">مكتوب في الملاحظات: "${esc(r.note)}" — ده <b>${esc(own.name)}</b> (${esc(own.code)})، أساسي على الكشف: بيتحضر في سطره هو مش كبديل. حالته في اليوم ده: <b>${esc(ownSt)}</b>.</div>`
+      : `<div class="muted">مكتوب في الملاحظات: "${esc(r.note)}" — مش لاقيه في قايمة البدلاء ولا الكشف.</div>`;
   }
   return `<div class="rep" data-rep="${esc(key)}">${sug}
     <input type="text" placeholder="لو فيه بديل، اكتب أول اسمه..." data-search="${esc(key)}">
