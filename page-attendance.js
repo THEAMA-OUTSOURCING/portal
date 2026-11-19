@@ -1331,6 +1331,9 @@ function mtPick(tc) {
   if (w) { sel.querySelector(`option[value="${w.typeNow}"]`)?.remove(); }
   renderMtHits();
 }
+// الحماية دي عشان لو الموبايل لسه فاتح attendance.html القديمة (من الكاش) مع السكريبت الجديد: من غير الزرار
+// مانربطش حاجة — غير كده الخطأ بيوقف باقي الصفحة (طلبات الإجازة والمرضي…) لحد ما الصفحة تتحدث.
+if ($("m-type") && $("m-type-form")) {
 $("m-type").addEventListener("click", () => {
   const f = $("m-type-form"); f.classList.toggle("hidden");
   if (f.classList.contains("hidden")) return;
@@ -1365,6 +1368,7 @@ $("mt-save").addEventListener("click", async () => {
   }
   $("mt-save").disabled = false;
 });
+}
 
 // ===== إضافة من غير بطاقة (المحاسب والـ HR) =====
 // نفس إضافة الإدارة في «بيانات العمال»: new_workers بـ no_card، والمشرف يرفع البطاقة بعدين
