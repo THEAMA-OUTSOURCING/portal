@@ -313,7 +313,7 @@ details.plan #plan-box{background:#fff;border-radius:12px;padding:4px 6px;}
     </div>
 
     <details class="card fold" id="manage-card">
-      <summary><span class="fold-ic"><i class="ti ti-list-details"></i></span><span class="fold-t"><h2>إدارة الكشف</h2><small>طباعة · ترتيب · إضافة عامل · شيل اسم</small></span></summary>
+      <summary><span class="fold-ic"><i class="ti ti-list-details"></i></span><span class="fold-t"><h2>إدارة الكشف</h2><small>طباعة · ترتيب · إضافة عامل · شيل اسم · تغيير النوع</small></span></summary>
       <div class="row" id="print-row" style="margin-bottom:10px;gap:8px;">
         <button class="btn sec grow" id="print"><i class="ti ti-printer"></i> طباعة الكشف</button>
         <button class="btn sec grow" id="order"><i class="ti ti-arrows-sort"></i> ترتيب الكشف</button>
@@ -323,6 +323,20 @@ details.plan #plan-box{background:#fff;border-radius:12px;padding:4px 6px;}
       <div class="row">
         <button class="btn sec" id="m-add"><i class="ti ti-user-plus"></i> إضافة عامل جديد (بالبطاقة)</button>
         <button class="btn sec" id="m-remove"><i class="ti ti-user-minus"></i> شيل اسم من الكشف</button>
+        <button class="btn sec" id="m-type"><i class="ti ti-switch-horizontal"></i> تغيير نوع عامل</button>
+      </div>
+      <div id="m-type-form" class="hidden" style="margin-top:10px;">
+        <p class="muted" style="margin-bottom:6px;">الطلب بيروح للـ HR في «طلبات القوة»، والنوع مابيتغيرش غير بعد ما يتم الاعتماد.</p>
+        <input type="search" id="mt-q" placeholder="اكتب اسم العامل أو كوده أو رقمه القومي" autocomplete="off" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:10px;">
+        <div id="mt-hits" class="m-hits"></div>
+        <div id="mt-picked" class="m-picked hidden"></div>
+        <input type="hidden" id="mt-who">
+        <label class="muted" style="display:block;margin-bottom:4px;">النوع الجديد</label>
+        <select id="mt-type" style="margin-bottom:8px;"><option value="اساسي">أساسي</option><option value="يومية">يومية</option><option value="بديل راحات">بديل راحات</option></select>
+        <label class="muted" style="display:block;margin-bottom:4px;">من تاريخ</label>
+        <input type="date" id="mt-from" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:10px;margin-bottom:8px;">
+        <input type="text" id="mt-note" placeholder="ملاحظة (اختياري)" maxlength="300" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:10px;margin-bottom:8px;">
+        <button class="btn" id="mt-save">ابعت الطلب للـ HR</button>
       </div>
       <div id="m-remove-form" class="hidden" style="margin-top:10px;">
         <input type="search" id="m-q" placeholder="اكتب اسم العامل أو جزء منه" autocomplete="off" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:10px;">
@@ -451,7 +465,7 @@ details.plan #plan-box{background:#fff;border-radius:12px;padding:4px 6px;}
   </div>
 </div>
 
-<script type="module" src="page-attendance.js?v=20261118c"></script>
+<script type="module" src="page-attendance.js?v=20261119a"></script>
 <script src="attendance-ui.js?v=20261118c"></script>
 </body>
 </html>

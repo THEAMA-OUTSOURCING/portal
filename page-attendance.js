@@ -1301,6 +1301,71 @@ $("m-removed").addEventListener("click", async e => {
 });
 $("m-add").addEventListener("click", () => S.office ? openNc() : openId("roster"));
 
+// ===== طلب تغيير نوع عامل (أساسي ↔ يومية / بديل راحات) =====
+// بيروح worker_events (kind = change) «مستني» للـ HR في «طلبات القوة». الكشف والقايمة مابيتغيروش غير بعد الاعتماد
+// (السيرفر بيحدّث السجل، والكشف/البدلاء بيتبنوا من السجل). العامل لازم يكون ليه كود T في السجل.
+const MT = { list: [] };
+const mtCode = w => w.tcode || (/^T\d+$/.test(String(w.code || "")) ? String(w.code) : "");
+function mtPeople() {
+  const seen = new Set(), out = [];
+  [...(S.rosterNow || []), ...(S.pool || [])].forEach(w => {
+    const k = mtCode(w) || "N:" + (w.nid || w.code || w.name); if (seen.has(k)) return; seen.add(k);
+    out.push({ ...w, tc: mtCode(w), typeNow: isBasic(w.type) ? "اساسي" : String(w.type || "يومية").trim() });
+  });
+  return out;
+}
+function renderMtHits() {
+  const q = rmNorm($("mt-q").value); if (!q || $("mt-who").value) { $("mt-hits").innerHTML = ""; return; }
+  const words = q.split(" ");
+  const hits = MT.list.filter(w => { const n = rmNorm(w.name || ""); return words.every(x => n.includes(x)) || String(w.nid || "").includes(q) || String(w.tc || w.code || "") === q.toUpperCase(); })
+    .sort((a, b) => rmNorm(a.name || "").indexOf(words[0]) - rmNorm(b.name || "").indexOf(words[0])).slice(0, 30);
+  $("mt-hits").innerHTML = hits.length ? hits.map(w => `<button type="button" data-mtpick="${esc(w.tc || "")}" ${w.tc ? "" : "disabled"}><b>${esc(w.name)}</b><small>${esc(w.typeNow)} — ${esc(w.job || "")}${w.tc ? "" : " — لسه مالوش كود (مستني الـ HR)"}</small></button>`).join("")
+    : `<div class="muted" style="padding:8px;">مفيش اسم بالشكل ده في الكشف ولا قايمة البدلاء.</div>`;
+}
+function mtPick(tc) {
+  const w = tc ? MT.list.find(x => x.tc === tc) : null;
+  $("mt-who").value = w ? tc : "";
+  $("mt-picked").innerHTML = w ? `<div><b>${esc(w.name)}</b> <small class="muted">${esc(w.tc)} — النوع دلوقتي: ${esc(w.typeNow)}${w.job ? " — " + esc(w.job) : ""}</small></div><button type="button" class="btn sec small" data-mtclear>غيّر</button>` : "";
+  $("mt-picked").classList.toggle("hidden", !w); $("mt-q").classList.toggle("hidden", !!w);
+  const sel = $("mt-type"); restSubOpt(sel);
+  if (w) { sel.querySelector(`option[value="${w.typeNow}"]`)?.remove(); }
+  renderMtHits();
+}
+$("m-type").addEventListener("click", () => {
+  const f = $("m-type-form"); f.classList.toggle("hidden");
+  if (f.classList.contains("hidden")) return;
+  MT.list = mtPeople(); $("mt-q").value = ""; $("mt-note").value = ""; $("mt-from").value = ymd(new Date()); mtPick(""); $("mt-q").focus();
+});
+$("mt-q").addEventListener("input", renderMtHits);
+$("mt-hits").addEventListener("click", e => { const b = e.target.closest("[data-mtpick]"); if (b && b.dataset.mtpick) mtPick(b.dataset.mtpick); });
+$("mt-picked").addEventListener("click", e => { if (e.target.closest("[data-mtclear]")) { mtPick(""); $("mt-q").focus(); } });
+$("mt-save").addEventListener("click", async () => {
+  const tc = $("mt-who").value, w = MT.list.find(x => x.tc === tc);
+  if (!w) return show($("m-msg"), "err", "اختار العامل من القايمة الأول.");
+  const type = $("mt-type").value, from = $("mt-from").value, note = $("mt-note").value.trim();
+  if (!type || type === w.typeNow) return show($("m-msg"), "err", "اختار نوع غير نوعه الحالي.");
+  if (type === "بديل راحات" && !hasRestSubs(S.site)) return show($("m-msg"), "err", NO_REST_SUB);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) return show($("m-msg"), "err", "اختار التاريخ.");
+  if (!await ask(`تبعت طلب تغيير نوع ${w.name} من «${w.typeNow}» لـ «${type}» من ${from}؟\nالنوع مش هيتغير غير بعد ما الـ HR يعتمد الطلب.`, { ok: "ابعت للـ HR" })) return;
+  $("mt-save").disabled = true;
+  try {
+    // طلب تغيير مفتوح لنفس العامل: مانبعتش تاني
+    const snap = await getDocs(query(collection(db, "worker_events"), where("branch", "==", S.site), where("code", "==", tc)));
+    const open = snap.docs.map(d => d.data()).find(e => e.kind === "change" && e.to?.type && ["pending", "approved", "error"].includes(e.status));
+    if (open) { $("mt-save").disabled = false; return show($("m-msg"), "err", `فيه طلب تغيير نوع لـ ${w.name} لسه مستني الـ HR (← ${open.to.type}).`); }
+    const u = auth.currentUser;
+    await addDoc(collection(db, "worker_events"), { kind: "change", status: "pending", source: "page", branch: S.site, site: S.site,
+      code: tc, name: w.name || "", nid: String(w.nid || ""), job: w.job || "", type: w.typeNow,
+      to: { type }, effective: from, ...(note ? { note: note.slice(0, 300) } : {}),
+      by: u.uid, by_email: actorEmail(u), created_at: serverTimestamp() });
+    show($("m-msg"), "ok", `طلب تغيير نوع ${w.name} لـ «${type}» راح للـ HR. هيتنفذ بعد ما يتم الاعتماد، وهتلاقيه في طلباتك.`);
+    $("m-type-form").classList.add("hidden"); mtPick("");
+  } catch (err) {
+    show($("m-msg"), "err", "مااتبعتش: " + (err.code === "permission-denied" ? "مش مسموح — يمكن العامل مش «شغال» في السجل أو مش تبع الموقع ده." : err.message));
+  }
+  $("mt-save").disabled = false;
+});
+
 // ===== إضافة من غير بطاقة (المحاسب والـ HR) =====
 // نفس إضافة الإدارة في «بيانات العمال»: new_workers بـ no_card، والمشرف يرفع البطاقة بعدين
 function nidAge(nid) {
