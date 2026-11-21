@@ -502,6 +502,8 @@ async function offDayOf(date) {
   return "";
 }
 const offTxt = (A, On) => S.off ? `${S.off === "fri" ? "مش شغال (جمعة)" : "عطلة (ط)"} ${On}` : `غايب ${A}`;
+// خانة «لو فيه بديل»: للغايب، ويوم الجمعة والعطلة الرسمية للي مجاش (اليومية بيتكتب قدام الأساسي اللي مجاش)
+const repOn = v => v === "A" || (v === "O" && !!S.off);
 const offLbl = () => S.off === "fri" ? "مش شغال" : "عطلة (ط)";
 // المشرف بيأكد حاضر/غايب بس زي باقي المواقع. الوقت المقروء من الورقة بيتحفظ مع اليوم بتخمين البوابة (صبح ولا مسا)،
 // والمحاسب هو اللي بيراجعه ويصححه في صفحة الاعتماد. الساعات بتتحفظ بس لو الوقت واضح (t_issue = محتاج مراجعة)
@@ -642,7 +644,7 @@ function render() {
     return `<div class="w ${!r ? "missing" : flag ? "flag" : ""}">
       <div class="nm"><b>${esc(w.name)}</b><small>${w.past ? `<span style="color:#6b6b6b">مش على الكشف دلوقتي (${esc(w.type || "")}) · </span>` : ""}${esc(aiTxt)}${note}${why ? ` · <span style="color:#8a5a10">${esc(why)}</span>` : ""}${blocked ? ` · <span style="color:#a32d2d">الحضور مقفول لحد ما الفيش يترفع</span>` : ""}</small></div>
       <div class="seg"><button class="p" data-c="${esc(w.code)}" data-v="P" aria-pressed="${def === "P"}" ${roP}>حاضر</button>${S.off ? `<button class="a" data-c="${esc(w.code)}" data-v="O" aria-pressed="${def === "O"}" ${ro}>${offLbl()}</button>` : `<button class="a" data-c="${esc(w.code)}" data-v="A" aria-pressed="${def === "A"}" ${ro}>غايب</button>`}${S.timed ? `<button class="q" data-c="${esc(w.code)}" data-v="Q" aria-pressed="${def === "Q"}" ${ro}>توقف</button>` : ""}</div></div>` +
-      (def === "A" ? repBlock(w, r) : "");
+      (repOn(def) ? repBlock(w, r) : "");
   }).join("")).join("");
   const subs = aiSubs();
   const subHtml = Object.keys(subs).length ? `<div class="grp">بدلاء حاضرين من الكشف (مطبوعين أو بخط اليد) (${fmt(Object.keys(subs).length)})</div>` + Object.entries(subs).map(([k, r]) => {
@@ -656,7 +658,7 @@ function render() {
     return `<div class="w ${flag ? "flag" : ""}">
       <div class="nm"><b>${esc(w.name)}</b><small>${esc(w.type || "بديل")} — ${esc(w.job || "")} · ${esc(aiTxt)}${why ? ` · <span style="color:#8a5a10">${esc(why)}</span>` : ""}</small></div>
       <div class="seg"><button class="p" data-c="${esc(k)}" data-v="P" aria-pressed="${def === "P"}" ${ro}>حاضر</button>${S.off ? `<button class="a" data-c="${esc(k)}" data-v="O" aria-pressed="${def === "O"}" ${ro}>${S.off === "fri" ? "مش شغال" : "مش جاي"}</button>` : `<button class="a" data-c="${esc(k)}" data-v="A" aria-pressed="${def === "A"}" ${ro}>غايب</button>`}${S.timed ? `<button class="q" data-c="${esc(k)}" data-v="Q" aria-pressed="${def === "Q"}" ${ro}>توقف</button>` : ""}</div></div>` +
-      (def === "A" ? repBlock(w, r, k) : "");
+      (repOn(def) ? repBlock(w, r, k) : "");
   }).join("") : "";
   $("workers").innerHTML = html + subHtml;
 
@@ -666,11 +668,11 @@ function render() {
     const r = ai[w.code];
     const def = defOf(w.code, r);
     perJob[w.job] = perJob[w.job] || 0; if (def === "P" || def === "Q" || (def === "O" && S.off === "hol")) perJob[w.job]++;   // ق و ط بيتحسبوا في عدد اليوم
-    if (def === "A" && S.rep[w.code]) perJob[w.job]++;
+    if (repOn(def) && S.rep[w.code]) perJob[w.job]++;
   });
   Object.entries(subs).forEach(([k, r]) => {
     const def = defOf(k, r);
-    if (def === "P" || def === "Q" || (def === "A" && S.rep[k])) { perJob[r.w.job] = perJob[r.w.job] || 0; perJob[r.w.job]++; }   // ق بيتحسب في عدد اليوم
+    if (def === "P" || def === "Q" || (repOn(def) && S.rep[k])) { perJob[r.w.job] = perJob[r.w.job] || 0; perJob[r.w.job]++; }   // ق بيتحسب في عدد اليوم
   });
   Object.values(movedRows()).forEach(({ w }) => { perJob[w.job] = (perJob[w.job] || 0) + 1; P++; });
   // نفس الوظيفة بإملاء مختلف (بديل مكتوب «ليلي» والكشف «ليلى») تتجمع في سطر واحد باسم الكشف
@@ -765,7 +767,7 @@ function render() {
 $("workers").addEventListener("click", e => {
   const b = e.target.closest("button[data-c]"); if (!b) return;
   S.choice[b.dataset.c] = b.dataset.v;
-  if (b.dataset.v !== "A") delete S.rep[b.dataset.c];   // البديل للغايب بس
+  if (!repOn(b.dataset.v)) delete S.rep[b.dataset.c];   // البديل للغايب بس (والجمعة: للي مجاش)
   render();
 });
 
@@ -800,7 +802,7 @@ $("confirm").addEventListener("click", async () => {
     }
   }
   const entries = {};
-  let P = 0, A = 0, Qn = 0, On = 0;
+  let P = 0, A = 0, Qn = 0, On = 0, offReps = 0;
   // ترتيب الكشف الورقي (زي المطبوع) — الاعتماد بيعرض الأسماء بيه
   let ordMap = new Map();
   try { ordMap = printOrder({ roster: S.roster, subs: restSubs(), order: await loadOrder(S.site), plan: planNow() }); } catch (e) {}
@@ -809,7 +811,17 @@ $("confirm").addEventListener("click", async () => {
     const s = defOf(w.code, r);
     if (s !== "P" && s !== "A" && s !== "Q" && s !== "O") return show($("c-msg"), "err", "فيه عمال لسه محتاجين قرار.");
     if (s === "P") P++; else if (s === "A") A++; else if (s === "O") On++; else Qn++;
-    if (s === "O" && S.off === "fri") continue;   // الجمعة ومجاش: مالوش سطر خالص — اليوم ده فاضي ليه
+    // الجمعة والعطلة ومجاش، ومكتوب قدامه بديل (يومية/بديل راحات): البديل بيتسجل حاضر في سطر لوحده، وrep_for بيقول مكان مين
+    if (s === "O" && S.rep[w.code]) {
+      const rp = S.rep[w.code], rk = "R" + (rp.nid || rp.code);
+      if (entries[rk]) return show($("c-msg"), "err", `${rp.name} مختار بديل لأكتر من عامل. شيله من واحد منهم.`);
+      const pw = (S.pool || []).find(q => (q.nid || q.code) === (rp.nid || rp.code)) || {};
+      entries[rk] = { name: rp.name, nid: rp.nid || "", code: rp.code || "", job: w.job, type: pw.type || "بديل", sub: true, s: "P", ai: "",
+        by: "sup", note: r?.note || "", page: r?.page || "", rep_for: w.code, rep_for_name: w.name };
+      if (ordMap.has(w.code)) entries[rk].ord = ordMap.get(w.code) + 0.5;
+      P++; offReps++;
+    }
+    if (s === "O" && S.off === "fri") continue;   // الجمعة ومجاش: مالوش سطر خالص (العطلة: بياخد ط تحت، والبديل بيتحسب معاه)
     entries[w.code] = { name: w.name, nid: w.nid || "", job: w.job, type: w.type, s, ai: r ? r.s : "", by: S.choice[w.code] && (!r || S.choice[w.code] !== r.s) ? "sup" : "ai", note: r?.note || "", page: r?.page || "" };
     if (r?.xk) entries[w.code].xk = r.xk;
     if (ordMap.has(w.code)) entries[w.code].ord = ordMap.get(w.code);
@@ -820,7 +832,7 @@ $("confirm").addEventListener("click", async () => {
   }
   // بدلاء الراحات المطبوعين: بيتسجلوا لو حاضرين بس (البدلاء برّه نظام الغياب)
   const usedRep = new Set(Object.values(S.rep).map(x => x.nid).filter(Boolean));
-  let subsP = 0;
+  let subsP = offReps;
   for (const [k, r] of Object.entries(aiSubs())) {
     const s = defOf(k, r);
     if (s !== "P" && s !== "A" && s !== "Q" && s !== "O") return show($("c-msg"), "err", "فيه بدلاء لسه محتاجين قرار.");
@@ -833,7 +845,7 @@ $("confirm").addEventListener("click", async () => {
       continue;
     }
     if (s !== "P") {
-      const rp = s === "A" && S.rep[k];
+      const rp = repOn(s) && S.rep[k];
       if (rp) {   // بديل مكان بديل راحات غايب: بيتسجل حاضر في صفه هو، وrep_for بيقول مكان مين
         const rk = "R" + (rp.nid || rp.code);
         if (entries[rk]) return show($("c-msg"), "err", `${rp.name} متسجل حاضر في صفه، ومختار كمان بديل مكان ${r.w.name}. شيله من واحد منهم.`);
