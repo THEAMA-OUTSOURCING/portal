@@ -626,6 +626,16 @@ $("a-go").onclick = async () => {
 // ===== بحث عن عامل في الأيام المعروضة: حاضر ولا غايب، وساعاته، وحالة اليوم =====
 // بيدوّر في العامل نفسه، وفي البديل اللي اتسجل قدام غايب (rep)
 const qNorm = s => String(s ?? "").replace(/[\u064B-\u0652]/g, "").replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه").replace(/\s+/g, " ").trim();
+// اختيار «مش حاضر» في الاعتماد: العطلة الرسمية «عطلة (ط)» بدل «غايب». الجمعة: اللي مجاش مالوش سطر أصلاً،
+// وأيام جمعة قديمة اتسجل فيها «غايب» قبل التعديل بتفضل بـ «غايب».
+function offOpt(d, x) {
+  const fri = new Date(d.date + "T00:00:00").getDay() === 5;
+  const hol = !fri && (isH(x) || (A.hol || {})[d.date]);
+  const o = [];
+  if (x.s === "A" || !hol) o.push(`<option value="A" ${x.s === "A" ? "selected" : ""}>غايب</option>`);
+  if (hol) o.push(`<option value="H" ${isH(x) ? "selected" : ""}>عطلة (ط)</option>`);
+  return o.join("");
+}
 const AP_TXT = { approved: "معتمد", reviewed: "مستني اعتماد", confirmed: "مستني الإقليمي" };
 function stTxt(e) {
   if (e.s === "P") return `<span class="pill p-ok">حاضر</span>${e.rep_for_name ? ` <span class="muted">بديل مكان ${esc(e.rep_for_name)}</span>` : ""}`;
@@ -666,7 +676,8 @@ $("a-qres").onclick = e => { const v = e.target.dataset.view; if (v !== undefine
 // مصنع العامرية وطنطا مصنع: المحاسب عنده «توقف» (ق) جنب حاضر وغايب، ويقدر يضيف عامل القراءة نسيته أو ماشافتهوش
 const STOP3 = ["مصنع العامرية", "طنطا مصنع"];
 const isQ = e => e.s === "L" && e.c === "ق";
-const stOf = e => isQ(e) ? "Q" : e.s;
+const isH = e => e.s === "L" && e.c === "ط";   // عطلة رسمية ومحضرش
+const stOf = e => isQ(e) ? "Q" : isH(e) ? "H" : e.s;
 const canEd = d => S.canApprove && (d.status === "reviewed" || (S.role === "admin" && d.status === "confirmed"));
 // مواقع الحضور والانصراف: الوقت اللي البوابة مش متأكدة منه لازم المحاسب يراجعه قبل الاعتماد
 // وبديل الراحات قدام الغايب: ساعته مقترحة من البوابة (أو مفيش ساعة في الأيام القديمة) لحد ما المحاسب يأكدها
@@ -711,17 +722,19 @@ $("a-list").onclick = async e => {
     const timedDay = TIME_SITES.includes(d.site), stop3 = STOP3.includes(d.site);
     // إضافة بديل لغايب (المحاسب والأدمن): قايمة بدلاء الموقع + المطلوب لكل وظيفة في اليوم ده
     A.pool = []; A.plan = {}; A.roster = []; A.missed = [];
+    A.hol = await holidaysFor([d.date.slice(0, 7)]);   // العطلة الرسمية: «عطلة (ط)» بدل «غايب»
+    if (A.cur !== d) return;
     if (canEdit) {
       try { const pl = await getDoc(doc(db, "pools", d.site)); A.pool = pl.exists() ? pl.data().workers || [] : []; } catch (er) {}
       A.roster = [];
-      if (stop3) try { const ro = await getDoc(doc(db, "rosters", d.site)); A.roster = ro.exists() ? ro.data().workers || [] : []; } catch (er) {}
+      try { const ro = await getDoc(doc(db, "rosters", d.site)); A.roster = ro.exists() ? ro.data().workers || [] : []; } catch (er) {}
       try { A.plan = planBySite(await fetchPlanBase(d.date.slice(0, 7)), d.date)[d.site] || {}; } catch (er) {}
       if (A.cur !== d) return;
     }
     $("a-dhead").innerHTML = `<th>الاسم</th><th>الوظيفة</th><th>الحالة</th>${timedDay ? "<th>الساعات</th>" : ""}<th>قراءة الصورة</th><th>البديل</th><th>ملاحظة</th>`;
     $("a-dlist").innerHTML = rowsSorted.map(x =>
-      `<tr data-q="${esc(qNorm([x.name, x.nid, x.code, x.rep?.name, x.rep?.nid, x.rep?.code].filter(Boolean).join(" ")))}"><td>${esc(x.name || "")}</td><td>${esc(x.job || "")}</td><td>${x.s === "P" || x.s === "A" || (stop3 && isQ(x)) ? `<select data-ecode="${esc(Object.keys(d.entries).find(k => d.entries[k] === x))}"${dis}><option value="P" ${x.s === "P" ? "selected" : ""}>حاضر</option><option value="A" ${x.s === "A" ? "selected" : ""}>غايب</option>${stop3 ? `<option value="Q" ${isQ(x) ? "selected" : ""}>توقف</option>` : ""}</select>${TIME_SITES.includes(d.site) ? tmCell(x, dis, Object.keys(d.entries).find(k => d.entries[k] === x)) : ""}` : esc(x.c || "")}</td>${timedDay ? `<td class="a-hrs">${hrsCell(x)}</td>` : ""}<td>${ai[x.ai ?? ""] || ""}${x.by === "sup" ? " <span class='pill p-wait'>المشرف غيّرها</span>" : ""}</td><td>${esc(x.rep?.name || "")}${x.rep && stop3 ? `<div class="a-repst" style="display:${x.s === "A" ? "block" : "none"};margin-top:4px;"><select data-repst${dis}><option value="P">حاضر</option><option value="Q">توقف</option></select></div>` : ""}${x.rep && TIME_SITES.includes(d.site) ? repTm(x, dis) : ""}${!x.rep && !x.sub && canEdit && (x.s === "P" || x.s === "A") ? addRepCell(d, x, Object.keys(d.entries).find(k => d.entries[k] === x)) : ""}</td><td>${esc(x.note || "")}</td></tr>`).join("");
-    renderMissed(d, canEdit && stop3);
+      `<tr data-q="${esc(qNorm([x.name, x.nid, x.code, x.rep?.name, x.rep?.nid, x.rep?.code].filter(Boolean).join(" ")))}"><td>${esc(x.name || "")}</td><td>${esc(x.job || "")}</td><td>${x.s === "P" || x.s === "A" || isH(x) || (stop3 && isQ(x)) ? `<select data-ecode="${esc(Object.keys(d.entries).find(k => d.entries[k] === x))}"${dis}><option value="P" ${x.s === "P" ? "selected" : ""}>حاضر</option>${offOpt(d, x)}${stop3 ? `<option value="Q" ${isQ(x) ? "selected" : ""}>توقف</option>` : ""}</select>${TIME_SITES.includes(d.site) ? tmCell(x, dis, Object.keys(d.entries).find(k => d.entries[k] === x)) : ""}` : esc(x.c || "")}</td>${timedDay ? `<td class="a-hrs">${hrsCell(x)}</td>` : ""}<td>${ai[x.ai ?? ""] || ""}${x.by === "sup" ? " <span class='pill p-wait'>المشرف غيّرها</span>" : ""}</td><td>${esc(x.rep?.name || "")}${x.rep && stop3 ? `<div class="a-repst" style="display:${x.s === "A" ? "block" : "none"};margin-top:4px;"><select data-repst${dis}><option value="P">حاضر</option><option value="Q">توقف</option></select></div>` : ""}${x.rep && TIME_SITES.includes(d.site) ? repTm(x, dis) : ""}${!x.rep && !x.sub && canEdit && (x.s === "P" || x.s === "A") ? addRepCell(d, x, Object.keys(d.entries).find(k => d.entries[k] === x)) : ""}</td><td>${esc(x.note || "")}</td></tr>`).join("");
+    renderMissed(d, canEdit && ATT_SITES.includes(d.site));   // كل مواقع التصوير (مش الإكسيل)
     $("a-dq").value = ""; filterDay();
     $("a-detail").classList.remove("hidden"); $("a-detail").scrollIntoView({ behavior: "smooth" });
     return;
@@ -838,17 +851,17 @@ function renderMissed(d, on) {
   box.classList.toggle("hidden", !on); if (!on) { box.innerHTML = ""; return; }
   const c = missedCands(d);
   box.innerHTML = `<b>إضافة عامل القراءة نسيته أو ماشافتهوش</b>
-    ${A.missed.length ? `<div style="margin:6px 0;">${A.missed.map((m, i) => `<span class="chip sel">${esc(m.name)} — ${m.st === "Q" ? "توقف" : `حاضر ${esc(m.in)}${m.out ? "→" + esc(m.out) : ""}`} <a href="#" data-mdel="${i}">✕</a></span>`).join(" ")} <span class="muted">(بيتحفظوا مع «احفظ التعديل واعتمد»)</span></div>` : ""}
+    ${A.missed.length ? `<div style="margin:6px 0;">${A.missed.map((m, i) => `<span class="chip sel">${esc(m.name)} — ${m.st === "Q" ? "توقف" : `حاضر${m.in ? " " + esc(m.in) : ""}${m.out ? "→" + esc(m.out) : ""}`} <a href="#" data-mdel="${i}">✕</a></span>`).join(" ")} <span class="muted">(بيتحفظوا مع «احفظ التعديل واعتمد»)</span></div>` : ""}
     ${c.length ? `<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px;">
       <select id="am-who" style="max-width:260px;"><option value="">— اختار العامل —</option>${c.map((x, i) => `<option value="${i}">${esc(x.w.name)} · ${esc(x.w.job || "")}${x.sub ? " · " + esc(x.w.type || "بديل") : ""}</option>`).join("")}</select>
-      <select id="am-st"><option value="P">حاضر</option><option value="Q">توقف</option></select>
-      <span id="am-tm" style="display:inline-flex;gap:4px;"><input type="time" id="am-in" style="width:auto;padding:3px 4px;"><input type="time" id="am-out" style="width:auto;padding:3px 4px;"></span>
+      ${STOP3.includes(d.site) ? `<select id="am-st"><option value="P">حاضر</option><option value="Q">توقف</option></select>` : `<input type="hidden" id="am-st" value="P">`}
+      ${TIME_SITES.includes(d.site) ? `<span id="am-tm" style="display:inline-flex;gap:4px;"><input type="time" id="am-in" style="width:auto;padding:3px 4px;"><input type="time" id="am-out" style="width:auto;padding:3px 4px;"></span>` : ""}
       <button type="button" class="btn sec small" id="am-add">إضافة</button></div>`
     : `<div class="muted">مفيش حد تاني في كشف الموقع أو البدلاء مالوش سطر في اليوم ده.</div>`}`;
   A.missedC = c;
 }
 document.addEventListener("change", e => {
-  if (e.target.id === "am-st") document.getElementById("am-tm").style.display = e.target.value === "P" ? "inline-flex" : "none";
+  if (e.target.id === "am-st" && document.getElementById("am-tm")) document.getElementById("am-tm").style.display = e.target.value === "P" ? "inline-flex" : "none";
   if (e.target.id === "am-who") { const x = A.missedC?.[+e.target.value]; const o = document.getElementById("am-out"); if (o) o.style.display = x && isHelperJob(x.w.job) ? "none" : ""; }
 });
 document.addEventListener("click", e => {
@@ -858,7 +871,7 @@ document.addEventListener("click", e => {
   const x = A.missedC?.[+document.getElementById("am-who").value]; if (!x) return show($("a-msg"), "err", "اختار العامل الأول.");
   const st = document.getElementById("am-st").value, w = x.w, helper = isHelperJob(w.job);
   const m = { key: x.key, sub: x.sub, name: w.name || "", nid: String(w.nid || ""), code: w.code || "", job: w.job || "", type: w.type || "", st, in: "", out: "" };
-  if (st === "P") {
+  if (st === "P" && TIME_SITES.includes(d.site)) {   // مواقع الساعات بس: وقت حضور وانصراف
     let tin = document.getElementById("am-in").value, tout = helper ? "" : document.getElementById("am-out").value;
     const f = helper ? null : fixReversed(tin, tout); if (f) { tin = f.in; tout = f.out; }
     const h = calcHours(tin, tout, w.job);
@@ -941,7 +954,8 @@ $("a-esave").onclick = async () => {
     const e = entries[sel.dataset.ecode]; if (!e) return;
     if (stOf(e) !== sel.value) {
       if (sel.value === "Q") { e.s = "L"; e.c = "ق"; if (!e.note) e.note = "توقف"; }
-      else { if (isQ(e)) { delete e.c; if (e.note === "توقف") e.note = ""; } e.s = sel.value; }
+      else if (sel.value === "H") { if (isQ(e) && e.note === "توقف") e.note = ""; e.s = "L"; e.c = "ط"; }
+      else { if (isQ(e) || isH(e)) { delete e.c; if (e.note === "توقف") e.note = ""; } e.s = sel.value; }
       e.by = "acc"; n++;
     }
     if (!timed) return;
@@ -984,7 +998,8 @@ $("a-esave").onclick = async () => {
     if (m.code) e.code = m.code;
     if (m.sub) e.sub = true;
     if (m.st === "Q") Object.assign(e, { s: "L", c: "ق" });
-    else Object.assign(e, { s: "P", in: m.in, out: m.out, min: m.h.min, dmin: m.h.dmin, nmin: m.h.nmin, ot: m.h.ot, otd: m.h.otd, otn: m.h.otn });
+    else if (m.h) Object.assign(e, { s: "P", in: m.in, out: m.out, min: m.h.min, dmin: m.h.dmin, nmin: m.h.nmin, ot: m.h.ot, otd: m.h.otd, otn: m.h.otn });
+    else e.s = "P";   // مواقع من غير ساعات: حاضر بالوردية العادية
     entries[m.key] = e; added.push(e); n++;
   }
   if (over.length) return show($("a-msg"), "err", "أقصى وردية 12 ساعة — صحّح الوقت لـ: " + over.join("، "));

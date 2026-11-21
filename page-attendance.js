@@ -118,6 +118,10 @@ async function openDay() {
   // مواقع شيبسي والإمداد: حضورها إكسيل من الأدمن، فالمشرف ليه الكشف والبطايق والطلبات بس (من غير تصوير ولا تأكيد)
   S.photo = ATT_SITES.includes(S.site) && !S.office;
   S.timed = S.photo && TIME_SITES.includes(S.site);   // حضور وانصراف بالساعة
+  // الجمعة والعطلة الرسمية مفيهمش غياب: اللي اتقرا حاضر بيتحضر، والباقي من غير ما المشرف يحدد —
+  // الجمعة: «مش شغال» (الخانة فاضية في التقارير والبصمة)، العطلة الرسمية: ط
+  S.off = await offDayOf(S.date);
+  if (tok !== S.openTok) return;
   $("upload-card").classList.toggle("hidden", !S.photo);
   $("force-card").classList.toggle("hidden", S.photo);
   $("app").querySelector("h1").textContent = S.photo ? "تسجيل الحضور" : S.office ? "الكشف" : "الكشف والطلبات";
@@ -168,6 +172,7 @@ async function openDay() {
         if (e.moved && e.nid && !(e.nid in S.mpick) && !S.munpick.has(e.nid)) S.mpick[e.nid] = { name: e.name, code: e.code || "", job: e.job || "", type: e.type || "", site: e.now_site || "" };
         // صف بخط اليد المشرف اختار صاحبه بنفسه: الاختيار بيرجع زي ما اتحفظ
         if (e.xk && !(e.xk in S.xpick) && !S.xunpick.has(e.xk)) S.xpick[e.xk] = e.moved ? "M:" + e.nid : e.sub ? (e.nid || e.code) : c; });
+      if (S.off === "fri") S.roster.forEach(w => { if (!(w.code in fromSaved)) fromSaved[w.code] = "O"; });
       S.choice = { ...fromSaved, ...S.choice };
       const t = S.day.confirmed_at?.toDate ? S.day.confirmed_at.toDate().toLocaleString("ar-EG") : "";
       const rt = S.day.reviewed_at?.toDate ? S.day.reviewed_at.toDate().toLocaleString("ar-EG") : "";
@@ -481,11 +486,23 @@ function repTimes(entries) {
 }
 // الحالة: اختيار المشرف، وإلا القراية. في مواقع الساعات: المشطوب وفي ملاحظاته «مأمورية» = حاضر، و«توقف» = ق (Q)
 function defOf(k, r) {
+  const v = defOf0(k, r);
+  return S.off && v !== "P" && v !== "Q" ? "O" : v;   // جمعة/عطلة: اللي مش حاضر = مش شغال / ط، مش غياب
+}
+function defOf0(k, r) {
   if (S.choice[k] != null) return S.choice[k];
   const sp = S.timed ? specialOf(r) : "";
   if (r && sp && r.s !== "P") return sp === "stop" ? "Q" : "P";
   return r && r.s !== "U" && !needsReview(r) ? r.s : null;
 }
+// "fri" = جمعة، "hol" = عطلة رسمية (من صفحة العطلات في التقارير)، "" = يوم عادي
+async function offDayOf(date) {
+  if (new Date(date + "T00:00:00").getDay() === 5) return "fri";
+  try { const h = await getDoc(doc(db, "holidays", date.slice(0, 7))); if (h.exists() && (h.data().days || {})[date]) return "hol"; } catch (e) {}
+  return "";
+}
+const offTxt = (A, On) => S.off ? `${S.off === "fri" ? "مش شغال (جمعة)" : "عطلة (ط)"} ${On}` : `غايب ${A}`;
+const offLbl = () => S.off === "fri" ? "مش شغال" : "عطلة (ط)";
 // المشرف بيأكد حاضر/غايب بس زي باقي المواقع. الوقت المقروء من الورقة بيتحفظ مع اليوم بتخمين البوابة (صبح ولا مسا)،
 // والمحاسب هو اللي بيراجعه ويصححه في صفحة الاعتماد. الساعات بتتحفظ بس لو الوقت واضح (t_issue = محتاج مراجعة)
 // tq: السيرفر شاكك في رقم من الوقت (٢/٣، ٦/٨) — بيتعلّم «راجع الوقت مع الورقة» لحد ما حد يصححه
@@ -604,13 +621,13 @@ function render() {
   const ordered = S.roster.map((w, i) => ({ w, k: at[w.code] ?? 1e9 + i })).sort((a, b) => a.k - b.k).map(x => x.w);
   const groups = {};
   ordered.forEach(w => { const g = w.job; (groups[g] = groups[g] || []).push(w); });
-  let P = 0, A = 0, Q = 0, open = 0, flagged = 0;
+  let P = 0, A = 0, Q = 0, O = 0, open = 0, flagged = 0;
   const html = Object.entries(groups).map(([g, ws]) => `<div class="grp">${esc(g)} (${fmt(ws.length)})</div>` + ws.map(w => {
     const r = ai[w.code];
     const blocked = isBlocked(w);
     if (blocked) S.choice[w.code] = "A";
     const def = defOf(w.code, r), sp = S.timed ? specialOf(r) : "";
-    if (def === "P") P++; else if (def === "A") A++; else if (def === "Q") Q++; else open++;
+    if (def === "P") P++; else if (def === "A") A++; else if (def === "Q") Q++; else if (def === "O") O++; else open++;
     const flag = r && needsReview(r) && !(sp && def && r.match !== "handwritten");
     if (flag) flagged++;
     const why = !r ? "مش موجود في أي صورة"
@@ -624,21 +641,21 @@ function render() {
     const roP = ro || (blocked ? "disabled" : "");
     return `<div class="w ${!r ? "missing" : flag ? "flag" : ""}">
       <div class="nm"><b>${esc(w.name)}</b><small>${w.past ? `<span style="color:#6b6b6b">مش على الكشف دلوقتي (${esc(w.type || "")}) · </span>` : ""}${esc(aiTxt)}${note}${why ? ` · <span style="color:#8a5a10">${esc(why)}</span>` : ""}${blocked ? ` · <span style="color:#a32d2d">الحضور مقفول لحد ما الفيش يترفع</span>` : ""}</small></div>
-      <div class="seg"><button class="p" data-c="${esc(w.code)}" data-v="P" aria-pressed="${def === "P"}" ${roP}>حاضر</button><button class="a" data-c="${esc(w.code)}" data-v="A" aria-pressed="${def === "A"}" ${ro}>غايب</button>${S.timed ? `<button class="q" data-c="${esc(w.code)}" data-v="Q" aria-pressed="${def === "Q"}" ${ro}>توقف</button>` : ""}</div></div>` +
+      <div class="seg"><button class="p" data-c="${esc(w.code)}" data-v="P" aria-pressed="${def === "P"}" ${roP}>حاضر</button>${S.off ? `<button class="a" data-c="${esc(w.code)}" data-v="O" aria-pressed="${def === "O"}" ${ro}>${offLbl()}</button>` : `<button class="a" data-c="${esc(w.code)}" data-v="A" aria-pressed="${def === "A"}" ${ro}>غايب</button>`}${S.timed ? `<button class="q" data-c="${esc(w.code)}" data-v="Q" aria-pressed="${def === "Q"}" ${ro}>توقف</button>` : ""}</div></div>` +
       (def === "A" ? repBlock(w, r) : "");
   }).join("")).join("");
   const subs = aiSubs();
   const subHtml = Object.keys(subs).length ? `<div class="grp">بدلاء حاضرين من الكشف (مطبوعين أو بخط اليد) (${fmt(Object.keys(subs).length)})</div>` + Object.entries(subs).map(([k, r]) => {
     const w = r.w;
     const def = defOf(k, r);   // زي الأساسي: لو مكتوب «توقف» في مواقع الساعات بيتقري توقف
-    if (def === "P") P++; else if (def === "A") A++; else if (def === "Q") Q++; else open++;
+    if (def === "P") P++; else if (def === "A") A++; else if (def === "Q") Q++; else if (def !== "O") open++;   // بديل مش جاي في جمعة/عطلة: مش بيتسجل
     const flag = needsReview(r); if (flag) flagged++;
     const why = r.s === "U" ? "القراءة مش واضحة" : r.match === "handwritten" ? "اتكتب بخط اليد — اتأكد" : r.match === "fuzzy" ? "الرقم القومي اتقرا بفرق بسيط" : r.conf === "L" ? "القراءة مش أكيدة" : "";
     const aiTxt = S.timed && specialOf(r) === "stop" && r.s !== "P" ? "قرا: توقف (ق)" : r.s === "P" ? "قرا: حاضر" : r.s === "A" ? "قرا: غايب" : "قرا: مش واضح";
     const ro = lockedForMe() ? "disabled" : "";
     return `<div class="w ${flag ? "flag" : ""}">
       <div class="nm"><b>${esc(w.name)}</b><small>${esc(w.type || "بديل")} — ${esc(w.job || "")} · ${esc(aiTxt)}${why ? ` · <span style="color:#8a5a10">${esc(why)}</span>` : ""}</small></div>
-      <div class="seg"><button class="p" data-c="${esc(k)}" data-v="P" aria-pressed="${def === "P"}" ${ro}>حاضر</button><button class="a" data-c="${esc(k)}" data-v="A" aria-pressed="${def === "A"}" ${ro}>غايب</button>${S.timed ? `<button class="q" data-c="${esc(k)}" data-v="Q" aria-pressed="${def === "Q"}" ${ro}>توقف</button>` : ""}</div></div>` +
+      <div class="seg"><button class="p" data-c="${esc(k)}" data-v="P" aria-pressed="${def === "P"}" ${ro}>حاضر</button>${S.off ? `<button class="a" data-c="${esc(k)}" data-v="O" aria-pressed="${def === "O"}" ${ro}>${S.off === "fri" ? "مش شغال" : "مش جاي"}</button>` : `<button class="a" data-c="${esc(k)}" data-v="A" aria-pressed="${def === "A"}" ${ro}>غايب</button>`}${S.timed ? `<button class="q" data-c="${esc(k)}" data-v="Q" aria-pressed="${def === "Q"}" ${ro}>توقف</button>` : ""}</div></div>` +
       (def === "A" ? repBlock(w, r, k) : "");
   }).join("") : "";
   $("workers").innerHTML = html + subHtml;
@@ -648,7 +665,7 @@ function render() {
   S.roster.forEach(w => {
     const r = ai[w.code];
     const def = defOf(w.code, r);
-    perJob[w.job] = perJob[w.job] || 0; if (def === "P" || def === "Q") perJob[w.job]++;   // ق بيتحسب في عدد اليوم
+    perJob[w.job] = perJob[w.job] || 0; if (def === "P" || def === "Q" || (def === "O" && S.off === "hol")) perJob[w.job]++;   // ق و ط بيتحسبوا في عدد اليوم
     if (def === "A" && S.rep[w.code]) perJob[w.job]++;
   });
   Object.entries(subs).forEach(([k, r]) => {
@@ -666,7 +683,7 @@ function render() {
   $("plan-box").innerHTML = Object.keys(PL).length ? `<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr><th style="text-align:right">الوظيفة</th><th>الحاضرين</th><th>المطلوب</th><th></th></tr></thead><tbody>${planRows}</tbody></table>
     <p class="muted" style="margin-top:6px;">المطلوب = الأساسي، من شيت الاحتياج بتاع الشهر.</p>` : `<p class="muted">مفيش عدد مطلوب متسجل للموقع ده.</p>`;
 
-  $("stats").innerHTML = [[P, "حاضر"], [A, "غايب"], ...(Q ? [[Q, "توقف"]] : []), [open, "محتاج قرار"], [flagged, "اتعلّم للمراجعة"]]
+  $("stats").innerHTML = [[P, "حاضر"], ...(S.off ? [[O, S.off === "fri" ? "مش شغال (جمعة)" : "عطلة (ط)"]] : [[A, "غايب"]]), ...(Q ? [[Q, "توقف"]] : []), [open, "محتاج قرار"], [flagged, "اتعلّم للمراجعة"]]
     .map(([v, l]) => `<div class="stat"><div class="v">${fmt(v)}</div><div class="l">${l}</div></div>`).join("");
 
   // صفوف من غير عامل معروف + المكتوبة بخط اليد
@@ -783,20 +800,22 @@ $("confirm").addEventListener("click", async () => {
     }
   }
   const entries = {};
-  let P = 0, A = 0, Qn = 0;
+  let P = 0, A = 0, Qn = 0, On = 0;
   // ترتيب الكشف الورقي (زي المطبوع) — الاعتماد بيعرض الأسماء بيه
   let ordMap = new Map();
   try { ordMap = printOrder({ roster: S.roster, subs: restSubs(), order: await loadOrder(S.site), plan: planNow() }); } catch (e) {}
   for (const w of S.roster) {
     const r = ai[w.code];
     const s = defOf(w.code, r);
-    if (s !== "P" && s !== "A" && s !== "Q") return show($("c-msg"), "err", "فيه عمال لسه محتاجين قرار.");
-    if (s === "P") P++; else if (s === "A") A++; else Qn++;
+    if (s !== "P" && s !== "A" && s !== "Q" && s !== "O") return show($("c-msg"), "err", "فيه عمال لسه محتاجين قرار.");
+    if (s === "P") P++; else if (s === "A") A++; else if (s === "O") On++; else Qn++;
+    if (s === "O" && S.off === "fri") continue;   // الجمعة ومجاش: مالوش سطر خالص — اليوم ده فاضي ليه
     entries[w.code] = { name: w.name, nid: w.nid || "", job: w.job, type: w.type, s, ai: r ? r.s : "", by: S.choice[w.code] && (!r || S.choice[w.code] !== r.s) ? "sup" : "ai", note: r?.note || "", page: r?.page || "" };
     if (r?.xk) entries[w.code].xk = r.xk;
     if (ordMap.has(w.code)) entries[w.code].ord = ordMap.get(w.code);
     if (s === "A" && S.rep[w.code]) entries[w.code].rep = S.rep[w.code];
     if (s === "Q") Object.assign(entries[w.code], { s: "L", c: "ق" });   // توقف: بيترفع ق على البصمة
+    if (s === "O") Object.assign(entries[w.code], { s: "L", c: "ط" });   // عطلة رسمية ومحضرش: ط
     if (S.timed && s === "P") Object.assign(entries[w.code], timeEntry(r, w.job, S.prevIn[w.code]));
   }
   // بدلاء الراحات المطبوعين: بيتسجلوا لو حاضرين بس (البدلاء برّه نظام الغياب)
@@ -804,7 +823,7 @@ $("confirm").addEventListener("click", async () => {
   let subsP = 0;
   for (const [k, r] of Object.entries(aiSubs())) {
     const s = defOf(k, r);
-    if (s !== "P" && s !== "A" && s !== "Q") return show($("c-msg"), "err", "فيه بدلاء لسه محتاجين قرار.");
+    if (s !== "P" && s !== "A" && s !== "Q" && s !== "O") return show($("c-msg"), "err", "فيه بدلاء لسه محتاجين قرار.");
     if (s === "Q") {   // بديل الراحات في يوم توقف: زي الأساسي، بيترفع ق على البصمة
       if (usedRep.has(r.w.nid)) return show($("c-msg"), "err", `${r.w.name} متسجل توقف في صفه، ومختار كمان بديل لعامل غايب. شيله من واحد منهم.`);
       entries[k] = { name: r.w.name, nid: r.w.nid || "", code: r.w.code || "", job: r.w.job || "", type: r.w.type || "بديل", sub: true, s: "L", c: "ق", ai: r.s,
@@ -854,7 +873,7 @@ $("confirm").addEventListener("click", async () => {
   if (wrong.length && !await ask(`فيه ${fmt(wrong.length)} صورة معظم أساميها مش من كشف ${S.site} — غالباً اترفعت على الموقع الغلط.\nتأكد الحضور برضه؟`)) return;
   if (S.admin && S.day) {
     const stName = { confirmed: "مستني مراجعة الإقليمي", reviewed: "مستني الاعتماد", approved: "معتمد" }[S.day.status] || S.day.status;
-    if (!await ask(`تعديل أدمن على ${S.site} يوم ${S.date}:\nحاضر ${P} — غايب ${A}${Qn ? ` — توقف ${Qn}` : ""}\n\nحالة اليوم هتفضل «${stName}».`)) return;
+    if (!await ask(`تعديل أدمن على ${S.site} يوم ${S.date}:\nحاضر ${P} — ${offTxt(A, On)}${Qn ? ` — توقف ${Qn}` : ""}\n\nحالة اليوم هتفضل «${stName}».`)) return;
     $("confirm").disabled = true;
     try {
       await updateDoc(doc(db, "att_days", S.site + "__" + S.date), {
@@ -870,7 +889,7 @@ $("confirm").addEventListener("click", async () => {
   const late = new Date() > deadlineOf(S.date);
   const nth = S.lateCount + 1;
   if (late && !(S.regional ? S.day?.review_late : S.day?.late) && !await ask(`اتأخرت في رفع حضور يوم ${S.date}.\nدي المرة ${ordinal(nth)} الشهر ده.\nالتأخير بيتسجل وبيأثر على تقييمك وراتبك.\n\nتأكد الحضور؟`)) return;
-  if (!late && !await ask(`تأكيد حضور ${S.site} يوم ${S.date}:\nحاضر ${P} — غايب ${A}${Qn ? ` — توقف ${Qn}` : ""}`, { ok: "أكّد الحضور" })) return;
+  if (!late && !await ask(`تأكيد حضور ${S.site} يوم ${S.date}:\nحاضر ${P} — ${offTxt(A, On)}${Qn ? ` — توقف ${Qn}` : ""}`, { ok: "أكّد الحضور" })) return;
   $("confirm").disabled = true;
   try {
     const base = {
