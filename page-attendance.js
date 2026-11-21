@@ -1495,7 +1495,22 @@ async function cancelMine(kind, field, value) {
 // ===== طلب إضافة للـ HR (السجل الموحد) =====
 // العامل الجديد بيظهر على الكشف بكود مؤقت (new_workers) لحد ما الـ HR يعتمد ويطلع له كود T
 const PHONE_RE = /^01[0125][0-9]{8}$/;
-const cleanPhone = v => { let p = enDigits(v).replace(/\D/g, ""); if (p.length === 10 && p[0] === "1") p = "0" + p; return p; };
+// التليفون: بنشيل أي حاجة غير الأرقام (مسافات، شَرط، علامات الاتجاه المخفية اللي بتيجي مع النسخ من واتساب/جهات الاتصال)
+// وبنحوّل الكود الدولي (+20 / 0020) لـ 0، وبنقف عند 11 رقم
+const cleanPhone = v => {
+  let p = enDigits(v).replace(/\D/g, "");
+  if (p.startsWith("0020")) p = p.slice(2);
+  if (p.startsWith("201")) p = "0" + p.slice(2);
+  if (p.length === 10 && p[0] === "1") p = "0" + p;
+  return p.slice(0, 11);
+};
+// تنضيف وقت الكتابة/اللزق — من غير maxlength على الخانة عشان العلامات المخفية متاكلش مكان أرقام
+document.addEventListener("input", e => {
+  const el = e.target;
+  if (!el.matches || !el.matches("#nc-phone, #idm-in-phone, [data-rtphone]")) return;
+  const c = cleanPhone(el.value);
+  if (c !== el.value) el.value = c;
+});
 const cleanName = v => String(v || "").replace(/\s+/g, " ").trim();
 // المشكلة في البيانات اللي اتكتبت (أو "" لو تمام)
 function typedProblem(name, nid, phone) {
@@ -1752,7 +1767,7 @@ function renderRet() {
     const r = e.return_reason || "other", id = esc(e.id);
     const act = r === "fiche" ? `<button class="btn small" data-rtfiche="${id}">رفع الفيش</button>`
       : r === "card" || r === "nid" ? `<button class="btn small" data-rtcard="${id}">صوّر البطاقة تاني</button>`
-      : r === "phone" ? `<input data-rtphone="${id}" dir="ltr" maxlength="11" inputmode="numeric" placeholder="التليفون الصح" style="width:130px;padding:4px 6px;"><button class="btn small" data-rtsend="${id}">ابعت للـ HR</button>`
+      : r === "phone" ? `<input data-rtphone="${id}" type="tel" dir="ltr" inputmode="numeric" placeholder="التليفون الصح" style="width:130px;padding:4px 6px;"><button class="btn small" data-rtsend="${id}">ابعت للـ HR</button>`
       : `<input data-rtnote="${id}" placeholder="اكتب ردك على الملاحظة" style="flex:1;min-width:150px;padding:4px 6px;"><button class="btn small" data-rtsend="${id}">ابعت للـ HR</button>`;
     return `<div class="w" style="flex-wrap:wrap;"><div class="nm"><b>${esc(e.name)}</b><small>${esc(e.job || "")} · ${esc(e.type || "")} · ${esc(e.nid || "")}</small>
       <div style="margin-top:4px;"><span class="pill p-err">الناقص: ${esc(e.decision_note || RT_WHAT[r] || "")}</span></div></div>
