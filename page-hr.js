@@ -1,6 +1,6 @@
 // page-hr.js — سكريبت صفحة hr.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask, typeOk, typeErr, jobsFor, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch, onAuthStateChanged } from './shared.js?v=20261122f';
-import { secsForJob, secOptions } from './sheet.js?v=20261122f';
+import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask, typeOk, typeErr, jobsFor, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261122g';
+import { secsForJob, secOptions } from './sheet.js?v=20261122g';
 const $ = id => document.getElementById(id);
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
 const TY = { sick: "مرضي", leave: "إجازة", resign: "استقالة" };
@@ -564,7 +564,7 @@ onAuthStateChanged(auth, async user => {
   ["login", "denied", "app"].forEach(i => $(i).classList.add("hidden"));
   if (!user) return $("login").classList.remove("hidden");
   let role = null, claims = {}; try { claims = (await user.getIdTokenResult()).claims || {}; role = claims.role || null; } catch (e) {}
-  if (!["admin", "hr", "viewer"].includes(role)) return $("denied").classList.remove("hidden");
+  if (!canOpen(claims, "hr.html")) return $("denied").classList.remove("hidden");   // الشرط في shared.js (NAV_PAGES)
   SCOPED = role === "hr" && Array.isArray(claims.sites) && claims.sites.length ? claims.sites : null;
   $("client-card").classList.toggle("hidden", !!SCOPED);
   $("tab-client").classList.toggle("hidden", !!SCOPED);

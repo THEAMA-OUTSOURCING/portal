@@ -6,7 +6,7 @@
 // - كل مستلم ليه نسخة في notif_inbox (id = uid__id) — منها «اتقرا إمتى» و«قرأه كام واحد».
 // - الإشعارات ما بتتمسحش. الجرس بيعرض آخر 14 يوم، والأقدم بزرار «عرض الأقدم».
 // - توفير القراءات: أول ما الصفحة تفتح = عدّ بس (قراية واحدة)، والقايمة بتتحمل لما حد يدوس على الجرس.
-import { tell, askText, esc, collection, doc, getDoc, getDocs, query, where, orderBy, limit, startAfter, writeBatch, serverTimestamp, getCountFromServer, Timestamp, onAuthStateChanged } from './shared.js?v=20261122f';
+import { tell, askText, esc, collection, doc, getDoc, getDocs, query, where, orderBy, limit, startAfter, writeBatch, serverTimestamp, getCountFromServer, Timestamp, onAuthStateChanged } from './shared.js?v=20261122g';
 
 const DAYS_SHOWN = 14;
 const PAGE = 20;
@@ -32,13 +32,10 @@ export function initBell(auth, db, sites) {
     const sites = Array.isArray(c.sites) && c.sites.length ? c.sites : null;
     // بنجهّز الحساب في متغير محلي، ونحطه في ME بس لو لسه نفس المستخدم داخل (لو عمل خروج وإحنا مستنيين، نقف)
     const me = { uid: user.uid, role: c.role, sites, regional: false, regionalEmails: [] };
-    // الإقليمي: config/regionals مسموح يتقري للإقليمي والأدمن بس (نفس طريقة attendance.html)
-    if (c.role === "supervisor" || c.role === "admin") {
-      try {
-        const r = await getDoc(doc(DB, "config", "regionals"));
-        if (c.role === "supervisor") me.regional = r.exists();
-        else me.regionalEmails = emailsIn(r.exists() ? r.data() : {});
-      } catch (e) {}
+    // الإقليمي: علامة regional على حسابه (ت6). الأدمن بيقرا إيميلاتهم من config/regionals (السيرفر بيكتبه من العلامات)
+    if (c.role === "supervisor") me.regional = c.regional === true;
+    if (c.role === "admin") {
+      try { const r = await getDoc(doc(DB, "config", "regionals")); me.regionalEmails = emailsIn(r.exists() ? r.data() : {}); } catch (e) {}
     }
     if (AUTH.currentUser?.uid !== user.uid) return;
     me.admin = c.role === "admin";

@@ -1,5 +1,5 @@
 // page-sijil.js — سكريبت صفحة sijil.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { db, auth, enDigits, actorEmail, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, Timestamp, writeBatch, serverTimestamp, onAuthStateChanged } from './shared.js?v=20261122f';
+import { db, auth, enDigits, actorEmail, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, Timestamp, writeBatch, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261122g';
 const $ = id => document.getElementById(id);
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
 const fmt = n => Number(n).toLocaleString("ar-EG");
@@ -313,8 +313,8 @@ onAuthStateChanged(auth, async user => {
   if (!user) { purgeCache(); return $("login").classList.remove("hidden"); }
   let claims = {}; try { claims = (await user.getIdTokenResult()).claims || {}; } catch (e) {}
   S.role = claims.role || null;
-  // مؤقتاً: للأدمن اللي عليه علامة sijil بس (لحد ما يتراجع ويتفتح للإدارة والـ HR والمحاسبين)
-  if (!(S.role === "admin" && claims.sijil === true)) { purgeCache(); return $("denied").classList.remove("hidden"); }
+  // الشرط في shared.js (NAV_PAGES): مؤقتاً للأدمن اللي عليه علامة sijil بس (لحد ما يتراجع ويتفتح للإدارة والـ HR والمحاسبين)
+  if (!canOpen(claims, "sijil.html")) { purgeCache(); return $("denied").classList.remove("hidden"); }
   S.scoped = ["hr", "accountant"].includes(S.role) && Array.isArray(claims.sites) && claims.sites.length ? claims.sites : null;
   if (S.scoped) $("scope-note").textContent = "حسابك ليه الفروع دي بس: " + S.scoped.join("، ") + ".";
   $("who").textContent = S.role === "admin" ? "ادمن" : user.email; $("app").classList.remove("hidden");

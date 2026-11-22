@@ -60,7 +60,7 @@ export const XL_SITES = ["قطامية", "ابوصير", "العامرية ام�
 
 // ===== أزرار التنقل بين الصفحات =====
 // كل صفحة فيها <nav id="pnav"></nav> بس، والأزرار بتترسم هنا حسب دور الحساب.
-// الزرار بيظهر بس لو الصفحة نفسها بتسمح للدور ده (نفس الشروط اللي في كل صفحة، والـ Rules هي الحماية الحقيقية).
+// الشرط هنا (can) هو نفسه اللي الصفحة بتفتح بيه (canOpen تحت — ت8): الزرار يظهر = الصفحة تفتح. والـ Rules هي الحماية الحقيقية.
 // صفحة جديدة؟ ضيفها هنا مرة واحدة.
 const hasSites = c => Array.isArray(c.sites) && c.sites.length > 0;
 const OFFICE = ["admin", "hr", "accountant", "viewer"];
@@ -87,6 +87,15 @@ export const NAV_PAGES = [
   { href: "custody.html",    label: "العُهد",                icon: "shirt",  can: c => OFFICE.includes(c.role) || c.role === "supervisor" },
   { href: "index.html",      label: "البوابة",               icon: "home",   can: c => !!c.role && c.role !== "employee" },
 ];
+
+// ===== مين يفتح الصفحة (ت8) =====
+// الشرط مكتوب مرة واحدة في NAV_PAGES فوق: نفس الشرط بيظهّر زرار الصفحة في القايمة وبيفتحها أو يقفلها.
+// كل صفحة بتبعت اسمها بنفسها (مش من رابط الصفحة — GitHub Pages بيفتح /hr زي /hr.html).
+// الـ Rules هي الحماية الحقيقية للبيانات؛ ده بيحدد الصفحة تفتح ولا تقول «مش مسموح».
+export function canOpen(claims, href) {
+  const p = NAV_PAGES.find(x => x.href === href);
+  return !!(p && claims && claims.role && p.can(claims));
+}
 
 // شكل الأزرار: مربعات صغيرة، الأيقونة فوق والاسم تحتها (زي شاشة التطبيقات). على الموبايل 3 في السطر.
 function navStyle() {
@@ -715,4 +724,4 @@ window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-if (FIRST_COPY) import('./notify.js?v=20261122f').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+if (FIRST_COPY) import('./notify.js?v=20261122g').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));

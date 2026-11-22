@@ -1,8 +1,8 @@
 // page-plan.js — سكريبت صفحة plan.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions, wireStaffLogin, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential } from './shared.js?v=20261122f';
-import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261122f';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261122f';
-import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261122f';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions, wireStaffLogin, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, canOpen } from './shared.js?v=20261122g';
+import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261122g';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261122g';
+import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261122g';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====
@@ -63,7 +63,7 @@ onAuthStateChanged(auth, async user => {
   if (!user) { $("login").classList.remove("hidden"); return; }
   let role = null, claims = {};
   try { claims = (await user.getIdTokenResult()).claims || {}; role = claims.role || null; } catch (e) {}
-  if (!["admin", "hr", "accountant", "viewer"].includes(role)) { $("denied").classList.remove("hidden"); return; }
+  if (!canOpen(claims, "plan.html")) { $("denied").classList.remove("hidden"); return; }   // الشرط في shared.js (NAV_PAGES)
   S.role = role;
   // HR أو محاسب ليه فروع: بيانات العمال لفروعه بس
   S.scoped = ["hr", "accountant"].includes(role) && Array.isArray(claims.sites) && claims.sites.length ? claims.sites : null;

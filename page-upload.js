@@ -1,6 +1,6 @@
 // page-upload.js — سكريبت صفحة upload.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { cnt, db, auth, actorEmail, fetchPlanBase, planBySite, alignPlan, nearWorkers, sameName, ask, wireStaffLogin, esc, doc, getDoc, getDocs, addDoc, collection, query, where, writeBatch, serverTimestamp, onAuthStateChanged } from './shared.js?v=20261122f';
-import { detect, parseChipsy, parseEmdad, parseSharqia, emdadMonths, counts, COMPANY_LABEL, CHIPSY_PLAN, countsForPlan, chipsySections, trimOverPlan } from './xl-attendance.js?v=20261122f';
+import { cnt, db, auth, actorEmail, fetchPlanBase, planBySite, alignPlan, nearWorkers, sameName, ask, wireStaffLogin, esc, doc, getDoc, getDocs, addDoc, collection, query, where, writeBatch, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261122g';
+import { detect, parseChipsy, parseEmdad, parseSharqia, emdadMonths, counts, COMPANY_LABEL, CHIPSY_PLAN, countsForPlan, chipsySections, trimOverPlan } from './xl-attendance.js?v=20261122g';
 
 const $ = id => document.getElementById(id);
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
@@ -12,8 +12,8 @@ wireStaffLogin();
 onAuthStateChanged(auth, async user => {
   ["login", "denied", "app"].forEach(i => $(i).classList.add("hidden"));
   if (!user) return $("login").classList.remove("hidden");
-  let role = null; try { role = (await user.getIdTokenResult()).claims.role || null; } catch (e) {}
-  if (role !== "admin") return $("denied").classList.remove("hidden");   // مؤقتاً: الرفع للأدمن بس لحد ما الشكل يتظبط
+  let role = null, claims = {}; try { claims = (await user.getIdTokenResult()).claims || {}; role = claims.role || null; } catch (e) {}
+  if (!canOpen(claims, "upload.html")) return $("denied").classList.remove("hidden");   // الشرط في shared.js (NAV_PAGES) — مؤقتاً للأدمن بس
   $("who").textContent = role === "admin" ? "ادمن" : user.email;
   $("app").classList.remove("hidden");
 });

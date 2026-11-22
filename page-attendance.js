@@ -1,7 +1,7 @@
 // page-attendance.js — سكريبت صفحة attendance.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { cnt, db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, hasRestSubs, typeOk, typeErr, typeSelect, jobOk, jobOptions, isBasic, nearWorkers, nameParts, ask, tell, compressPage, replacePage, replacedBy, wireStaffLogin, esc, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch, onAuthStateChanged } from './shared.js?v=20261122f';
-import { openPrintView, openOrderEditor, printOrder, secsForJob, secOptions } from './sheet.js?v=20261122f';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261122f';
+import { cnt, db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, hasRestSubs, typeOk, typeErr, typeSelect, jobOk, jobOptions, isBasic, nearWorkers, nameParts, ask, tell, compressPage, replacePage, replacedBy, wireStaffLogin, esc, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261122g';
+import { openPrintView, openOrderEditor, printOrder, secsForJob, secOptions } from './sheet.js?v=20261122g';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261122g';
 
 
 const $ = id => document.getElementById(id);
@@ -60,16 +60,10 @@ onAuthStateChanged(auth, async user => {
   if (!user) { $("login").classList.remove("hidden"); return; }
   let claims = {};
   try { claims = (await user.getIdTokenResult()).claims || {}; } catch (e) {}
+  if (!canOpen(claims, "attendance.html")) { $("denied").classList.remove("hidden"); return; }   // الشرط في shared.js (NAV_PAGES)
   S.admin = claims.role === "admin";
-  // الإقليمي: المستند config/regionals الـ Rules بتسمح بقرايته للإقليميين بس، فلو اتقري يبقى الحساب إقليمي.
-  // (لو النت فصل، بنحاول مرة كمان قبل ما نعتبره مشرف عادي)
-  S.regional = false;
-  if (claims.role === "supervisor") {
-    for (let i = 0; i < 2 && !S.regional; i++) {
-      try { S.regional = (await getDoc(doc(db, "config", "regionals"))).exists(); break; }
-      catch (e) { if (e.code === "permission-denied") break; }
-    }
-  }
+  // الإقليمي: علامة regional على حساب المشرف (ت6 — نفس اللي الـ Rules بتشوفه)
+  S.regional = claims.role === "supervisor" && claims.regional === true;
   // المحاسب والـ HR: الكشف بس (طباعة وترتيب وإضافة وشيل) في حدود فروعهم، من غير تصوير ولا تأكيد ولا طلبات
   S.office = claims.role === "hr" || claims.role === "accountant";
   if (claims.role === "admin") S.sites = SUP_SITES;

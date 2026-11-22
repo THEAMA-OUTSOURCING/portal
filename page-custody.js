@@ -1,6 +1,6 @@
 // page-custody.js — سكريبت صفحة custody.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { db, auth, actorEmail, SUP_SITES, ask, fetchPlanBase, planBySite, alignPlan, wireStaffLogin, esc, collection, doc, getDoc, getDocs, setDoc, addDoc, writeBatch, query, where, onSnapshot, runTransaction, serverTimestamp, onAuthStateChanged } from './shared.js?v=20261122f';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261122f';
+import { db, auth, actorEmail, SUP_SITES, ask, fetchPlanBase, planBySite, alignPlan, wireStaffLogin, esc, collection, doc, getDoc, getDocs, setDoc, addDoc, writeBatch, query, where, onSnapshot, runTransaction, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261122g';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261122g';
 
 const $ = id => document.getElementById(id);
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
@@ -60,13 +60,9 @@ onAuthStateChanged(auth, async user => {
   const role = claims.role || "";
   const mySites = Array.isArray(claims.sites) && claims.sites.length ? claims.sites : null;
   const ALL = [...SUP_SITES, SHARQIA];
-  let regional = false;
-  if (role === "supervisor" && mySites) {
-    for (let i = 0; i < 2 && !regional; i++) {
-      try { regional = (await getDoc(doc(db, "config", "regionals"))).exists(); break; }
-      catch (e) { if (e.code === "permission-denied") break; }
-    }
-  }
+  if (!canOpen(claims, "custody.html")) { $("denied").classList.remove("hidden"); return; }   // الشرط في shared.js (NAV_PAGES)
+  // الإقليمي: علامة regional على حساب المشرف (ت6 — نفس اللي الـ Rules بتشوفه)
+  const regional = role === "supervisor" && !!mySites && claims.regional === true;
   S.user = user; S.admin = role === "admin";
   if (role === "admin" || role === "viewer") S.sites = ALL;
   else if (role === "hr" || role === "accountant") S.sites = mySites ? ALL.filter(s => mySites.includes(s)) : ALL;
