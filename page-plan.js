@@ -1,10 +1,10 @@
 // page-plan.js — سكريبت صفحة plan.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions } from './shared.js?v=20261122c';
-import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261122c';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261122c';
-import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261122c';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions } from './shared.js?v=20261122d';
+import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261122d';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261122d';
+import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261122d';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====
@@ -673,6 +673,7 @@ function initAccounts() {
     const r = $("ac-role").value;
     $("ac-sites").style.opacity = ["supervisor", "hr", "accountant"].includes(r) ? 1 : .4;
     $("ac-payroll-box").classList.toggle("hidden", r !== "accountant");
+    $("ac-regional-box").classList.toggle("hidden", r !== "supervisor");
   });
   onSnapshot(doc(db, "staff_accounts", "all"), snap => {
     const d = snap.exists() ? snap.data() : null;
@@ -689,7 +690,7 @@ function initAccounts() {
 // HR والمحاسب: من غير مواقع = كل الفروع (ومعاها الشرقية)
 function sitesText(a) {
   const pay = a.role === "accountant" && a.payroll ? " + رفع المرتبات" : "";
-  if (a.role === "supervisor") return (a.sites || []).join("، ") || "مشرف الشرقية للدخان";
+  if (a.role === "supervisor") return ((a.sites || []).join("، ") || "مشرف الشرقية للدخان") + (a.regional ? " — إقليمي" : "");
   if (a.role === "hr" || a.role === "accountant") return ((a.sites || []).join("، ") || "كل الفروع") + pay;
   return "—";
 }
@@ -711,12 +712,14 @@ function fillForm(a) {
   $("ac-sites").querySelectorAll("input").forEach(i => i.checked = (a.sites || []).includes(i.value));
   $("ac-disabled").checked = !!a.disabled;
   $("ac-payroll").checked = !!a.payroll;
+  $("ac-regional").checked = !!a.regional;
   $("ac-role").dispatchEvent(new Event("change"));
   $("ac-email").scrollIntoView({ behavior: "smooth", block: "center" });
 }
 document.querySelector('[data-panel="accounts"]').addEventListener("click", async e => {
   const t = e.target;
-  if (t.dataset.plan) { const p = PLANNED.find(x => x.email === t.dataset.plan); fillForm({ ...p, disabled: false }); return saveAccount(); }
+  // «إقليمي» مش في قايمة الحسابات المخططة: بياخده من الحساب نفسه لو موجود (عشان «تظبيط الصلاحيات» مايشيلوش)
+  if (t.dataset.plan) { const p = PLANNED.find(x => x.email === t.dataset.plan); const cur = STAFF.find(x => String(x.email).toLowerCase() === p.email); fillForm({ ...p, regional: !!cur?.regional, disabled: false }); return saveAccount(); }
   if (t.dataset.edit) { const a = STAFF.find(x => x.email === t.dataset.edit); if (a) fillForm(a); return; }
   if (t.dataset.pass) {
     if (!await ask(`باسورد مؤقت جديد لـ ${t.dataset.pass}؟ الباسورد القديم هيبطل، وأي حد داخل بيه هيخرج.`, { ok: "باسورد جديد", danger: true })) return;
@@ -729,12 +732,13 @@ async function saveAccount() {
   const email = $("ac-email").value.trim().toLowerCase(), role = $("ac-role").value;
   const sites = ["supervisor", "hr", "accountant"].includes(role) ? [...$("ac-sites").querySelectorAll("input:checked")].map(i => i.value) : [];
   const payroll = role === "accountant" && $("ac-payroll").checked;
+  const regional = role === "supervisor" && $("ac-regional").checked;
   if (!email || !email.includes("@")) return show($("ac-msg"), "err", "اكتب الإيميل.");
   if (role === "supervisor" && !sites.length && email !== SHARED_EMAIL
       && !await ask("مشرف من غير مواقع = نفس صلاحيات مشرف الشرقية للدخان. متأكد؟", { ok: "أيوه، احفظ" })) return;
   const name = $("ac-name").value.trim().slice(0, 40);
   // الاسم بيتبعت بس لو مكتوب — لحد ما الـ Rules والسيرفر يتحدّثوا، الحفظ من غير اسم يفضل شغال
-  return runAccountTask("account_save", { email, ...(name ? { name } : {}), role, sites, payroll, disabled: $("ac-disabled").checked });
+  return runAccountTask("account_save", { email, ...(name ? { name } : {}), role, sites, payroll, regional, disabled: $("ac-disabled").checked });
 }
 // إنشاء حساب أو تغيير دوره أو باسورده: باسورد الأدمن بيتكتب تانى قبل كل طلب (جلسة مفتوحة أو مسروقة لوحدها ماتكفيش).
 // والـ Rules بتتأكد إن الباسورد اتكتب من دقايق (auth_time) — فالطلب مايتبعتش من غير الخطوة دى.

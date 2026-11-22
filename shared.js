@@ -47,7 +47,7 @@ export const ATT_SITES = ["فرع العامرية", "فرع العجمى", "م�
 export const XL_SUP_SITES = ["قطامية", "ابوصير", "العامرية امداد", "اكتوبر امداد", "مدينة نصر امداد", "طنطا امداد"];
 export const SUP_SITES = [...ATT_SITES, ...XL_SUP_SITES];
 export const XL_SITES = ["قطامية", "ابوصير", "العامرية امداد", "اكتوبر امداد", "مدينة نصر امداد", "طنطا امداد", "الشرقية للدخان"];
-// المديرين الإقليميين: مش مكتوبين هنا (الريبو Public) — في firestore.rules (isRegional) وفي Firestore (config/regionals)
+// المديرين الإقليميين: مش مكتوبين هنا (الريبو Public) — علامة regional على الحساب (لوحة الحسابات)، والقواعد بتقراها (isRegional)، وconfig/regionals بيتكتب منها
 
 // ===== أزرار التنقل بين الصفحات =====
 // كل صفحة فيها <nav id="pnav"></nav> بس، والأزرار بتترسم هنا حسب دور الحساب.
@@ -71,8 +71,8 @@ export const NAV_PAGES = [
   { href: "report.html",     label: "تقارير الحضور",        icon: "chart",  can: c => OFFICE.includes(c.role) || (c.role === "supervisor" && hasSites(c)) },
   { href: "plan.html",       label: "الاحتياج والأعداد",     icon: "list",   can: c => OFFICE.includes(c.role) },
   { href: "hr.html",         label: "اعتماد الحالات",        icon: "check",  can: c => ["admin", "hr", "viewer"].includes(c.role) },
-  // السجل: لمحمود بس مؤقتاً (لحد ما يتراجع) — نفس الشرط في sijil.html والـ Rules
-  { href: "sijil.html",      label: "السجل",                 icon: "id",     can: c => c.role === "admin" && c.email === "myehia200@gmail.com" },
+  // السجل: مؤقتاً للأدمن اللي عليه علامة sijil (لحد ما يتراجع) — نفس الشرط في sijil.html والـ Rules (canSijil)
+  { href: "sijil.html",      label: "السجل",                 icon: "id",     can: c => c.role === "admin" && c.sijil === true },
   { href: "upload.html",     label: "رفع حضور إكسيل",       icon: "upload", can: c => c.role === "admin" },
   // العُهد: المشرف (ومشرف الشرقية للدخان) يعلّم، والإقليمي والمكتب يشوفوا
   { href: "custody.html",    label: "العُهد",                icon: "shirt",  can: c => OFFICE.includes(c.role) || c.role === "supervisor" },
@@ -676,4 +676,4 @@ window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-if (FIRST_COPY) import('./notify.js?v=20261122c').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+if (FIRST_COPY) import('./notify.js?v=20261122d').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));

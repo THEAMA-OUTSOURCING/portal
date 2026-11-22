@@ -1,7 +1,7 @@
 // page-sijil.js — سكريبت صفحة sijil.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { collection, doc, getDoc, getDocs, query, where, Timestamp, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, enDigits, actorEmail } from './shared.js?v=20261122c';
+import { db, auth, enDigits, actorEmail } from './shared.js?v=20261122d';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
@@ -317,8 +317,8 @@ onAuthStateChanged(auth, async user => {
   if (!user) { purgeCache(); return $("login").classList.remove("hidden"); }
   let claims = {}; try { claims = (await user.getIdTokenResult()).claims || {}; } catch (e) {}
   S.role = claims.role || null;
-  // مؤقتاً: لمحمود بس (لحد ما يتراجع ويتفتح للإدارة والـ HR والمحاسبين)
-  if (!(S.role === "admin" && claims.email === "myehia200@gmail.com")) { purgeCache(); return $("denied").classList.remove("hidden"); }
+  // مؤقتاً: للأدمن اللي عليه علامة sijil بس (لحد ما يتراجع ويتفتح للإدارة والـ HR والمحاسبين)
+  if (!(S.role === "admin" && claims.sijil === true)) { purgeCache(); return $("denied").classList.remove("hidden"); }
   S.scoped = ["hr", "accountant"].includes(S.role) && Array.isArray(claims.sites) && claims.sites.length ? claims.sites : null;
   if (S.scoped) $("scope-note").textContent = "حسابك ليه الفروع دي بس: " + S.scoped.join("، ") + ".";
   $("who").textContent = S.role === "admin" ? "ادمن" : user.email; $("app").classList.remove("hidden");
