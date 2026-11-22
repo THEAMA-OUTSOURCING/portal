@@ -1,7 +1,7 @@
 // page-index.js — سكريبت صفحة index.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, getDocs, addDoc, deleteDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { serverNow, serverClock, db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead } from './shared.js?v=20261122b';
+import { serverNow, serverClock, db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead } from './shared.js?v=20261122c';
 
 
 let loggedUser = null;
@@ -180,7 +180,9 @@ onAuthStateChanged(auth, async (user)=>{
     });
     loginBox.style.display='none';
     uploadBox.style.display='block';
-    watchServerStatus();
+    fpAdmin = isAdmin;
+    // حالة السيرفر وملفاته للأدمن بس (الـ Rules كمان بتقفلها على غيره)
+    if(isAdmin) watchServerStatus(); else stopServerStatus();
     if(canPayroll || isAdmin) loadXlsx().catch(()=>{});   // تجهيز مكتبة الإكسيل في الخلفية (رفع المرتبات / تصدير البيانات)
   } else {
     stopServerStatus();
@@ -655,14 +657,14 @@ async function runSync(){
 window.runSync = runSync;
 
 // ===== حالة السيرفر =====
-let serverStatusUnsub = null, serverStatusTimer = null, lastServerData = null;
+let serverStatusUnsub = null, serverStatusTimer = null, lastServerData = null, fpAdmin = false, fpLocal = null;
 function renderServerStatus(){
   const el = document.getElementById('server-status');
   const t = lastServerData && lastServerData.last_seen && lastServerData.last_seen.toDate ? lastServerData.last_seen.toDate() : null;
   const ageMin = t ? (Date.now() - t.getTime())/60000 : Infinity;
   if(ageMin <= 11){
     el.className = 'success-box'; el.style.display = 'block';
-    el.textContent = 'السيرفر شغال ✓';
+    el.textContent = 'السيرفر شغال ✓' + (fpAdmin && lastServerData.disk_changed && lastServerData.disk_changed.length ? ' — بس فيه ملفات اتنسخت ومحتاجة restart (شوف «ملفات السيرفر» تحت)' : '');
   } else {
     el.className = 'error-box'; el.style.display = 'block';
     el.textContent = 'السيرفر واقف' + (t ? ' — آخر ظهور: ' + t.toLocaleString('ar-EG') : '') + ' — طلبات الريسيت والحسابات هتستنى لحد ما يشتغل';
@@ -673,12 +675,88 @@ function watchServerStatus(){
   serverStatusUnsub = onSnapshot(doc(db,'admin_tasks_status','server'), snap=>{
     lastServerData = snap.exists() ? snap.data() : null;
     renderServerStatus();
+    if(fpAdmin) renderCodeFp();
   }, err=>{
     const el = document.getElementById('server-status');
     el.className = 'info-box'; el.textContent = 'مش قادر أقرا حالة السيرفر';
     console.error('server status error:', err);
   });
   serverStatusTimer = setInterval(renderServerStatus, 60000);
+}
+// ===== بصمة ملفات السيرفر (ت3، للأدمن) =====
+// worker.py بيكتب مع النبضة بصمة (SHA-256) كل ملف .py شغال في البرنامج. هنا بنعرضها، ولو الأدمن اختار فولدر server
+// اللي في «الشغال دلوقتي» بنحسب بصمة ملفاته في المتصفح (crypto.subtle — مفيش أي ملف بيترفع) ونقارن.
+const fpEl = (tag, text, style) => { const e = document.createElement(tag); if(text != null) e.textContent = text; if(style) e.style.cssText = style; return e; };
+const fpSize = n => n >= 1024 ? (n/1024).toFixed(1) + ' KB' : n + ' بايت';
+const fpStale = () => { const t = lastServerData && lastServerData.last_seen && lastServerData.last_seen.toDate ? lastServerData.last_seen.toDate() : null; return !t || (Date.now() - t.getTime())/60000 > 11; };
+function renderCodeFp(){
+  const info = document.getElementById('fp-info'), badge = document.getElementById('fp-badge');
+  if(!info) return;
+  info.replaceChildren(); badge.textContent = '';
+  const d = lastServerData, files = d && Array.isArray(d.files) ? d.files : null;
+  if(!files || !files.length){
+    info.textContent = d && d.fp_error ? 'السيرفر شغال بس حصل خطأ وهو بيحسب بصمة ملفاته — شوف الـ log على السيرفر.'
+      : 'السيرفر لسه ماكتبش بصمة ملفاته — محتاج worker.py الجديد و restart للبرنامج.';
+    renderFpCompare(); return;
+  }
+  const st = d.started_at && d.started_at.toDate ? d.started_at.toDate() : null;
+  if(fpStale()) info.append(fpEl('p', '⚠ السيرفر واقف — دي آخر بصمة كتبها قبل ما يقف.', 'background:#fbeaea;color:#c0392b;border-radius:8px;padding:8px 10px;margin-bottom:6px;'));
+  info.append(fpEl('p', 'البرنامج اشتغل: ' + (st ? st.toLocaleString('ar-EG') : '—') + ' — ' + files.length + ' ملف شغال (البصمة بتتحدث كل 5 دقايق)', 'margin-bottom:6px;'));
+  const changed = Array.isArray(d.disk_changed) ? d.disk_changed : [];
+  if(changed.length){
+    info.append(fpEl('p', '⚠ الملفات دي اتغيّرت على السيرفر بعد ما البرنامج اشتغل، والبرنامج لسه شغال بالقديم: ' + changed.join('، ') + ' — اعمل restart للـ Task «theama worker».',
+      'background:#fdf3e1;color:#8a5a00;border-radius:8px;padding:8px 10px;margin-bottom:6px;'));
+    badge.textContent = '— محتاج restart'; badge.style.color = '#8a5a00';
+  }
+  const ul = fpEl('ul', null, 'list-style:none;padding:0;margin:0;direction:ltr;text-align:left;font-family:monospace;font-size:12px;color:#444;');
+  files.forEach(f => ul.append(fpEl('li', String(f.name) + '  ' + String(f.sha || '').slice(0, 12) + '  ' + fpSize(+f.size || 0))));
+  info.append(ul);
+  renderFpCompare();
+}
+async function compareServerFiles(){
+  const inp = document.getElementById('fp-folder'), out = document.getElementById('fp-result');
+  const picked = [...(inp.files || [])].filter(f => /\.py$/i.test(f.name) && f.size <= 5 * 1024 * 1024).slice(0, 300);
+  if(!picked.length){ fpLocal = null; out.textContent = 'مفيش ملفات .py في الفولدر ده — اختار فولدر server اللي جوه «الشغال دلوقتي».'; out.style.color = '#c0392b'; return; }
+  out.textContent = 'بحسب البصمة...'; out.style.color = '#555';
+  const byName = Object.create(null);
+  try{
+    for(const f of picked){
+      const buf = await crypto.subtle.digest('SHA-256', await f.arrayBuffer());
+      const sha = [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+      const key = f.name.toLowerCase();
+      (byName[key] = byName[key] || []).push({ sha, size: f.size, path: f.webkitRelativePath || f.name });
+    }
+  }catch(e){ fpLocal = null; out.textContent = 'مش قادر أقرا الملفات: ' + e.message; out.style.color = '#c0392b'; return; }
+  fpLocal = byName;
+  inp.value = '';   // عشان لو اختار نفس الفولدر تاني بعد ما يعدّل فيه، المقارنة تتعمل من جديد
+  renderFpCompare();
+}
+window.compareServerFiles = compareServerFiles;
+function renderFpCompare(){
+  const out = document.getElementById('fp-result');
+  if(!out || !fpLocal) return;
+  out.replaceChildren(); out.style.color = '';
+  const files = lastServerData && Array.isArray(lastServerData.files) ? lastServerData.files : [];
+  if(!files.length){ out.textContent = 'مفيش بصمة من السيرفر لسه عشان أقارن بيها.'; return; }
+  const ul = fpEl('ul', null, 'list-style:none;padding:0;margin:0;');
+  let bad = 0;
+  for(const f of files){
+    const mine = fpLocal[String(f.name).toLowerCase()] || [];
+    let txt, color;
+    if(!mine.length){ txt = '⚠ ' + f.name + ' — مش موجود في الفولدر اللي اخترته'; color = '#8a5a00'; bad++; }
+    else if(mine.length > 1){ txt = '⚠ ' + f.name + ' — متكرر في الفولدر (' + mine.map(m => m.path).join('، ') + ') — اختار فولدر server نفسه'; color = '#8a5a00'; bad++; }
+    else if(mine[0].sha === f.sha){ txt = '✓ ' + f.name + ' — نفس الملف'; color = '#3b6d11'; }
+    else { txt = '✗ ' + f.name + ' — مختلف (عندك ' + fpSize(mine[0].size) + '، وعلى السيرفر ' + fpSize(+f.size || 0) + ')'; color = '#c0392b'; bad++; }
+    ul.append(fpEl('li', txt, 'color:' + color + ';margin-bottom:3px;'));
+  }
+  const running = new Set(files.map(f => String(f.name).toLowerCase()));
+  const extra = Object.keys(fpLocal).filter(n => !running.has(n)).map(n => fpLocal[n][0].path.split('/').pop()).sort();
+  const changed = Array.isArray(lastServerData.disk_changed) ? lastServerData.disk_changed : [];
+  const warn = !bad && (changed.length || fpStale());
+  out.append(fpEl('p', bad ? ('فيه ' + bad + ' من ' + files.length + ' ملف مش زي «الشغال دلوقتي»')
+      : 'ملفات البرنامج (.py) اللي شغالة زي «الشغال دلوقتي» ✓' + (changed.length ? ' — بس فيه ملفات اتغيّرت على السيرفر ومستنية restart (فوق)' : '') + (fpStale() ? ' — بس السيرفر واقف دلوقتي' : ''),
+    'font-weight:500;margin-bottom:6px;color:' + (bad ? '#c0392b' : warn ? '#8a5a00' : '#3b6d11') + ';'), ul);
+  if(extra.length) out.append(fpEl('p', 'في الفولدر ومش شغالين في البرنامج (سكريبتات بتتشغل بإيدك): ' + extra.join('، '), 'color:#767676;font-size:12px;margin-top:6px;'));
 }
 function stopServerStatus(){
   if(serverStatusUnsub){ serverStatusUnsub(); serverStatusUnsub = null; }

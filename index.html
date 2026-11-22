@@ -288,7 +288,7 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
     <div style="text-align:center;margin-top:10px;"><a href="#" data-call="showScreen" data-args="login-screen" style="font-size:13px;color:#767676;text-decoration:none;padding:8px 12px;display:inline-block;">رجوع</a></div>
   </form>
   <div id="admin-upload-box" style="display:none;">
-    <div id="server-status" class="info-box" style="margin-bottom:12px;">جاري التحقق من حالة السيرفر...</div>
+    <div id="server-status" class="info-box admin-only" style="margin-bottom:12px;">جاري التحقق من حالة السيرفر...</div>
     <!-- أزرار الصفحات (حسب الدور) — بتترسم من shared.js -->
     <nav id="pnav" class="pnav" aria-label="صفحات البوابة"></nav>
     <div style="text-align:left;margin-bottom:10px;"><a href="#" data-call="adminLogout" style="font-size:13px;color:#c0392b;text-decoration:none;display:inline-block;padding:10px 4px;"><i class="ti ti-logout" style="font-size:15px;vertical-align:-2px;margin-left:4px;"></i>خروج الإدارة</a></div>
@@ -351,6 +351,13 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
       <div class="error-box" id="reset-error"><i class="ti ti-alert-circle" style="font-size:14px;vertical-align:-2px;margin-left:4px;"></i><span id="reset-error-msg"></span></div>
       <button class="btn-warn" data-call="resetEmployeePass" id="reset-btn"><i class="ti ti-refresh" style="font-size:15px;vertical-align:-2px;margin-left:4px;"></i>إعادة تعيين الباسورد</button>
     </div>
+    <details class="card admin-only" id="fp-card" style="margin-top:0;">
+      <summary style="font-size:14px;font-weight:500;color:#222;cursor:pointer;"><i class="ti ti-settings" style="font-size:16px;vertical-align:-2px;margin-left:6px;color:#185fa5;"></i>ملفات السيرفر <span id="fp-badge" style="font-size:12px;font-weight:400;"></span></summary>
+      <div id="fp-info" style="font-size:13px;color:#555;margin-top:10px;"></div>
+      <label for="fp-folder" style="font-size:13px;color:#6b6b6b;display:block;margin:12px 0 6px;">قارن بفولدر <b>server</b> اللي في «الشغال دلوقتي» — الصفحة بتحسب البصمة على جهازك ومش بترفع أي ملف (المتصفح هيسألك «Upload» — ده اسم الزرار بس)</label>
+      <input type="file" id="fp-folder" webkitdirectory multiple data-change="compareServerFiles"/>
+      <div id="fp-result" style="font-size:13px;margin-top:10px;"></div>
+    </details>
     <div class="card admin-only" style="margin-top:0;">
       <p style="font-size:14px;font-weight:500;color:#222;margin-bottom:12px;"><i class="ti ti-clipboard-list" style="font-size:16px;vertical-align:-2px;margin-left:6px;color:#ba7517;"></i>بيانات الموظفين المطلوبة (مقاسات + تليفون)</p>
       <div class="error-box" id="req-export-error"><i class="ti ti-alert-circle" style="font-size:14px;vertical-align:-2px;margin-left:4px;"></i><span id="req-export-error-msg"></span></div>
@@ -446,6 +453,6 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
 </div>
 
 <!-- Firebase SDKs -->
-<script type="module" src="page-index.js?v=20261122b"></script>
+<script type="module" src="page-index.js?v=20261122c"></script>
 </body>
 </html>

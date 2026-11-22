@@ -26,7 +26,7 @@
   var CALLS = ["showScreen", "toggleField", "checkAdminPass", "adminLogout", "resetPayReview", "reviewSheet", "extendPayVis",
     "uploadSheet", "confirmClear", "resetEmployeePass", "runSync", "doLogin", "doSetPass", "doChangePass", "lookupSalary", "svOut",
     "doLogout", "openMedicalCard", "downloadMedicalCard", "openCardNewTab", "openRequestForm", "saveRequest", "exportRequests",
-    "searchMedicalCard", "openAdminCardNewTab", "downloadAdminCard"];
+    "searchMedicalCard", "openAdminCardNewTab", "downloadAdminCard", "compareServerFiles"];
   function run(el, name, e) {
     if (el.tagName === "A") e.preventDefault();   // روابط href="#": من غير ما الصفحة تنط لفوق
     if (CALLS.indexOf(name) < 0) { e.preventDefault(); console.warn("boot.js: data-call مش في القايمة:", name); return; }
