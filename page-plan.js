@@ -1,10 +1,10 @@
 // page-plan.js — سكريبت صفحة plan.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions } from './shared.js?v=20261122a';
-import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261122a';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261122a';
-import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261122a';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions } from './shared.js?v=20261122b';
+import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261122b';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261122b';
+import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261122b';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====

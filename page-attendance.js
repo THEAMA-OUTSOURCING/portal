@@ -1,9 +1,9 @@
 // page-attendance.js — سكريبت صفحة attendance.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { cnt, db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, hasRestSubs, typeOk, typeErr, typeSelect, jobOk, jobOptions, isBasic, nearWorkers, nameParts, ask, tell, compressPage, replacePage, replacedBy } from './shared.js?v=20261122a';
-import { openPrintView, openOrderEditor, printOrder, secsForJob, secOptions } from './sheet.js?v=20261122a';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261122a';
+import { cnt, db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, hasRestSubs, typeOk, typeErr, typeSelect, jobOk, jobOptions, isBasic, nearWorkers, nameParts, ask, tell, compressPage, replacePage, replacedBy } from './shared.js?v=20261122b';
+import { openPrintView, openOrderEditor, printOrder, secsForJob, secOptions } from './sheet.js?v=20261122b';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261122b';
 
 
 const $ = id => document.getElementById(id);

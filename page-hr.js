@@ -1,8 +1,8 @@
 // page-hr.js — سكريبت صفحة hr.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask, typeOk, typeErr, jobsFor } from './shared.js?v=20261122a';
-import { secsForJob, secOptions } from './sheet.js?v=20261122a';
+import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask, typeOk, typeErr, jobsFor } from './shared.js?v=20261122b';
+import { secsForJob, secOptions } from './sheet.js?v=20261122b';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
@@ -22,7 +22,7 @@ const cls = v => String(v ?? "").replace(/[^a-z_-]/gi, "");
 const KINDS = { annual: "ج إجازة", casual: "ج إجازة", unpaid: "خ بدون أجر" };
 // ===== العميل: الشرقية بتخلص من HR تيما، وبيبسي والإمداد وشيبسي بيستنوا رد العميل =====
 const anorm = s => String(s ?? "").replace(/[أإآ]/g, "ا").replace(/\s+/g, " ").trim();
-const CHIPSY_SITES = ["قطامية", "ابوصير", "المعادي"];
+const CHIPSY_SITES = ["قطامية", "ابوصير"];
 const GROUP_AR = { pepsi: "بيبسي والإمداد", chipsy: "شيبسي", sharqia: "الشرقية" };
 function groupOf(e) {
   const t = anorm([e.company, e.loc, e.site].join(" "));
