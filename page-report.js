@@ -1,8 +1,6 @@
 // page-report.js — سكريبت صفحة report.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { cnt, overPlan, db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite, alignPlan, ask, compressPage, replacePage, replacedBy } from './shared.js?v=20261122d';
-import { printOrder } from './sheet.js?v=20261122d';
+import { cnt, overPlan, db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite, alignPlan, ask, compressPage, replacePage, replacedBy, wireStaffLogin, esc, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, serverTimestamp, onAuthStateChanged } from './shared.js?v=20261122e';
+import { printOrder } from './sheet.js?v=20261122e';
 
 // مواقع الساعات: الإضافي النهاري والليلي (بالدقايق) على خانة اليوم — والوقت اللي محتاج مراجعة بيتعلّم ومايتحسبش
 const TB_TIP = "الوقت محتاج مراجعة — اليوم ده مش محسوب في الإضافي";
@@ -21,15 +19,14 @@ function cellOf(e, app) {
 }
 const DAYN = ["الحد", "الاتنين", "التلات", "الأربع", "الخميس", "الجمعة", "السبت"];
 const $ = id => document.getElementById(id);
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const pad = n => String(n).padStart(2, "0");
 const ymd = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
 function hide(el) { el.className = "msg"; }
 const S = { role: null, sites: [], office: false, report: null };
 
-$("l-btn").onclick = async () => { try { await signInWithEmailAndPassword(auth, $("l-email").value.trim(), $("l-pass").value); } catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); } };
-$("logout").onclick = () => signOut(auth).finally(() => location.reload()); $("d-out").onclick = () => signOut(auth).finally(() => location.reload());
+// الدخول والخروج: من shared.js (نفس الكود في كل صفحات الإدارة — ت4)
+wireStaffLogin();
 
 onAuthStateChanged(auth, async user => {
   ["login", "denied", "app"].forEach(i => $(i).classList.add("hidden"));

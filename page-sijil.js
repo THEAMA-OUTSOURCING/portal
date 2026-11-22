@@ -1,9 +1,6 @@
 // page-sijil.js — سكريبت صفحة sijil.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { collection, doc, getDoc, getDocs, query, where, Timestamp, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, enDigits, actorEmail } from './shared.js?v=20261122d';
+import { db, auth, enDigits, actorEmail, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, Timestamp, writeBatch, serverTimestamp, onAuthStateChanged } from './shared.js?v=20261122e';
 const $ = id => document.getElementById(id);
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
 const fmt = n => Number(n).toLocaleString("ar-EG");
 const arNorm = s => String(s ?? "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/\s+/g, " ").trim();
@@ -309,9 +306,8 @@ $("ins-save").onclick = async () => {
 };
 
 // ===== الدخول =====
-$("l-btn").onclick = async () => { try { await signInWithEmailAndPassword(auth, $("l-email").value.trim(), $("l-pass").value); } catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); } };
-const out = () => { purgeCache(); signOut(auth).finally(() => location.reload()); };
-$("logout").onclick = out; $("d-out").onclick = out;
+// الدخول والخروج: من shared.js (نفس الكود في كل صفحات الإدارة — ت4)
+wireStaffLogin();
 onAuthStateChanged(auth, async user => {
   ["login", "denied", "app"].forEach(i => $(i).classList.add("hidden"));
   if (!user) { purgeCache(); return $("login").classList.remove("hidden"); }

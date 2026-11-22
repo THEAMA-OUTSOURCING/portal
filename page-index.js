@@ -1,7 +1,5 @@
 // page-index.js — سكريبت صفحة index.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { getFirestore, collection, getDocs, addDoc, deleteDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { serverNow, serverClock, db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead } from './shared.js?v=20261122d';
+import { serverNow, serverClock, db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from './shared.js?v=20261122e';
 
 
 let loggedUser = null;
@@ -317,7 +315,6 @@ async function reviewSheet(){
     const p = await parsePayroll(file);
     if(!p.recs.length) throw new Error('مفيش ولا سطر فيه «كود الموظف» في أي تابة');
     payParsed = p;
-    const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     // الأرقام إنجليزي (عشان تتنسخ وتتطرح في الإكسيل)، ودوسة على أي مبلغ بتنسخه رقم صافي من غير فواصل
     const money=v=>'<span class="pv-n" dir="ltr" data-v="'+(Number(v)||0).toFixed(2)+'" title="دوس للنسخ">'
       +(Number(v)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'<i class="pv-cp">⧉</i></span>';
@@ -413,7 +410,6 @@ function latestPerTab(docs){
 const visFmt = d => d.toLocaleString('ar-EG',{weekday:'long',day:'numeric',month:'long',hour:'numeric',minute:'2-digit'});
 async function showPayVis(){
   const box = document.getElementById('pay-vis'); if(!box) return;
-  const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const [meta] = await Promise.all([loadPayVis(), serverClock]);
   const tabs = Object.entries(meta?.tabs || {}).filter(([,v])=>v?.visible_until?.toDate);
   if(!tabs.length && meta?.visible_until?.toDate) tabs.push(['', meta]);   // رفعة قديمة بميعاد واحد للكل
@@ -928,7 +924,6 @@ function renderSalary(src, viewOnly){
   // أعمدة الشيت مشتركة مع مراجعة الرفع (SAL_PLUS / SAL_MINUS / SAL_DAYS)
   const PLUS=SAL_PLUS, MINUS=SAL_MINUS, DAYS=SAL_DAYS;
   const BAD=['غياب','جزاء','توقف'];
-  const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const get=salGet;
   const num=salNum;
   // نسبة الحافز في الشيت كسر (0.6) → ٦٠٪ ؛ لو مكتوبة رقم أكبر من 1 (60) بتتعرض زي ما هي

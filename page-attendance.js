@@ -1,13 +1,10 @@
 // page-attendance.js — سكريبت صفحة attendance.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { cnt, db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, hasRestSubs, typeOk, typeErr, typeSelect, jobOk, jobOptions, isBasic, nearWorkers, nameParts, ask, tell, compressPage, replacePage, replacedBy } from './shared.js?v=20261122d';
-import { openPrintView, openOrderEditor, printOrder, secsForJob, secOptions } from './sheet.js?v=20261122d';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261122d';
+import { cnt, db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, hasRestSubs, typeOk, typeErr, typeSelect, jobOk, jobOptions, isBasic, nearWorkers, nameParts, ask, tell, compressPage, replacePage, replacedBy, wireStaffLogin, esc, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch, onAuthStateChanged } from './shared.js?v=20261122e';
+import { openPrintView, openOrderEditor, printOrder, secsForJob, secOptions } from './sheet.js?v=20261122e';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261122e';
 
 
 const $ = id => document.getElementById(id);
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = n => Number(n || 0).toLocaleString("ar-EG");
 function show(el, type, text) { el.className = "msg show " + type; el.textContent = text; }
 function hide(el) { el.className = "msg"; el.textContent = ""; }
@@ -55,14 +52,8 @@ const ORD = ["الأولى", "التانية", "التالتة", "الرابعة
 const ordinal = n => ORD[n - 1] || `رقم ${n}`;
 
 // ===== الدخول =====
-$("l-btn").addEventListener("click", async () => {
-  hide($("l-err"));
-  try { await signInWithEmailAndPassword(auth, $("l-email").value.trim(), $("l-pass").value); }
-  catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); }
-});
-// Enter في الباسورد = «دخول» (فورم الدخول بيدوس الزرار لوحده)
-$("logout").addEventListener("click", () => signOut(auth).finally(() => location.reload()));
-$("d-out").addEventListener("click", () => signOut(auth).finally(() => location.reload()));
+// الدخول والخروج: من shared.js (نفس الكود في كل صفحات الإدارة — ت4)
+wireStaffLogin();
 
 onAuthStateChanged(auth, async user => {
   ["login", "denied", "app"].forEach(id => $(id).classList.add("hidden"));

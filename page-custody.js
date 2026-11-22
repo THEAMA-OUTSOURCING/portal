@@ -1,11 +1,8 @@
 // page-custody.js — سكريبت صفحة custody.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { collection, doc, getDoc, getDocs, setDoc, addDoc, writeBatch, query, where, onSnapshot, runTransaction, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, SUP_SITES, ask, fetchPlanBase, planBySite, alignPlan } from './shared.js?v=20261122d';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261122d';
+import { db, auth, actorEmail, SUP_SITES, ask, fetchPlanBase, planBySite, alignPlan, wireStaffLogin, esc, collection, doc, getDoc, getDocs, setDoc, addDoc, writeBatch, query, where, onSnapshot, runTransaction, serverTimestamp, onAuthStateChanged } from './shared.js?v=20261122e';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261122e';
 
 const $ = id => document.getElementById(id);
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
 function hide(el) { el.className = "msg"; }
 const ymd = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
@@ -51,8 +48,8 @@ const S = { user: null, admin: false, canEdit: false, sites: [], site: "", cycle
             filter: "all", q: "", busy: new Set(), unsubs: [], store: [] };
 
 // ===== الدخول =====
-$("l-btn").onclick = async () => { try { await signInWithEmailAndPassword(auth, $("l-email").value.trim(), $("l-pass").value); } catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); } };
-$("logout").onclick = () => signOut(auth).finally(() => location.reload()); $("d-out").onclick = () => signOut(auth).finally(() => location.reload());
+// الدخول والخروج: من shared.js (نفس الكود في كل صفحات الإدارة — ت4)
+wireStaffLogin();
 
 onAuthStateChanged(auth, async user => {
   ["login", "denied", "app"].forEach(id => $(id).classList.add("hidden"));

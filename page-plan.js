@@ -1,10 +1,8 @@
 // page-plan.js — سكريبت صفحة plan.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { getFirestore, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions } from './shared.js?v=20261122d';
-import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261122d';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261122d';
-import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261122d';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions, wireStaffLogin, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential } from './shared.js?v=20261122e';
+import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261122e';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261122e';
+import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261122e';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====
@@ -45,7 +43,6 @@ const short = loc => norm(loc).replace(/\s*Bev-EGY$/i, "");
 const fmt = n => Number(n || 0).toLocaleString("ar-EG");
 const sign = n => (n > 0 ? "+" : n < 0 ? "−" : "") + fmt(Math.abs(n));
 const cls = d => d < 0 ? "s" : d > 0 ? "o" : "k";
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const ckey = (loc, pos) => norm(loc) + "|" + nkey(pos);
 function show(el, type, text) { el.className = "msg show " + type; el.textContent = text; }
 function hide(el) { el.className = "msg"; el.textContent = ""; }
@@ -58,14 +55,8 @@ function today() { const d = new Date(); return d.getFullYear() + "-" + String(d
 const S = { month: thisMonth(), plans: {}, settings: null, amends: [], prevAmends: [], summary: null, summaryMonth: null };
 
 // ===== الدخول =====
-$("l-btn").addEventListener("click", async () => {
-  hide($("l-err"));
-  try { await signInWithEmailAndPassword(auth, $("l-email").value.trim(), $("l-pass").value); }
-  catch (e) { show($("l-err"), "err", "الإيميل أو الباسورد غلط"); }
-});
-// Enter في الباسورد = «دخول» (فورم الدخول بيدوس الزرار لوحده)
-$("logout").addEventListener("click", () => signOut(auth).finally(() => location.reload()));
-$("d-out").addEventListener("click", () => signOut(auth).finally(() => location.reload()));
+// الدخول والخروج: من shared.js (نفس الكود في كل صفحات الإدارة — ت4)
+wireStaffLogin();
 
 onAuthStateChanged(auth, async user => {
   ["login", "denied", "app"].forEach(id => $(id).classList.add("hidden"));

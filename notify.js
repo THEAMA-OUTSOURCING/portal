@@ -6,10 +6,7 @@
 // - كل مستلم ليه نسخة في notif_inbox (id = uid__id) — منها «اتقرا إمتى» و«قرأه كام واحد».
 // - الإشعارات ما بتتمسحش. الجرس بيعرض آخر 14 يوم، والأقدم بزرار «عرض الأقدم».
 // - توفير القراءات: أول ما الصفحة تفتح = عدّ بس (قراية واحدة)، والقايمة بتتحمل لما حد يدوس على الجرس.
-import { tell, askText } from './shared.js?v=20261122d';
-import { collection, doc, getDoc, getDocs, query, where, orderBy, limit, startAfter, writeBatch,
-         serverTimestamp, getCountFromServer, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { tell, askText, esc, collection, doc, getDoc, getDocs, query, where, orderBy, limit, startAfter, writeBatch, serverTimestamp, getCountFromServer, Timestamp, onAuthStateChanged } from './shared.js?v=20261122e';
 
 const DAYS_SHOWN = 14;
 const PAGE = 20;
@@ -20,7 +17,6 @@ const STAFF_ROLES = ["admin", "hr", "accountant", "viewer", "supervisor"];
 const SHARED_SITE = "الشرقية للدخان";
 let SITES = [];
 
-const esc = v => String(v == null ? "" : v).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = t => t?.toDate ? t.toDate().toLocaleString("ar-EG", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
 
 let DB, AUTH, ME = null, TIMER = null;

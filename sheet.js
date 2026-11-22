@@ -15,7 +15,7 @@
 //  - الأقسام (لو الموقع ليه أقسام، زي مصنع العامرية): كل قسم ليه صفحاته، وتحته وظايفه. الوظيفة اللي مش هتكفي
 //    في باقي الصفحة بتبدأ صفحة جديدة. الأقسام اللي في «pageGroups» بتتجمع في صفحة واحدة لو العدد يسمح.
 //    المطلوب لكل قسم/وظيفة من «secNeed» (بدل مطلوب الوظيفة في الخطة). كله محفوظ في sheet_order/{site}.
-import { ask } from './shared.js?v=20261122d';
+import { ask, esc } from './shared.js?v=20261122e';
 
 export const AUTO_ROWS = 30, MAX_ROWS = 35, OWN_PAGE_MIN = 13;
 const BODY_MM = 180, ROW_MM = 6, MIN_MM = 2.5, BLANK_UNIT = 0.5;   // جسم الجدول (30 صف × 6 مم)، والصف العادي، وأصغر خانة فاضية عادةً
@@ -66,7 +66,6 @@ export const secOptions = (secs, cur) => (secs.includes(cur) ? "" : `<option val
   + secs.map(x => `<option ${x === cur ? "selected" : ""}>${esc(x)}</option>`).join("");
 const secRank = order => { const l = sectionList(order); return s => (s ? (l.indexOf(s) < 0 ? 900 : l.indexOf(s)) : 999); };
 
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 // ---------------------------------------------------------------- الترتيب
 // order = مستند sheet_order/{site} (أو null): { groups: [{type, job, keys:[...]}], breaks: [...], excluded: [...] }

@@ -1,9 +1,14 @@
 // shared.js — الحاجات المشتركة بين صفحات البوابة، في مكان واحد بدل ما تبقى متكررة في كل صفحة.
 // أي موقع جديد أو تغيير في الإعدادات يتعمل هنا مرة واحدة.
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getFirestore, collection, doc, getDoc, getDocs, query, where, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-import { getAuth, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check.js';
+// ===== Firebase (ت5) =====
+// نسخة Firebase مكتوبة هنا بس: الصفحات كلها بتاخد دوال Firebase من shared.js (السطور «export … from» تحت).
+// الترقية = تغيير الرقم 13.4.0 في السطور دي (ونفس الرقم في كل السطور).
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-app.js';
+import { getFirestore, collection, doc, getDoc, getDocs, query, where, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js';
+import { getAuth, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-app-check.js';
+export { Timestamp, addDoc, collection, deleteDoc, doc, getCountFromServer, getDoc, getDocs, limit, onSnapshot, orderBy, query, runTransaction, serverTimestamp, setDoc, startAfter, updateDoc, where, writeBatch } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js';
+export { EmailAuthProvider, onAuthStateChanged, reauthenticateWithCredential, signInWithEmailAndPassword, signOut, updatePassword } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js';
 
 // ===== Firebase =====
 export const firebaseConfig = {
@@ -22,6 +27,10 @@ export const APP_CHECK_KEY = "6LeFr_YtAAAAADMBkt1vAf8bqyUJARWtAgaoogfP";
 // لو shared.js اتحمّل مرتين في نفس الصفحة (صفحة قديمة من الكاش بتستورده بـ ?v= قديم، و notify.js/sheet.js بيستوردوه بالـ ?v= الجديد
 // → المتصفح بيعتبرهم ملفين ونسختين) — النسخة التانية بتاخد نفس Firebase بتاع الأولى بدل ما تعمل App Check تاني
 // (اللي كان بيرمي «reCAPTCHA has already been rendered in this element»)، ومابتكررش الجرس وأزرار التنقل.
+const FB_VER = "13.4.0";   // لازم يبقى نفس الرقم اللي في سطور الـ import فوق
+if (globalThis.__theamaFB && globalThis.__theamaFB.v !== FB_VER) {
+  try { if (!sessionStorage.getItem("fbv-reload")) { sessionStorage.setItem("fbv-reload", "1"); location.reload(); } } catch (e) {}
+}
 const FIRST_COPY = !globalThis.__theamaFB;
 // (من غير ||= — الموبايلات القديمة مابتفهموش وبترمي «Unexpected token '='» والبوابة كلها تقف)
 if (!globalThis.__theamaFB) globalThis.__theamaFB = (() => {
@@ -30,7 +39,7 @@ if (!globalThis.__theamaFB) globalThis.__theamaFB = (() => {
     provider: new ReCaptchaEnterpriseProvider(APP_CHECK_KEY),
     isTokenAutoRefreshEnabled: true
   });
-  return { app, appCheck, db: getFirestore(app), auth: getAuth(app) };
+  return { v: FB_VER, app, appCheck, db: getFirestore(app), auth: getAuth(app) };
 })();
 const FB = globalThis.__theamaFB;
 export const app = FB.app;
@@ -356,7 +365,7 @@ export const typeErr = site => hasRestSubs(site) ? "الموقع ده مفيهو
 // بيشيل النوع المقفول من أي <select> للنوع (بيتشال خالص مش مخفي — موبايلات iPhone بتعرض الاختيار المخفي)
 export function typeSelect(sel, site) {
   if (!sel) return;
-  sel.dataset.full ??= sel.innerHTML;
+  if (sel.dataset.full == null) sel.dataset.full = sel.innerHTML;   // من غير ??= (الموبايلات القديمة)
   sel.innerHTML = sel.dataset.full;
   sel.querySelectorAll("option").forEach(o => { if (o.value && !typeOk(site, o.value)) o.remove(); });
 }
@@ -655,6 +664,36 @@ export async function freshRead(kind, fn) {
   }
 }
 
+// ===== esc: نص من البيانات جوه HTML (ت4 — كانت متعرّفة في كل صفحة لوحدها) =====
+export const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+// ===== الدخول والخروج لصفحات الإدارة (ت4) =====
+// كل صفحة إدارة فيها نفس الفورم: l-email / l-pass / l-btn / l-err، وزرارين خروج: logout و d-out (شاشة «مش مسموح»).
+// صفحة العامل (index.html) ليها دخول مختلف (الكود والرقم القومي) فمش بتستخدم دول.
+const LOGIN_ERR = {
+  "auth/network-request-failed": "مفيش اتصال بالنت — اتأكد من النت وجرّب تاني",
+  "auth/too-many-requests": "محاولات كتير غلط — استنى شوية وجرّب تاني",
+  "auth/user-disabled": "الحساب ده متوقف — كلّم الإدارة",
+};
+export async function staffLogin(email, pass) {
+  await signInWithEmailAndPassword(auth, String(email || "").trim(), pass);
+}
+// الخروج: نسخة السجل من المتصفح بتتمسح الأول (حتى لو الخروج اتأخر أو النت فاصل)، وبعدين الصفحة بتتحمّل من جديد
+export function staffLogout() {
+  purgeSijilCache();
+  return signOut(auth).catch(() => {}).finally(() => location.reload());
+}
+export function wireStaffLogin() {
+  const $ = id => document.getElementById(id);
+  const err = $("l-err");
+  $("l-btn")?.addEventListener("click", async () => {
+    if (err) { err.className = "msg"; err.textContent = ""; }
+    try { await staffLogin($("l-email").value, $("l-pass").value); }
+    catch (e) { if (err) { err.className = "msg show err"; err.textContent = LOGIN_ERR[e?.code] || "الإيميل أو الباسورد غلط"; } }
+  });
+  ["logout", "d-out"].forEach(id => $(id)?.addEventListener("click", staffLogout));
+}
+
 // ===== فورم الدخول (l-form) =====
 // Enter في الإيميل أو الباسورد بيدوس «دخول» لوحده (زرار submit)، والفورم نفسه مايعملش تحديث للصفحة
 document.addEventListener("submit", e => { if (e.target?.id === "l-form") e.preventDefault(); });
@@ -666,14 +705,14 @@ onAuthStateChanged(auth, () => { setTimeout(() => document.getElementById("boot"
 
 // نسخة السجل المحفوظة في المتصفح (page-sijil.js — أرقام قومية وتليفونات وأرقام تأمين) بتتمسح أول ما الحساب يخرج،
 // من أى صفحة وفي أى تاب، مش من صفحة السجل بس. قبل كده الخروج من صفحة تانية كان بيسيبها على الجهاز لحد 7 أيام.
-onAuthStateChanged(auth, user => {
-  if (user) return;
+function purgeSijilCache() {
   try { Object.keys(localStorage).filter(k => k.startsWith("sijil_v1")).forEach(k => localStorage.removeItem(k)); } catch (e) {}
-});
+}
+onAuthStateChanged(auth, user => { if (!user) purgeSijilCache(); });
 
 // علامة إن كود الصفحة اتحمّل كامل (sentry.js بيشيّك عليها: لو مش موجودة بعد تحميل الصفحة يبقى الكود ماتحملش ويظهر شريط «تحديث»)
 window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-if (FIRST_COPY) import('./notify.js?v=20261122d').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+if (FIRST_COPY) import('./notify.js?v=20261122e').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
