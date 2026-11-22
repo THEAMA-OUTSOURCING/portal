@@ -1,8 +1,8 @@
 // page-upload.js — سكريبت صفحة upload.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, doc, getDoc, getDocs, addDoc, collection, query, where, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, fetchPlanBase, planBySite, alignPlan, nearWorkers, sameName, ask } from './shared.js?v=20261119f';
-import { detect, parseChipsy, parseEmdad, parseSharqia, emdadMonths, counts, COMPANY_LABEL, CHIPSY_PLAN, countsForPlan, chipsySections, trimOverPlan } from './xl-attendance.js?v=20261119f';
+import { cnt, db, auth, actorEmail, fetchPlanBase, planBySite, alignPlan, nearWorkers, sameName, ask } from './shared.js?v=20261122a';
+import { detect, parseChipsy, parseEmdad, parseSharqia, emdadMonths, counts, COMPANY_LABEL, CHIPSY_PLAN, countsForPlan, chipsySections, trimOverPlan } from './xl-attendance.js?v=20261122a';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -63,7 +63,7 @@ async function run() {
     const dates = Object.values(S.res.days).map(d => d.date).sort();
     if (!dates.length) { $("preview").classList.add("hidden"); return show($("f-msg"), "warn", "مفيش أيام فيها حضور في الملف ده."); }
     $("p-from").value = dates[0]; $("p-to").value = dates[dates.length - 1];
-    show($("f-msg"), "ok", `${COMPANY_LABEL[S.type]} — ${S.res.workers} عامل` + (S.res.ignored ? ` (اتساب ${S.res.ignored} سطر مش تبعنا: شركات تانية أو فرع MN)` : ""));
+    show($("f-msg"), "ok", `${COMPANY_LABEL[S.type]} — ${cnt(S.res.workers, "عامل")}` + (S.res.ignored ? ` (اتساب ${cnt(S.res.ignored, "سطر")} مش تبعنا: شركات تانية أو فرع MN)` : ""));
     renderPreview();
   } catch (e) { show($("f-msg"), "err", e.message); }
 }
@@ -172,16 +172,16 @@ function renderPreview() {
     : `<tr><td colspan="8" class="muted">مفيش أيام في الفترة دي.</td></tr>`;
   const iss = S.res.issues, fx = S.fixes || [], ms = S.missing || [];
   const bn = S.banned || [], nw = Object.values(S.newbies || {}).filter(x => x.present);
-  $("p-issues").innerHTML = (bn.length ? `<div class="msg show err" style="display:block;margin-top:8px;">${bn.length} عامل في البلاك ليست — حضورهم مش هيترفع ومش هيروحوا لـ HR. بلّغ العميل يوقفهم.</div>
+  $("p-issues").innerHTML = (bn.length ? `<div class="msg show err" style="display:block;margin-top:8px;">${bn.length === 1 ? "عامل واحد في البلاك ليست — حضوره مش هيترفع ومش هيروح لـ HR. بلّغ العميل يوقفه." : `${cnt(bn.length, "عامل")} في البلاك ليست — حضورهم مش هيترفع ومش هيروحوا لـ HR. بلّغ العميل يوقفهم.`}</div>
        <table style="margin-top:6px"><thead><tr><th>الموقع</th><th>الاسم في الشيت</th><th>الرقم القومي</th><th>كوده</th><th>السبب</th><th>أيام حضور</th></tr></thead><tbody>${bn.map(f =>
          `<tr><td>${esc(f.site)}</td><td>${esc(f.name)}</td><td dir="ltr">${esc(f.nid)}</td><td>${esc(f.old)}</td><td>${esc(f.reason)}</td><td class="num">${f.present}</td></tr>`).join("")}</tbody></table>` : "")
-    + (nw.length ? `<div class="msg show warn" style="display:block;margin-top:8px;">${nw.length} عامل مش في السجل — مع الحفظ هيروحوا لـ HR في «اعتماد الحالات» يراجعوا الاسم والرقم القومي ويكمّلوا التليفون. اللي ليه كود قديم بيرجع بيه، والجديد بياخد كود جديد.</div>
+    + (nw.length ? `<div class="msg show warn" style="display:block;margin-top:8px;">${cnt(nw.length, "عامل")} مش في السجل — مع الحفظ ${nw.length === 1 ? "هيروح" : "هيروحوا"} لـ HR في «اعتماد الحالات» يراجعوا الاسم والرقم القومي ويكمّلوا التليفون. اللي ليه كود قديم بيرجع بيه، والجديد بياخد كود جديد.</div>
        <table style="margin-top:6px"><thead><tr><th>الموقع</th><th>الاسم في الشيت</th><th>الرقم القومي</th><th>الكود</th><th>الوظيفة</th><th>أول يوم</th><th>أيام حضور</th></tr></thead><tbody>${nw.map(f =>
          `<tr><td>${esc(f.site)}</td><td>${esc(f.name)}</td><td dir="ltr">${esc(f.nid)}</td><td>${f.active ? `شغال في ${esc(f.active.site || "موقع تاني")} — ${esc(f.active.code)}` : f.old ? `راجع — ${esc(f.old)}` : "جديد"}</td><td>${esc(f.job)}</td><td>${esc(f.first)}</td><td class="num">${f.present}</td></tr>`).join("")}</tbody></table>` : "")
-    + (ms.length ? `<div class="msg show err" style="display:block;margin-top:8px;">${ms.length} عامل مش هيترفع حضورهم: الرقم في الشيت مش رقم قومي، ومالقيناش في السجل عامل واحد بنفس الاسم في نفس الموقع. ضيفهم أو صحّح اسمهم في السجل وارفع الشيت تاني.</div>
+    + (ms.length ? `<div class="msg show err" style="display:block;margin-top:8px;">${cnt(ms.length, "عامل")} مش هيترفع ${ms.length === 1 ? "حضوره" : "حضورهم"}: الرقم في الشيت مش رقم قومي، ومالقيناش في السجل عامل واحد بنفس الاسم في نفس الموقع. ${ms.length === 1 ? "ضيفه أو صحّح اسمه" : "ضيفهم أو صحّح اسمهم"} في السجل وارفع الشيت تاني.</div>
        <table style="margin-top:6px"><thead><tr><th>الموقع</th><th>الاسم في الشيت</th><th>الرقم في الشيت</th><th>أيام</th></tr></thead><tbody>${ms.map(f =>
          `<tr><td>${esc(f.site)}</td><td>${esc(f.name)}</td><td dir="ltr">${esc(f.raw)}</td><td class="num">${f.days}</td></tr>`).join("")}</tbody></table>` : "")
-    + (fx.length ? `<div class="msg show warn" style="display:block;margin-top:8px;">اتصلح الرقم القومي لـ ${fx.length} عامل من السجل: الرقم في الشيت مش رقم قومي أو مختلف في رقم أو اتنين، فالحضور هيترفع برقم السجل. بلّغ العميل يصلّحه عنده.</div>
+    + (fx.length ? `<div class="msg show warn" style="display:block;margin-top:8px;">اتصلح الرقم القومي لـ ${cnt(fx.length, "عامل")} من السجل: الرقم في الشيت مش رقم قومي أو مختلف في رقم أو اتنين، فالحضور هيترفع برقم السجل. بلّغ العميل يصلّحه عنده.</div>
        <table style="margin-top:6px"><thead><tr><th>الموقع</th><th>الاسم في الشيت</th><th>الرقم في الشيت</th><th>الرقم في السجل</th><th>الكود</th></tr></thead><tbody>${fx.map(f =>
          `<tr><td>${esc(f.site)}</td><td>${esc(f.name)}</td><td dir="ltr">${esc(f.from)}</td><td dir="ltr">${esc(f.to)}</td><td>${esc(f.code)}</td></tr>`).join("")}</tbody></table>` : "")
     + (iss.length ? `<details open><summary>${iss.length} ملاحظة — الخانات دي مش هتترفع</summary><ul>${iss.slice(0, 300).map(t => `<li>${esc(t)}</li>`).join("")}</ul></details>` : "");
@@ -243,7 +243,7 @@ async function siteDays(site, from, to) {
 $("save").onclick = async () => {
   const list = selected(); if (!list.length) return;
   const sites = [...new Set(list.map(([, d]) => d.site))];
-  if (!await ask(`حفظ ${list.length} يوم حضور (${sites.join("، ")}) كمعتمد؟\nالأيام اللي اترفعت قبل كده هتتحدث بالملف ده.`, { ok: "احفظ" })) return;
+  if (!await ask(`حفظ ${cnt(list.length, "يوم")} حضور (${sites.join("، ")}) كمعتمد؟\nالأيام اللي اترفعت قبل كده هتتحدث بالملف ده.`, { ok: "احفظ" })) return;
   $("save").disabled = true; show($("s-msg"), "info", "بيحفظ...");
   try {
     // أمان: منكتبش فوق يوم متسجل من الكشوف المصورة
@@ -251,7 +251,7 @@ $("save").onclick = async () => {
       const ds = list.filter(([, d]) => d.site === s).map(([, d]) => d.date).sort();
       const found = await siteDays(s, ds[0], ds[ds.length - 1]);
       const photo = found.filter(d => d.data().source !== "excel" && list.some(([k]) => k === d.id));
-      if (photo.length) throw new Error(`فيه ${photo.length} يوم في ${s} متسجل من الكشوف المصورة — مش هكتب فوقه.`);
+      if (photo.length) throw new Error(`فيه ${cnt(photo.length, "يوم")} في ${s} ${photo.length === 1 ? "متسجل" : "متسجلين"} من الكشوف المصورة — مش هكتب فوقه.`);
     }
     const u = auth.currentUser;
     for (let i = 0; i < list.length; i += 20) {   // يوم الشرقية كبير، فالدفعات صغيرة
@@ -279,7 +279,7 @@ $("save").onclick = async () => {
         by: u.uid, by_email: actorEmail(u), created_at: serverTimestamp() });
       sent++;
     } } catch (er) { hrErr = er.code === "permission-denied" ? "مش مسموح — محتاج تحديث الـ Rules (worker_events)" : er.message; }
-    show($("s-msg"), hrErr ? "warn" : "ok", `اتحفظ ${list.length} يوم ✓ — تقدر تشوفهم في تقارير الحضور.` + (sent ? ` واتبعت ${sent} عامل جديد لـ HR.` : "")
+    show($("s-msg"), hrErr ? "warn" : "ok", `اتحفظ ${cnt(list.length, "يوم")} ✓ — تقدر تشوفهم في تقارير الحضور.` + (sent ? ` واتبعت ${cnt(sent, "عامل")} ${sent === 1 ? "جديد" : "جداد"} لـ HR.` : "")
       + (hrErr ? ` بس طلبات العمال الجداد لـ HR ماتبعتتش: ${hrErr}.` : ""));
   } catch (e) {
     show($("s-msg"), "err", "ماتحفظش: " + (e.code === "permission-denied" ? "مش مسموح — محتاج تحديث الـ Rules (att_days للأدمن والـ HR)." : e.message));

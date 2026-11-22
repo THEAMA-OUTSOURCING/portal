@@ -21,8 +21,15 @@
     t.textContent = slow ? "الصفحة ماخلصتش تحميل — النت ضعيف. اعمل تحديث للصفحة وجرّب تاني." : "لحظة، الصفحة لسه بتحمّل...";
     clearTimeout(t._h); t._h = setTimeout(function () { t.remove(); }, 3000);
   }
+  // الدوال اللى الزراير تقدر تناديها بس (ك8): من غيرها أى HTML يتزرع في الصفحة كان يقدر ينادى أى دالة على window
+  // (open، fetch، …). زرار جديد في index.html: ضيف اسم دالته هنا، وصفحة index بتحطها على window زى ما هى.
+  var CALLS = ["showScreen", "toggleField", "checkAdminPass", "adminLogout", "resetPayReview", "reviewSheet", "extendPayVis",
+    "uploadSheet", "confirmClear", "resetEmployeePass", "runSync", "doLogin", "doSetPass", "doChangePass", "lookupSalary", "svOut",
+    "doLogout", "openMedicalCard", "downloadMedicalCard", "openCardNewTab", "openRequestForm", "saveRequest", "exportRequests",
+    "searchMedicalCard", "openAdminCardNewTab", "downloadAdminCard"];
   function run(el, name, e) {
     if (el.tagName === "A") e.preventDefault();   // روابط href="#": من غير ما الصفحة تنط لفوق
+    if (CALLS.indexOf(name) < 0) { e.preventDefault(); console.warn("boot.js: data-call مش في القايمة:", name); return; }
     var fn = window[name];
     if (typeof fn !== "function") { e.preventDefault(); toast(); return; }
     fn.apply(null, args(el));

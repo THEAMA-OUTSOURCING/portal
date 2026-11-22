@@ -1,8 +1,8 @@
 // page-report.js — سكريبت صفحة report.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, serverTimestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite, alignPlan, ask, compressPage, replacePage, replacedBy } from './shared.js?v=20261119f';
-import { printOrder } from './sheet.js?v=20261119f';
+import { cnt, overPlan, db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite, alignPlan, ask, compressPage, replacePage, replacedBy } from './shared.js?v=20261122a';
+import { printOrder } from './sheet.js?v=20261122a';
 
 // مواقع الساعات: الإضافي النهاري والليلي (بالدقايق) على خانة اليوم — والوقت اللي محتاج مراجعة بيتعلّم ومايتحسبش
 const TB_TIP = "الوقت محتاج مراجعة — اليوم ده مش محسوب في الإضافي";
@@ -97,7 +97,7 @@ $("fp-go").onclick = async () => {
     const sites = FP_SITES[co];
     const all = (await fetchDays(from, to, "*")).filter(d => sites.includes(d.site));
     const days = all.filter(d => d.status === "approved"), notApp = all.filter(d => d.status !== "approved");
-    if (!days.length) return show($("fp-msg"), "warn", "مفيش أيام معتمدة في الفترة دي." + (notApp.length ? ` (فيه ${notApp.length} يوم لسه ماتمش اعتماده)` : ""));
+    if (!days.length) return show($("fp-msg"), "warn", "مفيش أيام معتمدة في الفترة دي." + (notApp.length ? ` (فيه ${cnt(notApp.length, "يوم")} لسه ${notApp.length === 1 ? "مش معتمد" : "مش معتمدين"})` : ""));
     let jc = []; try { const d = await getDoc(doc(db, ...JC_DOC)); jc = d.exists() ? d.data().rows || [] : []; } catch (e) {}
     const cmap = codeMap(jc), secs = {};
     for (const s of sites) { try { const o = await getDoc(doc(db, "sheet_order", s)); secs[s] = o.exists() ? o.data().sections || {} : {}; } catch (e) { secs[s] = {}; } }
@@ -132,10 +132,10 @@ $("fp-go").onclick = async () => {
     XLSX.utils.book_append_sheet(wb, ws, co === "pepsi" ? "حضور بيبسي" : "حضور شيبسي");
     XLSX.writeFile(wb, `${co === "pepsi" ? "حضور بيبسي" : "حضور شيبسي"} للبصمة ${from} - ${to}.xlsx`, { cellDates: true });
     const warn = [];
-    if (notApp.length) warn.push(`${notApp.length} يوم لسه ماتمش اعتماده ومش في الملف: ` + [...new Set(notApp.map(d => d.site + " " + d.date.slice(5)))].slice(0, 12).join("، "));
+    if (notApp.length) warn.push(`${cnt(notApp.length, "يوم")} لسه ${notApp.length === 1 ? "مش معتمد ومش" : "مش معتمدين ومش"} في الملف: ` + [...new Set(notApp.map(d => d.site + " " + d.date.slice(5)))].slice(0, 12).join("، "));
     if (noCode.size) warn.push(`وظايف مالهاش كود إنجليزي (خانة CODE فاضية — زودها في جدول الأكواد): ` + [...noCode].join("، "));
-    if (noNid.length) warn.push(`${noNid.length} عامل من غير رقم قومى صحيح: ` + noNid.slice(0, 10).join("، "));
-    show($("fp-msg"), warn.length ? "warn" : "ok", `اتصدّر ${list.length} عامل × ${dates.length} يوم.` + (warn.length ? "\n" + warn.join("\n") : ""));
+    if (noNid.length) warn.push(`${cnt(noNid.length, "عامل")} من غير رقم قومى صحيح: ` + noNid.slice(0, 10).join("، "));
+    show($("fp-msg"), warn.length ? "warn" : "ok", `اتصدّر ${cnt(list.length, "عامل")} × ${cnt(dates.length, "يوم")}.` + (warn.length ? "\n" + warn.join("\n") : ""));
     $("fp-msg").style.whiteSpace = "pre-line";
   } catch (er) { show($("fp-msg"), "err", "ماتصدّرش: " + er.message); }
 };
@@ -322,7 +322,7 @@ async function leaveReport(from, to, sel, jobF, kind) {
     $("r-table").innerHTML = h;
     S.report = { kind, from, to, site: sel, list: rows, tot, ppl };
     $("print-head").innerHTML = `<b>تقرير ${LV_TITLE[kind]} — ${esc(multi ? "كل المواقع" : sel)}${jobF ? " — " + esc(jobF) : ""}</b> — من ${from} لحد ${to}`;
-    $("r-sum").textContent = `${rows.length} حالة · ${ppl} عامل · ${tot} يوم في الفترة (من غير الجمعة) · الحالات المعتمدة من الـ HR بس`;
+    $("r-sum").textContent = `${cnt(rows.length, "حالة")} · ${cnt(ppl, "عامل")} · ${cnt(tot, "يوم")} في الفترة (من غير الجمعة) · الحالات المعتمدة من الـ HR بس`;
     $("r-out").classList.remove("hidden"); hide($("r-msg")); filterRows();
     $("r-print").disabled = false; $("r-xlsx").disabled = false;
   } catch (e) { show($("r-msg"), "err", "حصل خطأ: " + e.message); }
@@ -428,7 +428,7 @@ $("r-go").onclick = async () => {
     $("r-table").innerHTML = h;
     const sTitle = multi ? "كل المواقع" : sel;
     $("print-head").innerHTML = `<b>تقرير حضور ${esc(sTitle)}${jobF ? " — " + esc(jobF) : ""}</b> — من ${from} لحد ${to}`;
-    $("r-sum").textContent = `${list.length} عامل · ${days.length} يوم حضور متأكد · ${unapp} لسه ماتمش اعتماده · رفع متأخر: ${late} مرة` + (timed && nBad ? ` · ${nBad} يوم وقته محتاج مراجعة (برتقالي) ومش محسوب في الإضافي` : "") + (Object.keys(hol).length ? ` · العطلات: ${Object.entries(hol).filter(([d]) => d >= from && d <= to).map(([d, n]) => d.slice(8) + " " + n).join("، ")}` : "");
+    $("r-sum").textContent = `${cnt(list.length, "عامل")} · ${cnt(days.length, "يوم")} حضور متأكد · ${unapp} لسه ماتمش اعتماده · رفع متأخر: ${cnt(late, "مرة")}` + (timed && nBad ? ` · ${cnt(nBad, "يوم")} ${nBad === 1 ? "وقته" : "وقتهم"} محتاج مراجعة (برتقالي) ومش محسوب في الإضافي` : "") + (Object.keys(hol).length ? ` · العطلات: ${Object.entries(hol).filter(([d]) => d >= from && d <= to).map(([d, n]) => d.slice(8) + " " + n).join("، ")}` : "");
     $("r-out").classList.remove("hidden"); hide($("r-msg")); filterRows();
     $("r-print").disabled = false; $("r-xlsx").disabled = false;
   } catch (e) { show($("r-msg"), "err", "حصل خطأ: " + e.message); }
@@ -655,7 +655,7 @@ function renderQ() {
   }));
   box.classList.remove("hidden");
   box.innerHTML = rows.length
-    ? `<div class="muted" style="margin-bottom:4px;">${rows.length} يوم — في الفترة والموقع والحالة المختارين فوق${$("a-st").value ? " (لو عايز كل الأيام اختار الحالة «الكل»)" : ""}</div>
+    ? `<div class="muted" style="margin-bottom:4px;">${cnt(rows.length, "يوم")} — في الفترة والموقع والحالة المختارين فوق${$("a-st").value ? " (لو عايز كل الأيام اختار الحالة «الكل»)" : ""}</div>
       <div class="tbl"><table class="list" style="width:100%"><thead><tr><th>اليوم</th><th>الموقع</th><th>الاسم</th><th>الوظيفة</th><th>الحالة</th><th>الوقت والساعات</th><th>اليوم</th><th></th></tr></thead><tbody>${rows.map(r =>
         `<tr><td>${DAYN[new Date(r.d.date + "T00:00").getDay()]} ${r.d.date}</td><td>${esc(r.d.site)}</td><td>${esc(r.name || "")}</td><td>${esc(r.job || "")}</td><td>${r.st}</td><td>${r.tm}</td><td>${AP_TXT[r.d.status] || esc(r.d.status || "")}</td><td><button class="btn sec small" data-view="${r.i}">تفاصيل</button></td></tr>`).join("")}</tbody></table></div>`
     : `<p class="muted">مفيش عامل بالاسم ده في الأيام المعروضة${$("a-st").value ? " — جرّب الحالة «الكل»" : ""}.</p>`;
@@ -684,6 +684,8 @@ const canEd = d => S.canApprove && (d.status === "reviewed" || (S.role === "admi
 const repBad = e => e.s === "A" && e.rep && (e.rep.t_issue || e.rep.min == null);
 const tIssues = d => TIME_SITES.includes(d.site) ? Object.values(d.entries || {}).filter(e => (e.s === "P" && (e.t_issue || e.min == null)) || repBad(e)).length : 0;
 const canAp = d => canEd(d) && !tIssues(d);
+// الاحتياج بتاع يوم (للتنبيه بس): الخطة محفوظة دقيقتين لكل شهر في shared.js
+async function planOf(d) { try { return planBySite(await fetchPlanBase(d.date.slice(0, 7)), d.date)[d.site] || {}; } catch (e) { return {}; } }
 async function setStatus(d, approve) {
   const u = auth.currentUser;
   await updateDoc(doc(db, "att_days", d.id), approve
@@ -741,6 +743,10 @@ $("a-list").onclick = async e => {
   }
   const i = t.dataset.ap ?? t.dataset.un; if (i === undefined || !S.canApprove) return;
   if (t.dataset.un && !await ask("تلغي الاعتماد؟ الإقليمي هيقدر يعدّل اليوم تاني.", { ok: "الغي الاعتماد", danger: true })) return;
+  if (t.dataset.ap) {   // الحاضرين أكتر من المطلوب: الاعتماد ممنوع (ب8)
+    const d = A[+i], ovr = overPlan(d.entries, await planOf(d));
+    if (ovr.length) return show($("a-msg"), "err", `مينفعش تعتمد ${d.site} يوم ${d.date}: الحاضرين أكتر من العدد المطلوب — ` + ovr.map(o => `${o.job}: ${o.n} والمطلوب ${o.plan}`).join("، ") + ". افتح التفاصيل وعدّل اليوم الأول.");
+  }
   try { await setStatus(A[+i], !!t.dataset.ap); $("a-detail").classList.add("hidden"); $("a-go").click(); } catch (er) { show($("a-msg"), "err", "مااتحفظش: " + er.message); }
 };
 // ترتيب الكشف الورقي لأيام اتأكدت قبل ما الترتيب يتسجل مع اليوم: من ترتيب الكشف الحالي للموقع (كشف العمال + الترتيب + الخطة)
@@ -1018,19 +1024,26 @@ $("a-esave").onclick = async () => {
   }
   if (fixed && !await ask(`فيه ${fixed} وقت كان متعلّم للمراجعة (الأصفر). اتأكدت منهم؟`)) return;
   if (!n && d.status === "approved") return show($("a-msg"), "info", "مفيش تغيير.");
-  if (!await ask(`${n ? `تعديل ${n} عامل و` : ""}اعتماد ${d.site} يوم ${d.date}؟`, { ok: "اعتمد" })) return;
+  // الحاضرين أكتر من المطلوب: الاعتماد ممنوع، زى تأكيد المشرف (ب8)
+  const ovr = overPlan(entries, A.plan);
+  if (ovr.length) return show($("a-msg"), "err", "مينفعش تعتمد: الحاضرين أكتر من العدد المطلوب — " + ovr.map(o => `${o.job}: ${o.n} والمطلوب ${o.plan}`).join("، ") + ". عدّل اليوم الأول (الزيادة غايب أو شيل البديل).");
+  if (!await ask(`${n ? `تعديل ${cnt(n, "عامل")} و` : ""}اعتماد ${d.site} يوم ${d.date}؟`, { ok: "اعتمد" })) return;
   const v = Object.values(entries), u = auth.currentUser;
   try {
     const counts = { ...(d.counts || {}), present: v.filter(e => e.s === "P").length, absent: v.filter(e => e.s === "A").length };
     if (STOP3.includes(d.site)) Object.assign(counts, { stop: v.filter(isQ).length, total: v.length });
     await updateDoc(doc(db, "att_days", d.id), { entries, counts,
-      status: "approved", approved_by: u.uid, approved_email: actorEmail(u), approved_at: serverTimestamp(), edited_by: u.email || "", edited_n: n });
+      status: "approved", approved_by: u.uid, approved_email: actorEmail(u), approved_at: serverTimestamp(), edited_by: actorEmail(u), edited_n: n });
     show($("a-msg"), "ok", "تم التعديل والاعتماد."); $("a-detail").classList.add("hidden"); $("a-go").click();
   } catch (er) { show($("a-msg"), "err", "ماتحفظش: " + (er.code === "permission-denied" ? "محتاج تحديث الـ Rules." : er.message)); }
 };
 $("a-all").onclick = async () => {
-  const pend = A.filter(canAp);
-  if (!await ask(`اعتماد ${pend.length} يوم؟`, { ok: "اعتمد" })) return;
-  try { for (const d of pend) await setStatus(d, true); show($("a-msg"), "ok", `تم اعتماد ${pend.length} يوم.`); $("a-go").click(); }
+  // الأيام اللى الحاضرين فيها أكتر من المطلوب مابتتعتمدش (ب8): الباقى يتعتمد، وهى بتفضل في الجدول لحد ما تتعدّل
+  const all = A.filter(canAp), pend = [], over = [];
+  for (const d of all) { const o = overPlan(d.entries, await planOf(d)); if (o.length) over.push(`${d.site} ${d.date.slice(5)}: ` + o.map(x => `${x.job} ${x.n} والمطلوب ${x.plan}`).join("، ")); else pend.push(d); }
+  const overTxt = over.length ? `${cnt(over.length, "يوم")} مش ${over.length === 1 ? "هيتعتمد" : "هيتعتمدوا"} — الحاضرين أكتر من العدد المطلوب:\n` + over.slice(0, 12).join("\n") + (over.length > 12 ? "\n…" : "") : "";
+  if (!pend.length) return show($("a-msg"), "err", "مفيش يوم يتعتمد. " + overTxt);
+  if (!await ask(`اعتماد ${cnt(pend.length, "يوم")}؟` + (overTxt ? "\n\n" + overTxt : ""), { ok: "اعتمد" })) return;
+  try { for (const d of pend) await setStatus(d, true); show($("a-msg"), over.length ? "warn" : "ok", `تم اعتماد ${cnt(pend.length, "يوم")}.` + (overTxt ? " " + overTxt : "")); $("a-go").click(); }
   catch (er) { show($("a-msg"), "err", er.message); }
 };

@@ -1,7 +1,7 @@
 // page-index.js — سكريبت صفحة index.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, getDocs, addDoc, deleteDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead } from './shared.js?v=20261119f';
+import { serverNow, serverClock, db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead } from './shared.js?v=20261122a';
 
 
 let loggedUser = null;
@@ -58,15 +58,6 @@ function toggleField(inputId, iconId){
   document.getElementById(iconId).className = eyeState[iconId] ? 'ti ti-eye-off' : 'ti ti-eye';
 }
 window.toggleField = toggleField;
-
-function fmt(val){
-  const n = parseFloat(val)||0;
-  return n.toLocaleString('ar-EG',{minimumFractionDigits:2,maximumFractionDigits:2});
-}
-
-function row2(label, val, color){
-  return '<div class="row2"><span class="lbl">'+label+'</span><span style="font-weight:500;color:'+(color||'#222')+';">'+val+'</span></div>';
-}
 
 // ===== كلمة مرور ضعيفة =====
 // بترجع سبب الرفض، أو '' لو كويسة: كلها نفس الرقم/الحرف، أرقام متتالية (123456 / 654321)، كلمات مشهورة، أو كود الموظف نفسه
@@ -404,7 +395,7 @@ const VIS_DOC = ()=>doc(db,'payroll_meta','current');
 function payDays(){ const n = parseInt(document.getElementById('pay-days').value,10); return n>=1 && n<=60 ? n : 5; }
 async function loadPayVis(){ try{ const s = await getDoc(VIS_DOC()); return s.exists() ? s.data() : null; }catch(e){ return null; } }
 // مفيش ميعاد متسجّل (رفعة قبل الميزة دي) → المرتب ظاهر
-function payHidden(meta){ const t = meta?.visible_until?.toDate?.(); return !!t && Date.now() > t.getTime(); }
+function payHidden(meta){ const t = meta?.visible_until?.toDate?.(); return !!t && serverNow() > t.getTime(); }   // بساعة السيرفر (ب7)
 // مدة الظهور لكل شركة (تابة): meta.tabs[اسم التابة] = { upload_id, days, visible_until }. التابة اللي مالهاش ميعاد بتاخد الميعاد العام القديم
 const tabKey = n => String(n||'').replace(/[أإآ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/\s+/g,' ').trim();
 function tabVis(meta, tab){ return meta?.tabs?.[tabKey(tab)] || meta; }
@@ -421,7 +412,7 @@ const visFmt = d => d.toLocaleString('ar-EG',{weekday:'long',day:'numeric',month
 async function showPayVis(){
   const box = document.getElementById('pay-vis'); if(!box) return;
   const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const meta = await loadPayVis();
+  const [meta] = await Promise.all([loadPayVis(), serverClock]);
   const tabs = Object.entries(meta?.tabs || {}).filter(([,v])=>v?.visible_until?.toDate);
   if(!tabs.length && meta?.visible_until?.toDate) tabs.push(['', meta]);   // رفعة قديمة بميعاد واحد للكل
   if(!tabs.length){ box.style.display='none'; return; }
@@ -442,7 +433,8 @@ async function extendPayVis(key){
   const n = parseInt(v,10);
   if(!(n>=1 && n<=60)){ tell('اكتب عدد أيام من 1 لـ 60'); return; }
   const cur = cur0?.visible_until?.toDate?.()?.getTime() || 0;
-  const until = Timestamp.fromDate(new Date(Math.max(Date.now(), cur) + n*864e5));
+  await serverClock;
+  const until = Timestamp.fromDate(new Date(Math.max(serverNow(), cur) + n*864e5));
   try{
     await setDoc(VIS_DOC(), key ? { tabs: { [key]: { visible_until: until, extended_at: serverTimestamp() } } } : { visible_until: until, extended_at: serverTimestamp() }, { merge: true });
   }catch(e){
@@ -473,11 +465,20 @@ async function uploadSheet(){
     // الترتيب الآمن: الجديد يترفع كله الأول، وبعدين بس القديم يتمسح.
     // لو النت فصل في النص، الكشوف القديمة بتفضل زي ما هي والموظف ميلاقيش «مفيش كشف».
     // كل رفعة ليها upload_id، وصفحة الموظف بتعرض أحدث رفعة بس لو لقت القديم والجديد مع بعض.
-    const uploadId = new Date().toISOString().replace(/\D/g,'').slice(0,14);
+    // رقم الرفعة بساعة السيرفر، ودايماً أكبر من أى رفعة قبلها (حتى لو اترفعت من جهاز ساعته كانت مقدّمة):
+    // صفحة العامل بتعرض أحدث رقم، فلو الرقم الجديد طلع أصغر كان العامل ممكن يشوف الكشف القديم (ب7)
+    await serverClock;
+    const old = await freshRead('payroll', ()=>getDocs(collection(db,'payroll')));   // الـ IDs القديمة عشان نمسحها في الآخر
+    const idOf = ms => new Date(ms).toISOString().replace(/\D/g,'').slice(0,14);
+    const prevMax = old.docs.reduce((m,d)=>{ const u = String(d.data().upload_id || ''); return /^\d{14}$/.test(u) && u > m ? u : m; }, '');
+    let uploadId = idOf(serverNow());
+    if(prevMax && uploadId <= prevMax){
+      const t = Date.UTC(+prevMax.slice(0,4), +prevMax.slice(4,6)-1, +prevMax.slice(6,8), +prevMax.slice(8,10), +prevMax.slice(10,12), +prevMax.slice(12,14));
+      uploadId = idOf(t + 1000);
+    }
     const recs = payParsed.recs.filter(x=>pickedK.has(tabKey(x.data._tab))).map((x,i)=>({ id: x.code+'_'+uploadId+'_'+String(i+1).padStart(5,'0'),
       data: { employee_code: x.code, national_id: x.nid, upload_id: uploadId, data: x.data } }));
 
-    const old = await freshRead('payroll', ()=>getDocs(collection(db,'payroll')));   // الـ IDs القديمة عشان نمسحها في الآخر
     const BATCH = 400;                                      // حد Firestore للدفعة 500 عملية
     const written = [];
     try{
@@ -513,7 +514,7 @@ async function uploadSheet(){
     const days = payDays();
     let visMsg = ' ('+picked.join('، ')+') — ظاهر للعمال '+days+' يوم';
     try{
-      const until = Timestamp.fromDate(new Date(Date.now()+days*864e5)), tabs = {};
+      const until = Timestamp.fromDate(new Date(serverNow()+days*864e5)), tabs = {};
       pTabs.forEach(t=>tabs[tabKey(t.name)] = { name: t.name, upload_id: uploadId, days, visible_until: until, set_at: serverTimestamp() });
       await setDoc(VIS_DOC(), { upload_id: uploadId, tabs }, { merge: true });
     }catch(e){
@@ -691,7 +692,7 @@ async function loadMyPayroll(myCode){
   const snap = await getDocs(query(collection(db,'payroll'), where('employee_code','==',myCode)));
   if(snap.empty) return null;
   const docs = latestPerTab(snap.docs);
-  const meta = await loadPayVis();
+  const [meta] = await Promise.all([loadPayVis(), serverClock]);
   const shown = docs.filter(d=>!tabHidden(meta, d.data().data?._tab));
   return { rows: (shown.length ? shown : docs).map(d=>d.data().data), nationalId: docs[0].data().national_id, payHidden: !shown.length };
 }

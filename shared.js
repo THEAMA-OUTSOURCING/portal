@@ -127,7 +127,54 @@ onAuthStateChanged(auth, async user => {
   try { ACTOR_ROLE = (await user.getIdTokenResult()).claims.role || ""; } catch (e) { ACTOR_ROLE = ""; }
   window.sentryRole?.(ACTOR_ROLE);
 });
-export const actorEmail = u => ACTOR_ROLE === "admin" ? "ادمن" : (u?.email || "");
+// لو الدور لسه ماتقراش (حفظ في أول لحظة بعد فتح الصفحة): من التوكن اللى مع الحساب نفسه (ب6)
+const tokenRole = u => { try { return JSON.parse(atob(String(u?.accessToken || "").split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).role || ""; } catch (e) { return ""; } };
+export const actorEmail = u => (ACTOR_ROLE ?? tokenRole(u)) === "admin" ? "ادمن" : (u?.email || "");
+
+// ===== العدّ بالعربى (ب4): عامل واحد / عاملين / ٣ عمال / ١١ عامل =====
+// f = شكل الرقم (مثلاً بالأرقام العربى)
+const UNITS = {
+  "عامل": ["عامل واحد", "عاملين", "عمال"], "يوم": ["يوم واحد", "يومين", "أيام"], "حالة": ["حالة واحدة", "حالتين", "حالات"],
+  "بديل": ["بديل واحد", "بديلين", "بدايل"], "سطر": ["سطر واحد", "سطرين", "سطور"], "اسم": ["اسم واحد", "اسمين", "أسماء"],
+  "مرة": ["مرة واحدة", "مرتين", "مرات"], "صورة": ["صورة واحدة", "صورتين", "صور"],
+};
+export function cnt(n, unit, f = String) {
+  const k = Math.abs(Math.trunc(+n || 0)), u = UNITS[unit];
+  if (!u) return `${f(n)} ${unit}`;
+  if (k === 1) return u[0];
+  if (k === 2) return u[1];
+  return `${f(n)} ${k >= 3 && k <= 10 ? u[2] : unit}`;
+}
+
+// ===== وقت السيرفر (ب7) =====
+// الفرق بين ساعة الجهاز وساعة السيرفر من هيدر Date (طلب HEAD صغير للموقع نفسه). serverNow() = الوقت بساعة السيرفر،
+// وقبل ما الفرق يوصل = ساعة الجهاز. serverClock = وعد بيخلص لما الفرق يتعرف (أو بعد 3 ثوانى لو النت بطيء).
+let CLOCK_SKEW = 0;
+export const serverNow = () => Date.now() + CLOCK_SKEW;
+export const serverClock = Promise.race([
+  (async () => {
+    try {
+      const t0 = Date.now(), r = await fetch("/sw.js?t=" + t0, { method: "HEAD", cache: "no-store" }), t1 = Date.now();
+      const d = Date.parse(r.headers.get("date") || ""), age = +(r.headers.get("age") || 0) || 0;
+      // رد جاى من كاش (Cloudflare) أو رحلة أطول من 5 ثوانى: الوقت مش مضمون، فنفضل على ساعة الجهاز
+      const cached = /^(HIT|STALE|UPDATING|REVALIDATED)$/i.test(r.headers.get("cf-cache-status") || "");
+      if (r.ok && !isNaN(d) && !cached && t1 - t0 < 5000) CLOCK_SKEW = d + age * 1000 + 500 - (t0 + t1) / 2;   // الهيدر بالثانية
+    } catch (e) {}
+  })(),
+  new Promise(r => setTimeout(r, 3000)),
+]);
+
+// ===== أكتر من الاحتياج (ب8) =====
+// الحاضرين في كل وظيفة (ومعاهم بدلاء الراحات والتوقف/الأجازة الرسمية، والغايب اللى ليه بديل) مقارنة بالمطلوب.
+// بيرجّع [{ job, n, plan }] للوظايف اللى عدّت. نفس العدّ اللى في إضافة البديل في صفحة الاعتماد.
+export function overPlan(entries, plan) {
+  const per = {};
+  Object.values(entries || {}).forEach(e => {
+    if (e.s === "P" || (e.s === "L" && (e.c === "ق" || e.c === "ط")) || (e.s === "A" && e.rep)) per[e.job] = (per[e.job] || 0) + 1;
+  });
+  const PA = alignPlan(plan || {}, Object.keys(per));
+  return Object.keys(per).filter(j => PA[j] != null && per[j] > PA[j]).map(j => ({ job: j, n: per[j], plan: PA[j] }));
+}
 
 // ===== صور الكشوف =====
 // تصغير صورة الكشف قبل الرفع (نفس الحد اللي الـ Rules بتقبله: أقل من 950 ألف حرف)
@@ -629,4 +676,4 @@ window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-if (FIRST_COPY) import('./notify.js?v=20261119f').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+if (FIRST_COPY) import('./notify.js?v=20261122a').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));

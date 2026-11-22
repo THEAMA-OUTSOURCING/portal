@@ -1,9 +1,9 @@
 // page-attendance.js — سكريبت صفحة attendance.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
 import { getFirestore, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, hasRestSubs, typeOk, typeErr, typeSelect, jobOk, jobOptions, isBasic, nearWorkers, nameParts, ask, tell, compressPage, replacePage, replacedBy } from './shared.js?v=20261119f';
-import { openPrintView, openOrderEditor, printOrder, secsForJob, secOptions } from './sheet.js?v=20261119f';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261119f';
+import { cnt, db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, hasRestSubs, typeOk, typeErr, typeSelect, jobOk, jobOptions, isBasic, nearWorkers, nameParts, ask, tell, compressPage, replacePage, replacedBy } from './shared.js?v=20261122a';
+import { openPrintView, openOrderEditor, printOrder, secsForJob, secOptions } from './sheet.js?v=20261122a';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261122a';
 
 
 const $ = id => document.getElementById(id);
@@ -755,13 +755,14 @@ function render() {
   const msgs = [];
   if (busy) msgs.push(`فيه ${fmt(busy)} صورة لسه بتتقري.`);
   const missing = S.roster.filter(w => !ai[w.code]).length;
-  if (missing && S.pages.some(p => p.status === "done")) msgs.push(`${fmt(missing)} عامل مالهمش صف في أي صورة — اتأكد إنك صوّرت كل الصفحات، أو حدد حالتهم بإيدك.`);
+  if (missing && S.pages.some(p => p.status === "done")) msgs.push(missing === 1 ? "عامل واحد مالوش صف في أي صورة — اتأكد إنك صوّرت كل الصفحات، أو حدد حالته بإيدك."
+    : `${cnt(missing, "عامل", fmt)} مالهمش صف في أي صورة — اتأكد إنك صوّرت كل الصفحات، أو حدد حالتهم بإيدك.`);
   if (S.over.length) msgs.push("الحاضرين عدّوا العدد المطلوب: " + S.over.map(o => `${o.job} ${fmt(o.n)} والمطلوب ${fmt(o.plan)}`).join("، ") + ". حدد مين اللي مش هيتحسب (علّم عليه غياب).");
   if (msgs.length) show($("checks"), "warn", msgs.join("\n")); else hide($("checks"));
   const btn = $("confirm");
   btn.disabled = open > 0 || busy > 0 || lockedForMe();
   $("back-acc").classList.toggle("hidden", !(S.admin && S.day?.status === "approved"));
-  btn.textContent = open > 0 ? `فاضل ${fmt(open)} عامل محتاجين قرار` : busy ? "استنى لحد ما الصور تتقري" : S.over.length ? "العدد أكتر من المطلوب" : S.regional ? "مراجعة الإقليمي وتأكيد" : (S.day ? "تأكيد التعديل" : "تأكيد الحضور");
+  btn.textContent = open > 0 ? `فاضل ${cnt(open, "عامل", fmt)} ${open === 1 ? "محتاج" : "محتاجين"} قرار` : busy ? "استنى لحد ما الصور تتقري" : S.over.length ? "العدد أكتر من المطلوب" : S.regional ? "مراجعة الإقليمي وتأكيد" : (S.day ? "تأكيد التعديل" : "تأكيد الحضور");
 }
 
 $("workers").addEventListener("click", e => {
@@ -976,13 +977,13 @@ $("refresh-times").addEventListener("click", async () => {
   const v = Object.values(entries);
   const counts = { present: v.filter(e => e.s === "P").length, absent: v.filter(e => e.s === "A").length, total: v.length };
   const stop = v.filter(e => e.s === "L" && e.c === "ق").length; if (stop) counts.stop = stop;
-  const msg = `هيتحدث ساعات ${nT} عامل` + (added.length ? `، وهيتضاف ${added.length} بديل حاضر:\n${added.join("\n")}` : "")
-    + (dups.length ? `\nوهيتشال ${dups.length} اسم متكرر (نفس العامل اتسجل مرتين)` : "") + ".\nتكمل؟";
+  const msg = `هيتحدث ساعات ${cnt(nT, "عامل")}` + (added.length ? `، وهيتضاف ${cnt(added.length, "بديل")} ${added.length === 1 ? "حاضر" : "حاضرين"}:\n${added.join("\n")}` : "")
+    + (dups.length ? `\nوهيتشال ${cnt(dups.length, "اسم")} ${dups.length === 1 ? "متكرر" : "متكررين"} (نفس العامل اتسجل مرتين)` : "") + ".\nتكمل؟";
   if (!await ask(msg)) return;
   $("refresh-times").disabled = true;
   try {
     await updateDoc(doc(db, "att_days", S.site + "__" + S.date), { entries, counts, times_refreshed_at: serverTimestamp(), times_refreshed_by: auth.currentUser.uid });
-    show($("refresh-msg"), "ok", `اتحدث ✓ — ساعات ${nT} عامل${added.length ? `، واتضاف ${added.length} بديل: ${added.join("، ")}` : ""}${dups.length ? `، واتشال ${dups.length} اسم متكرر` : ""}.`
+    show($("refresh-msg"), "ok", `اتحدث ✓ — ساعات ${cnt(nT, "عامل")}${added.length ? `، واتضاف ${cnt(added.length, "بديل")}: ${added.join("، ")}` : ""}${dups.length ? `، واتشال ${cnt(dups.length, "اسم")} ${dups.length === 1 ? "متكرر" : "متكررين"}` : ""}.`
       + (diff.length ? `\n\nفرق في الحالة (ماتغيرش — راجعه بنفسك):\n${diff.join("\n")}` : ""));
   } catch (err) {
     show($("refresh-msg"), "err", "ماتحدثش: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (att_days — تحديث الساعات للأدمن)." : err.message));
@@ -1945,7 +1946,7 @@ function renderLvList() {
     return `<div style="border-bottom:1px solid #eee;padding:8px 0;"><div class="row" style="justify-content:space-between;">
       <b>${esc(e.name)}</b><span><span class="pill p-grey">${lvTyTxt(e)}</span> <span class="pill ${cls}">${st}</span></span></div>
       ${e.we ? `<div class="muted">${esc(e.from)}${e.detail ? " — " + esc(e.detail) : ""}</div>`
-        : `<div class="muted">من ${esc(e.from)} لحد ${esc(e.to)} — ${esc(e.days)} يوم${e.approved_days != null && +e.approved_days < +e.days ? ` (العميل اعتمد ${esc(e.approved_days)})` : ""}</div>`}${moved}${why}</div>`;
+        : `<div class="muted">من ${esc(e.from)} لحد ${esc(e.to)} — ${esc(cnt(e.days, "يوم"))}${e.approved_days != null && +e.approved_days < +e.days ? ` (العميل اعتمد ${esc(e.approved_days)})` : ""}</div>`}${moved}${why}</div>`;
   };
   const used = new Set();
   const groups = LV_GROUPS.map(g => { const list = rows.filter(e => !used.has(e) && g.f(e)); list.forEach(e => used.add(e)); return { ...g, list }; });
@@ -1988,7 +1989,7 @@ function lvCheck() {
   else if (t < f) err = "«لحد» قبل «من»";
   // الإجازة والمرضي وإصابة العمل للأساسي بس (بيبسي وشيبسي والإمداد) — اليومية وبدايل الراحات لأ
   else if (LV.who && !isBasic(LV.who.type)) err = "الإجازة والمرضي للأساسي بس — العامل ده مش أساسي";
-  $("lv-days").textContent = err || `${lvWorkDays(f, t)} يوم (الجمعة مش بتتحسب)`;
+  $("lv-days").textContent = err || `${cnt(lvWorkDays(f, t), "يوم")} (الجمعة مش بتتحسب)`;
   const ov = !err && LV.who ? lvOverlap(LV.who, f, t) : null;
   if (ov) show($("lv-m"), "warn", `فيه طلب تاني لنفس العامل في الأيام دي (${lvTyTxt(ov)} من ${ov.from} لحد ${ov.to} — ${(LV_ST[ov.status] || [ov.status])[0]}).`);
   else if ($("lv-m").classList.contains("warn")) hide($("lv-m"));

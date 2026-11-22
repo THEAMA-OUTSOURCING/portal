@@ -54,8 +54,6 @@ input[type=file]{width:100%;padding:8px;cursor:pointer;font-size:13px;border:1px
 .mini-card .label{font-size:12px;color:#6b6b6b;margin-bottom:2px;}
 .mini-card .val{font-size:17px;font-weight:500;color:#222;}
 .section-title{font-size:12px;color:#6b6b6b;font-weight:500;border-bottom:1px solid #eee;padding-bottom:4px;margin-bottom:6px;}
-.row2{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;}
-.row2 .lbl{color:#6b6b6b;}
 .summary-card{border-radius:8px;padding:10px 14px;}
 .summary-gray{background:#f5f5f0;}
 .summary-green{background:#eaf3de;}
@@ -438,7 +436,8 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
     </div>
     <div style="margin-bottom:1.25rem;">
       <label style="font-size:13px;color:#6b6b6b;display:block;margin-bottom:6px;">رقم التليفون</label>
-      <input type="tel" id="req-phone" placeholder="مثال: 01xxxxxxxxx" inputmode="numeric"/>
+      <input type="tel" id="req-phone" placeholder="01xxxxxxxxx" inputmode="numeric" dir="ltr" autocomplete="tel"/>
+      <div style="font-size:12px;color:#6b6b6b;margin-top:4px;">١١ رقم، بيبدأ بـ 01 — مثال: 01012345678</div>
     </div>
     <div class="error-box" id="req-error"><i class="ti ti-alert-circle" style="font-size:14px;vertical-align:-2px;margin-left:4px;"></i><span id="req-error-msg"></span></div>
     <div class="success-box" id="req-success"><i class="ti ti-circle-check" style="font-size:14px;vertical-align:-2px;margin-left:4px;"></i>تم حفظ بياناتك بنجاح</div>
@@ -447,6 +446,6 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
 </div>
 
 <!-- Firebase SDKs -->
-<script type="module" src="page-index.js?v=20261119f"></script>
+<script type="module" src="page-index.js?v=20261122a"></script>
 </body>
 </html>
