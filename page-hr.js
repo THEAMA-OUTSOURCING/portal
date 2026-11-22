@@ -1,12 +1,48 @@
 // page-hr.js — سكريبت صفحة hr.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask, typeOk, typeErr, jobsFor, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch, onAuthStateChanged } from './shared.js?v=20261122e';
-import { secsForJob, secOptions } from './sheet.js?v=20261122e';
+import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask, typeOk, typeErr, jobsFor, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch, onAuthStateChanged } from './shared.js?v=20261122f';
+import { secsForJob, secOptions } from './sheet.js?v=20261122f';
 const $ = id => document.getElementById(id);
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
 const TY = { sick: "مرضي", leave: "إجازة", resign: "استقالة" };
 const ST = { pending: "مستني HR تيما", client_wait: "مستني رد العميل", approved: "معتمد", rejected: "مرفوض" };
 // صور المحضر المختوم لإصابة العمل (لحد 3)
 const MAHDAR = ["image2", "image3", "image4"];
+// ===== الصور برّه الطلب =====
+// السيرفر بينقل صور الطلب لـ hr_event_images/<رقم الطلب> (الطلب نفسه بيفضل فيه img_fields = أسماء الصور اللي اتنقلت)،
+// عشان الصفحة ماتحمّلش كل الصور مرة واحدة (كانت 6.5 ميجا). هنا الصورة بتتحمّل لما الكارت بتاعها يقرب من الشاشة بس.
+// لو الطلب لسه صورته جواه (اترفع من ثواني والسيرفر مانقلهاش لسه، أو الشرقية) بتظهر منه على طول زي الأول.
+const IMGS = new Map();   // رقم الطلب ← Promise بالصور
+const IMGS_OK = new Map();   // رقم الطلب ← الصور (اللي اتحمّلت خلاص) — عشان لما الكروت تترسم تاني الصورة تظهر على طول
+const hasImg = (e, f) => !!e[f] || (e.img_fields || []).includes(f);
+const imgSrc = (e, f) => e[f] || "";
+function loadImgs(id) {
+  if (!IMGS.has(id)) IMGS.set(id, getDoc(doc(db, "hr_event_images", id)).then(s => { const d = s.exists() ? s.data() : {}; IMGS_OK.set(id, d); return d; })
+    .catch(err => { IMGS.delete(id); throw err; }));
+  return IMGS.get(id);
+}
+async function fillImgs(id) {
+  const els = () => document.querySelectorAll(`img[data-lazy="${CSS.escape(id)}"]`);
+  try {
+    const d = await loadImgs(id);
+    els().forEach(im => { const v = d[im.dataset.f]; if (v) { im.src = v; im.style.display = ""; im.closest(".ph")?.querySelector(".lz")?.remove(); } else { const t = im.closest(".ph")?.querySelector(".lz"); if (t) t.textContent = "الصورة مش موجودة"; } });
+  } catch (err) {
+    els().forEach(im => { const t = im.closest(".ph")?.querySelector(".lz"); if (t) t.textContent = "مش قادر أحمّل الصورة — دوس تاني"; });
+  }
+}
+// بنراقب مربع الصورة (.ph) مش الصورة نفسها: الصورة مستخبية لحد ما تتحمّل فمالهاش مكان على الشاشة
+const LAZY_OBS = "IntersectionObserver" in window ? new IntersectionObserver(ents => ents.forEach(en => {
+  if (en.isIntersecting) { LAZY_OBS.unobserve(en.target); fillImgs(en.target.dataset.lazyBox); }
+}), { rootMargin: "600px 0px" }) : null;
+function hydrateImgs() {
+  if (LAZY_OBS) LAZY_OBS.disconnect();   // الكروت القديمة اتشالت من الصفحة
+  document.querySelectorAll("#list img[data-lazy]").forEach(im => {
+    const box = im.closest(".ph") || im.parentElement;
+    if (!LAZY_OBS || !box) return fillImgs(im.dataset.lazy);
+    box.dataset.lazyBox = im.dataset.lazy; LAZY_OBS.observe(box);
+  });
+}
+const lazyImg = (e, f, alt) => { const v = IMGS_OK.get(e.id)?.[f];
+  return v ? `<img src="${esc(v)}" alt="${alt}">` : `<img data-lazy="${esc(e.id)}" data-f="${f}" alt="${alt}" style="display:none"><span class="muted lz">بتحمّل الصورة…</span>`; };
 const SRC = { supervisor: "طلب مشرف", excel_hr: "إكسيل", sharqia_drive: "تطبيق الشرقية" };
 // مرضي نوعين: مرضى عادى (بيتحسب من الـ 10 أيام في السنة) وإصابة عمل (ملهاش حد) — sick_kind = sick / injury
 // المرضي اللي العميل اعتمد منه جزء أو رفضه بيتقفل «معتمد» بعدد أيام — فبنوضّح ده في الشارة
@@ -577,8 +613,8 @@ function render() {
     const toClient = needsClient(e);
     return `
     <div class="ev">
-      <div class="ph" ${e.image ? `data-zoom="${esc(e.id)}"` : ""}>${e.image ? `<img src="${esc(e.image)}" alt="">` : `<span class="muted">${e.image_path ? "الصورة اتنقلت لسيرفر الشركة" : e.type === "leave" ? "الإجازة مالهاش صورة" : e.image_missing ? "الصورة مش لاقيها على Drive" : "مفيش صورة"}</span>`}</div>
-      ${e.image2 ? `<div style="display:flex;border-top:1px solid #e5e5e5;">${MAHDAR.filter(f => e[f]).map((f, i) => `<div class="ph" style="height:120px;flex:1;${i ? "border-right:1px solid #e5e5e5;" : ""}" data-zoom2="${esc(e.id)}" data-f="${f}" title="المحضر المختوم ${i + 1}"><img src="${esc(e[f])}" alt="المحضر"></div>`).join("")}</div>` : e.sick_kind === "injury" && e.source === "supervisor" ? `<div class="warn" style="margin:6px 12px 0;">مفيش صورة المحضر</div>` : ""}
+      <div class="ph" ${hasImg(e, "image") ? `data-zoom="${esc(e.id)}"` : ""}>${e.image ? `<img src="${esc(e.image)}" alt="">` : hasImg(e, "image") ? lazyImg(e, "image", "") : `<span class="muted">${e.image_path ? "الصورة اتنقلت لسيرفر الشركة" : e.type === "leave" ? "الإجازة مالهاش صورة" : e.image_missing ? "الصورة مش لاقيها على Drive" : "مفيش صورة"}</span>`}</div>
+      ${hasImg(e, "image2") ? `<div style="display:flex;border-top:1px solid #e5e5e5;">${MAHDAR.filter(f => hasImg(e, f)).map((f, i) => `<div class="ph" style="height:120px;flex:1;${i ? "border-right:1px solid #e5e5e5;" : ""}" data-zoom2="${esc(e.id)}" data-f="${f}" title="المحضر المختوم ${i + 1}">${e[f] ? `<img src="${esc(e[f])}" alt="المحضر">` : lazyImg(e, f, "المحضر")}</div>`).join("")}</div>` : e.sick_kind === "injury" && e.source === "supervisor" ? `<div class="warn" style="margin:6px 12px 0;">مفيش صورة المحضر</div>` : ""}
       <div class="bd">
         <div class="row" style="justify-content:space-between;align-items:center;"><span class="nm">${esc(e.name)}</span><span><span class="pill t-${cls(e.type)}">${tyTxt(e)}${e.kind ? " " + (KINDS[e.kind] || "") : ""}</span> <span class="pill s-${cls(e.status)}">${stTxt(e)}</span></span></div>
         <div style="margin-top:4px;"><span class="pill g">${GROUP_AR[groupOf(e)]}</span> <span class="muted">${SRC[e.source] || ""}</span></div>
@@ -620,6 +656,7 @@ function render() {
         ? `<input placeholder="ملاحظة العميل (إجبارية لو رفض)" data-note="${esc(e.id)}" style="flex:1;min-width:120px;"><button class="btn ok small" data-cok="${esc(e.id)}">العميل وافق</button><button class="btn sec small" data-ced="${esc(e.id)}">وافق بمدة تانية</button><button class="btn danger small" data-crj="${esc(e.id)}">العميل رفض</button><button class="btn danger small" data-back="${esc(e.id)}">رجّعها لتيما</button>`
         : `<button class="btn danger small" data-back="${esc(e.id)}">رجّعها مستنية</button>`}</div>`}
     </div>`; }).join("") : `<div class="card muted">مفيش حالات.</div>`;
+  hydrateImgs();
 }
 // بيانات المرضي من الكارت: النوع والسبب والمستشفى — السبب والمستشفى لازمين لو الحالة رايحة للعميل
 function readSick(id, ev, root = document) {
@@ -674,9 +711,16 @@ $("list").onchange = e => {
 };
 $("list").onclick = async e => {
   const z = e.target.closest("[data-zoom]");
-  if (z) { $("zoom-img").src = ALL.find(x => x.id === z.dataset.zoom).image; return $("zoom").classList.remove("hidden"); }
+  const zoomTo = async (id, f) => {
+    const ev = ALL.find(x => x.id === id); if (!ev) return;
+    let src = imgSrc(ev, f);
+    if (!src && hasImg(ev, f)) { try { src = (await loadImgs(id))[f] || ""; fillImgs(id); } catch (err) { fillImgs(id); return; } }
+    if (!src) return;
+    $("zoom-img").src = src; $("zoom").classList.remove("hidden");
+  };
+  if (z) return zoomTo(z.dataset.zoom, "image");
   const z2 = e.target.closest("[data-zoom2]");
-  if (z2) { $("zoom-img").src = ALL.find(x => x.id === z2.dataset.zoom2)[z2.dataset.f || "image2"]; return $("zoom").classList.remove("hidden"); }
+  if (z2) return zoomTo(z2.dataset.zoom2, z2.dataset.f || "image2");
   if (VIEW) return;   // المشاهد: تكبير الصورة بس
   const ds = e.target.dataset;
   if (ds.ed) { EDIT = ds.ed; CEDIT = null; return render(); }

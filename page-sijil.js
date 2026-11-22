@@ -1,5 +1,5 @@
 // page-sijil.js — سكريبت صفحة sijil.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { db, auth, enDigits, actorEmail, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, Timestamp, writeBatch, serverTimestamp, onAuthStateChanged } from './shared.js?v=20261122e';
+import { db, auth, enDigits, actorEmail, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, Timestamp, writeBatch, serverTimestamp, onAuthStateChanged } from './shared.js?v=20261122f';
 const $ = id => document.getElementById(id);
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
 const fmt = n => Number(n).toLocaleString("ar-EG");
