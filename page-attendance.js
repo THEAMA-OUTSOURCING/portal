@@ -1,7 +1,7 @@
 // page-attendance.js — سكريبت صفحة attendance.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { cnt, db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, hasRestSubs, typeOk, typeErr, typeSelect, jobOk, jobOptions, isBasic, nearWorkers, nameParts, ask, tell, compressPage, replacePage, replacedBy, wireStaffLogin, esc, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261124b';
-import { openPrintView, openOrderEditor, printOrder, secsForJob, secOptions } from './sheet.js?v=20261124b';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261124b';
+import { dTxt, cnt, db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, hasRestSubs, typeOk, typeErr, typeSelect, jobOk, jobOptions, isBasic, nearWorkers, nameParts, ask, tell, compressPage, replacePage, replacedBy, wireStaffLogin, esc, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261124c';
+import { openPrintView, openOrderEditor, printOrder, secsForJob, secOptions } from './sheet.js?v=20261124c';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261124c';
 
 
 const $ = id => document.getElementById(id);
@@ -112,8 +112,8 @@ async function openDay() {
   $("app").querySelector("h1").textContent = S.photo ? "تسجيل الحضور" : S.office ? "الكشف" : "الكشف والطلبات";
   $("date").previousElementSibling.textContent = S.photo ? "يوم الحضور" : "اليوم";
   const dl = deadlineOf(S.date);
-  if (new Date() > dl) show($("deadline"), "err", `المهلة خلصت (${dl.toLocaleString("ar-EG", { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" })}). الرفع متاح، بس هيتسجل متأخر.`);
-  else show($("deadline"), "info", `آخر ميعاد للرفع: ${dl.toLocaleString("ar-EG", { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" })}`);
+  if (new Date() > dl) show($("deadline"), "err", `المهلة خلصت (${dTxt(dl, { day: true, time: true })}). الرفع متاح، بس هيتسجل متأخر.`);
+  else show($("deadline"), "info", `آخر ميعاد للرفع: ${dTxt(dl, { day: true, time: true })}`);
   if (!S.photo) hide($("deadline"));   // مالوش ميعاد رفع
 
   S.unsubRoster?.(); S.unsubPool?.(); S.unsubRem?.(); S.rep = {}; $("refresh-box").classList.add("hidden"); hide($("refresh-msg"));
@@ -159,8 +159,8 @@ async function openDay() {
         if (e.xk && !(e.xk in S.xpick) && !S.xunpick.has(e.xk)) S.xpick[e.xk] = e.moved ? "M:" + e.nid : e.sub ? (e.nid || e.code) : c; });
       if (S.off === "fri") S.roster.forEach(w => { if (!(w.code in fromSaved)) fromSaved[w.code] = "O"; });
       S.choice = { ...fromSaved, ...S.choice };
-      const t = S.day.confirmed_at?.toDate ? S.day.confirmed_at.toDate().toLocaleString("ar-EG") : "";
-      const rt = S.day.reviewed_at?.toDate ? S.day.reviewed_at.toDate().toLocaleString("ar-EG") : "";
+      const t = dTxt(S.day.confirmed_at?.toDate ? S.day.confirmed_at : null, { time: true });
+      const rt = dTxt(S.day.reviewed_at?.toDate ? S.day.reviewed_at : null, { time: true });
       if (S.day.status === "approved") show($("day-state"), "ok", S.admin ? "اليوم ده تم اعتماده من المحاسب. تقدر تعدّل فيه كأدمن، والاعتماد هيفضل زي ما هو." : "اليوم ده تم اعتماده من المحاسب، ومينفعش يتعدل.");
       else if (S.day.status === "reviewed") show($("day-state"), "ok", `الإقليمي راجع اليوم ده (${esc(S.day.reviewed_email || "")}${rt ? " — " + rt : ""})${S.day.review_late ? " (متأخر)" : ""}. ` + (S.admin ? "تقدر تعدّل فيه كأدمن، ومراجعة الإقليمي هتفضل زي ما هي." : S.regional ? "تقدر تعدّل وتراجع تاني لحد ما المحاسب يعتمده." : "مستني اعتماد المحاسب، ولو فيه تعديل كلّم الإقليمي."));
       else show($("day-state"), "ok", `المشرف أكد اليوم ده${t ? " — " + t : ""}${S.day.late ? " (متأخر)" : ""}. ` + (S.regional ? "راجعه وأكد عشان يروح للمحاسب." : "مستني مراجعة الإقليمي، وتقدر تعدّل لحد ما يراجعه."));
@@ -577,7 +577,7 @@ function render() {
     const calc = pres + reps + extra;
     let st;
     const rb = replacedBy(p, S.pages);
-    const tm = x => x.created_at?.toDate ? x.created_at.toDate().toLocaleString("ar-EG", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
+    const tm = x => x.created_at?.toDate ? dTxt(x.created_at, { time: true }) : "";
     if (rb) st = `<span class="pill p-grey">اتبدلت</span><div class="muted">اتبدلت بصورة جديدة (${esc(rb.uploaded_email || "")}${tm(rb) ? " — " + esc(tm(rb)) : ""}). القديمة متحفظة ومابتتقريش.</div>`;
     else if (p.status === "pending") st = `<span class="pill p-wait">مستني السيرفر</span>`;
     else if (p.status === "reading") st = `<span class="pill p-wait">بيقرا...</span>`;
@@ -703,7 +703,7 @@ function render() {
         + (who ? `<div style="margin-top:3px;color:#8a5a10;">ده <b>${esc(who.name)}</b>${who.code && !who.code.startsWith("N") ? ` (${esc(who.code)})` : ""} — ${esc(who.type || "")}${who.job ? "، " + esc(who.job) : ""} — ${who.site === S.site ? "في قايمة البدلاء هنا" : `مكانه دلوقتي <b>${esc(who.site)}</b> (اتنقل بعد اليوم ده)`}</div>`
             + (who.site !== S.site && r.s === "P" ? (S.mpick[nid]
                 ? `<div style="margin-top:4px;"><span class="pill p-ok">✓ متسجل حاضر هنا (${esc(who.job || "")})</span>${lockedForMe() ? "" : ` <button class="btn sec small" data-munpick="${esc(nid)}">إلغاء</button>`}</div>`
-                : S.mwarn[nid] ? `<div style="margin-top:4px;color:#a32d2d;"><b>مينفعش يتسجل هنا:</b> متسجل يوم ${esc(S.date)} في ${S.mwarn[nid].map(esc).join("، ")}. شيله من هناك الأول، وبعدين اعمل تحديث للصفحة.</div>`
+                : S.mwarn[nid] ? `<div style="margin-top:4px;color:#a32d2d;"><b>مينفعش يتسجل هنا:</b> متسجل يوم ${esc(dTxt(S.date))} في ${S.mwarn[nid].map(esc).join("، ")}. شيله من هناك الأول، وبعدين اعمل تحديث للصفحة.</div>`
                 : lockedForMe() ? "" : `<div style="margin-top:4px;"><button class="btn small" data-mpick="${esc(nid)}">سجّله حاضر هنا</button></div>`) : "")
           : who === null ? `<div class="muted" style="margin-top:3px;">الرقم ده مش في كشف ولا بدلاء أي موقع تقدر تشوفه — يا إما اتقرا غلط، يا إما مشي.</div>` : ""));
     });
@@ -762,7 +762,7 @@ $("workers").addEventListener("click", e => {
 // الـ Rules بتسمح بده للأدمن (الحالة بس بتتغير، من غير ما يتمسح مين أكد أو راجع)
 $("back-acc").addEventListener("click", async () => {
   if (!S.admin || S.day?.status !== "approved") return;
-  if (!await ask(`ترجّع ${S.site} يوم ${S.date} للمحاسب؟\nاليوم هيبقى «مستني اعتماد» لحد ما المحاسب يراجعه ويعتمده تاني.`, { ok: "رجّعه للمحاسب", danger: true })) return;
+  if (!await ask(`ترجّع ${S.site} يوم ${dTxt(S.date)} للمحاسب؟\nاليوم هيبقى «مستني اعتماد» لحد ما المحاسب يراجعه ويعتمده تاني.`, { ok: "رجّعه للمحاسب", danger: true })) return;
   $("back-acc").disabled = true;
   try {
     await updateDoc(doc(db, "att_days", S.site + "__" + S.date), { status: "reviewed" });
@@ -871,7 +871,7 @@ $("confirm").addEventListener("click", async () => {
   if (wrong.length && !await ask(`فيه ${fmt(wrong.length)} صورة معظم أساميها مش من كشف ${S.site} — غالباً اترفعت على الموقع الغلط.\nتأكد الحضور برضه؟`)) return;
   if (S.admin && S.day) {
     const stName = { confirmed: "مستني مراجعة الإقليمي", reviewed: "مستني الاعتماد", approved: "معتمد" }[S.day.status] || S.day.status;
-    if (!await ask(`تعديل أدمن على ${S.site} يوم ${S.date}:\nحاضر ${P} — ${offTxt(A, On)}${Qn ? ` — توقف ${Qn}` : ""}\n\nحالة اليوم هتفضل «${stName}».`)) return;
+    if (!await ask(`تعديل أدمن على ${S.site} يوم ${dTxt(S.date)}:\nحاضر ${P} — ${offTxt(A, On)}${Qn ? ` — توقف ${Qn}` : ""}\n\nحالة اليوم هتفضل «${stName}».`)) return;
     $("confirm").disabled = true;
     try {
       await updateDoc(doc(db, "att_days", S.site + "__" + S.date), {
@@ -886,8 +886,8 @@ $("confirm").addEventListener("click", async () => {
   }
   const late = new Date() > deadlineOf(S.date);
   const nth = S.lateCount + 1;
-  if (late && !(S.regional ? S.day?.review_late : S.day?.late) && !await ask(`اتأخرت في رفع حضور يوم ${S.date}.\nدي المرة ${ordinal(nth)} الشهر ده.\nالتأخير بيتسجل وبيأثر على تقييمك وراتبك.\n\nتأكد الحضور؟`)) return;
-  if (!late && !await ask(`تأكيد حضور ${S.site} يوم ${S.date}:\nحاضر ${P} — ${offTxt(A, On)}${Qn ? ` — توقف ${Qn}` : ""}`, { ok: "أكّد الحضور" })) return;
+  if (late && !(S.regional ? S.day?.review_late : S.day?.late) && !await ask(`اتأخرت في رفع حضور يوم ${dTxt(S.date)}.\nدي المرة ${ordinal(nth)} الشهر ده.\nالتأخير بيتسجل وبيأثر على تقييمك وراتبك.\n\nتأكد الحضور؟`)) return;
+  if (!late && !await ask(`تأكيد حضور ${S.site} يوم ${dTxt(S.date)}:\nحاضر ${P} — ${offTxt(A, On)}${Qn ? ` — توقف ${Qn}` : ""}`, { ok: "أكّد الحضور" })) return;
   $("confirm").disabled = true;
   try {
     const base = {
@@ -984,7 +984,7 @@ async function loadOrder(site) {
 const orderNote = o => {
   if (!o?.updated_at) return "";
   const t = o.updated_at.toDate ? o.updated_at.toDate() : null;
-  return "آخر تعديل: " + (o.updated_email || "") + (t ? " — " + t.toLocaleString("ar-EG", { day: "numeric", month: "long", hour: "numeric", minute: "2-digit" }) : "");
+  return "آخر تعديل: " + (o.updated_email || "") + (t ? " — " + dTxt(t, { time: true }) : "");
 };
 // بدلاء الراحات اللي بياناتهم كاملة (اسم، رقم قومي 14 رقم، وظيفة، ومش متأخر في الورق) — بيتطبعوا في الأماكن الفاضية بس
 function restSubs() {
@@ -1218,7 +1218,7 @@ $("extras").addEventListener("click", e => {
     const nid = who.slice(2), w = ELSE_LIST.find(q => q.nid === nid && q.site === pk.dataset.site) || elsewhere(nid); if (!w) return;
     pk.style.opacity = ".5"; pk.textContent = "بيدوّر عليه في باقي المواقع...";
     otherSitesSameDay(nid).then(found => {
-      if (found.length) { tell(`${w.name} مينفعش يتسجل هنا: متسجل يوم ${S.date} في ${found.join("، ")}.\nشيله من هناك الأول.`); render(); return; }
+      if (found.length) { tell(`${w.name} مينفعش يتسجل هنا: متسجل يوم ${dTxt(S.date)} في ${found.join("، ")}.\nشيله من هناك الأول.`); render(); return; }
       delete S.mwarn[nid]; S.munpick.delete(nid);
       S.mpick[nid] = { name: w.name, code: w.code || "", job: w.job || "", type: w.type || "بديل", site: w.site };
       S.xpick[key] = who; if (S.xq) delete S.xq[key];
@@ -1409,7 +1409,7 @@ $("mt-save").addEventListener("click", async () => {
   // ولو الطلب اترفض أو اتلغى السيرفر بيرجّعه للكشف (record_events.py — الشيل مربوط بالطلب بـ event_id)
   const row = S.rosterNow.find(x => mtCode(x) === tc);
   const offSheet = !!row && isBasic(row.type) && !isBasic(type) && !S.removals.some(r => r.code === row.code);
-  if (!await ask(`تبعت طلب تغيير نوع ${w.name} من «${w.typeNow}» لـ «${type}» من ${from}؟\n`
+  if (!await ask(`تبعت طلب تغيير نوع ${w.name} من «${w.typeNow}» لـ «${type}» من ${dTxt(from)}؟\n`
     + (offSheet ? "اسمه هيتشال من الكشف المطبوع لحد ما الـ HR يقرر — لو اترفض هيرجع للكشف." : "النوع مش هيتغير غير بعد ما الـ HR يعتمد الطلب."), { ok: "ابعت للـ HR" })) return;
   $("mt-save").disabled = true;
   try {
@@ -1802,7 +1802,7 @@ function renderFiche() {
   $("fiche-card").classList.toggle("hidden", !list.length || S.office);
   $("fiche-list").innerHTML = list.map(x => {
     const f = ficheState(x);
-    const dueTxt = f.due ? f.due.toLocaleDateString("ar-EG", { weekday: "long", day: "numeric", month: "long" }) : "";
+    const dueTxt = f.due ? dTxt(f.due, { day: true }) : "";
     const st = x.fiche ? `<span class="pill p-ok">الفيش اترفع</span>`
       : f.st === "overdue" ? `<span class="pill p-err">المهلة خلصت ${esc(dueTxt)}</span>`
       : f.st === "exception" ? `<span class="pill p-wait">استثناء من الإدارة</span>`
@@ -1966,12 +1966,12 @@ function renderLvList() {
   const item = e => {
     const [st, cls] = LV_ST[e.status] || [esc(e.status), "p-grey"];
     const moved = e.original && (e.original.from !== e.from || e.original.to !== e.to)
-      ? `<div class="muted">اتعدلت من ${esc(e.original.from)} → ${esc(e.original.to)}</div>` : "";
+      ? `<div class="muted">اتعدلت من ${esc(dTxt(e.original.from))} → ${esc(dTxt(e.original.to))}</div>` : "";
     const why = (e.status === "rejected" || e.status === "returned") && e.note ? `<div class="muted">السبب: ${esc(e.note)}</div>` : "";
     return `<div style="border-bottom:1px solid #eee;padding:8px 0;"><div class="row" style="justify-content:space-between;">
       <b>${esc(e.name)}</b><span><span class="pill p-grey">${lvTyTxt(e)}</span> <span class="pill ${cls}">${st}</span></span></div>
-      ${e.we ? `<div class="muted">${esc(e.from)}${e.detail ? " — " + esc(e.detail) : ""}</div>`
-        : `<div class="muted">من ${esc(e.from)} لحد ${esc(e.to)} — ${esc(cnt(e.days, "يوم"))}${e.approved_days != null && +e.approved_days < +e.days ? ` (العميل اعتمد ${esc(e.approved_days)})` : ""}</div>`}${moved}${why}</div>`;
+      ${e.we ? `<div class="muted">${esc(dTxt(e.from))}${e.detail ? " — " + esc(e.detail) : ""}</div>`
+        : `<div class="muted">من ${esc(dTxt(e.from))} لحد ${esc(dTxt(e.to))} — ${esc(cnt(e.days, "يوم"))}${e.approved_days != null && +e.approved_days < +e.days ? ` (العميل اعتمد ${esc(e.approved_days)})` : ""}</div>`}${moved}${why}</div>`;
   };
   const used = new Set();
   const groups = LV_GROUPS.map(g => { const list = rows.filter(e => !used.has(e) && g.f(e)); list.forEach(e => used.add(e)); return { ...g, list }; });
@@ -2016,7 +2016,7 @@ function lvCheck() {
   else if (LV.who && !isBasic(LV.who.type)) err = "الإجازة والمرضي للأساسي بس — العامل ده مش أساسي";
   $("lv-days").textContent = err || `${cnt(lvWorkDays(f, t), "يوم")} (الجمعة مش بتتحسب)`;
   const ov = !err && LV.who ? lvOverlap(LV.who, f, t) : null;
-  if (ov) show($("lv-m"), "warn", `فيه طلب تاني لنفس العامل في الأيام دي (${lvTyTxt(ov)} من ${ov.from} لحد ${ov.to} — ${(LV_ST[ov.status] || [ov.status])[0]}).`);
+  if (ov) show($("lv-m"), "warn", `فيه طلب تاني لنفس العامل في الأيام دي (${lvTyTxt(ov)} من ${dTxt(ov.from)} لحد ${dTxt(ov.to)} — ${(LV_ST[ov.status] || [ov.status])[0]}).`);
   else if ($("lv-m").classList.contains("warn")) hide($("lv-m"));
   const inj = $("lv-type").value === "injury";
   $("lv-send").disabled = !!err || !LV.who || !LV.img || (inj && !lvIsExt() && !LV.pages.length) || !!ov;
@@ -2034,7 +2034,7 @@ function lvTypeUi() {
   const inj = $("lv-type").value === "injury", prev = inj ? lvPrevInj(LV.who) : null;
   $("lv-ext").classList.toggle("hidden", !prev);
   if (prev) {
-    $("lv-extt").textContent = `اللي من ${prev.from} لحد ${prev.to}`;
+    $("lv-extt").textContent = `اللي من ${dTxt(prev.from)} لحد ${dTxt(prev.to)}`;
     if ($("lv-extc").checked) { const nx = lvNext(prev.to || prev.from); if (!$("lv-from").value || $("lv-from").value <= (prev.to || prev.from)) $("lv-from").value = nx; if ($("lv-to").value && $("lv-to").value < nx) $("lv-to").value = nx; }
   }
   $("lv-inj").classList.toggle("hidden", !inj || lvIsExt());
@@ -2092,7 +2092,7 @@ $("lv-send").addEventListener("click", async () => {
   // طلب تاني لنفس العامل داخل في نفس الأيام (ومش مرفوض) — مايتبعتش
   const clash = LV.list.find(x => ["sick", "leave"].includes(x.type) && x.status !== "rejected" && x.from && x.to && x.from <= t && f <= x.to
     && ((w.nid && x.nid === String(w.nid)) || (w.code && x.code === String(w.code))));
-  if (clash) return show($("lv-m"), "err", `${w.name} عنده طلب ${clash.type_ar || ""} من ${clash.from} لحد ${clash.to} داخل في نفس الأيام — مينفعش طلب تاني عليها. لو محتاج تمدّه ابدأ من بعد ${clash.to}.`);
+  if (clash) return show($("lv-m"), "err", `${w.name} عنده طلب ${clash.type_ar || ""} من ${dTxt(clash.from)} لحد ${dTxt(clash.to)} داخل في نفس الأيام — مينفعش طلب تاني عليها. لو محتاج تمدّه ابدأ من بعد ${dTxt(clash.to)}.`);
   $("lv-send").disabled = true; show($("lv-m"), "info", "بيرفع...");
   try {
     const u = auth.currentUser;

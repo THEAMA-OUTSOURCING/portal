@@ -190,7 +190,7 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
 <body>
 
 <!-- شاشة الدخول -->
-<div id="login-screen">
+<div id="login-screen" role="main">
   <div class="logo-header">
     <img src="logo.jpg" alt="Theama Logo"/>
     <h1>بوابة تيما</h1>
@@ -216,7 +216,7 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
 </div>
 
 <!-- شاشة إنشاء باسورد -->
-<div id="set-pass-screen">
+<div id="set-pass-screen" role="main">
   <div class="logo-header">
     <img src="logo.jpg" alt="Theama Logo"/>
     <h1>إنشاء كلمة مرور</h1>
@@ -227,7 +227,7 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
     <div style="margin-bottom:1rem;">
       <label style="font-size:13px;color:#6b6b6b;display:block;margin-bottom:6px;">كلمة المرور الجديدة</label>
       <div class="pass-wrap">
-        <input type="password" id="new-pass1" placeholder="اختار كلمة مرور" autocomplete="new-password" aria-describedby="np-rules"/>
+        <input type="password" id="new-pass1" aria-label="كلمة المرور الجديدة" placeholder="اختار كلمة مرور" autocomplete="new-password" aria-describedby="np-rules"/>
         <button type="button" class="eye-btn" aria-label="إظهار أو إخفاء كلمة المرور" data-call="toggleField" data-args="new-pass1,eye-np1"><i id="eye-np1" class="ti ti-eye" style="font-size:16px;"></i></button>
       </div>
       <p id="np-rules" style="font-size:13px;color:#6b6b6b;margin-top:6px;line-height:1.6;">6 حروف أو أرقام على الأقل. ماينفعش الرقم القومي، ولا كود الموظف، ولا رقم واحد مكرر (111111)، ولا أرقام ورا بعض (123456)، ولا كلمة مشهورة زي password.</p>
@@ -235,7 +235,7 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
     <div style="margin-bottom:1.25rem;">
       <label style="font-size:13px;color:#6b6b6b;display:block;margin-bottom:6px;">تأكيد كلمة المرور</label>
       <div class="pass-wrap">
-        <input type="password" id="new-pass2" placeholder="كرر كلمة المرور" autocomplete="new-password"/>
+        <input type="password" id="new-pass2" aria-label="تأكيد كلمة المرور" placeholder="كرر كلمة المرور" autocomplete="new-password"/>
         <button type="button" class="eye-btn" aria-label="إظهار أو إخفاء كلمة المرور" data-call="toggleField" data-args="new-pass2,eye-np2"><i id="eye-np2" class="ti ti-eye" style="font-size:16px;"></i></button>
       </div>
     </div>
@@ -246,7 +246,7 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
 </div>
 
 <!-- شاشة تغيير الباسورد -->
-<div id="change-pass-screen">
+<div id="change-pass-screen" role="main">
   <div class="logo-header">
     <img src="logo.jpg" alt="Theama Logo"/>
     <h1>تغيير كلمة المرور</h1>
@@ -255,14 +255,14 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
     <div style="margin-bottom:1rem;">
       <label style="font-size:13px;color:#6b6b6b;display:block;margin-bottom:6px;">كلمة المرور الجديدة</label>
       <div class="pass-wrap">
-        <input type="password" id="chg-pass1" placeholder="اختار كلمة مرور جديدة" autocomplete="new-password"/>
+        <input type="password" id="chg-pass1" aria-label="كلمة المرور الجديدة" placeholder="اختار كلمة مرور جديدة" autocomplete="new-password"/>
         <button type="button" class="eye-btn" aria-label="إظهار أو إخفاء كلمة المرور" data-call="toggleField" data-args="chg-pass1,eye-cp1"><i id="eye-cp1" class="ti ti-eye" style="font-size:16px;"></i></button>
       </div>
     </div>
     <div style="margin-bottom:1.25rem;">
       <label style="font-size:13px;color:#6b6b6b;display:block;margin-bottom:6px;">تأكيد كلمة المرور</label>
       <div class="pass-wrap">
-        <input type="password" id="chg-pass2" placeholder="كرر كلمة المرور" autocomplete="new-password"/>
+        <input type="password" id="chg-pass2" aria-label="تأكيد كلمة المرور" placeholder="كرر كلمة المرور" autocomplete="new-password"/>
         <button type="button" class="eye-btn" aria-label="إظهار أو إخفاء كلمة المرور" data-call="toggleField" data-args="chg-pass2,eye-cp2"><i id="eye-cp2" class="ti ti-eye" style="font-size:16px;"></i></button>
       </div>
     </div>
@@ -274,7 +274,7 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
 </div>
 
 <!-- شاشة الأدمن -->
-<div id="admin-screen">
+<div id="admin-screen" role="main">
   <div class="logo-header">
     <img src="logo.jpg" alt="Theama Logo"/>
     <h1>لوحة الإدارة</h1>
@@ -302,7 +302,7 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
     <nav id="pnav" class="pnav" aria-label="صفحات البوابة"></nav>
     <div class="card payroll-only">
       <p style="font-size:14px;font-weight:500;color:#222;margin-bottom:12px;"><i class="ti ti-upload" style="font-size:16px;vertical-align:-2px;margin-left:6px;color:#c0392b;"></i>رفع شيت الرواتب الجديد</p>
-      <input type="file" id="admin-excel" accept=".xlsx,.xls" style="margin-bottom:6px;" data-change="resetPayReview"/>
+      <input type="file" id="admin-excel" aria-label="شيت المرتبات (إكسيل)" accept=".xlsx,.xls" style="margin-bottom:6px;" data-change="resetPayReview"/>
       <p style="font-size:12px;color:#6b6b6b;margin-bottom:12px;">كل شركة في تابة لوحدها (بيبسي، شيبسي، سويفل، الشرقية 1، الشرقية 2...) — المراجعة بتطلع إجمالي كل تابة لوحدها، وتعلّم على الشركات اللي هترفعها دلوقتي بس. الشركات اللي مش متعلّم عليها كشوفها ومدة ظهورها بيفضلوا زي ما هم.</p>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:13px;color:#555;">
         <label for="pay-days">المرتب يفضل ظاهر للعمال</label>
@@ -326,7 +326,7 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
         <label for="search-sal-code" style="font-size:13px;color:#6b6b6b;display:block;margin-bottom:6px;">كود الموظف</label>
         <input type="text" id="search-sal-code" placeholder="ادخل كود الموظف"/>
       </div>
-      <p id="search-sal-hint" style="display:none;font-size:11px;color:#767676;margin:-6px 0 10px;">لعمال مواقعك بس — 5 عمال مختلفين في اليوم بالكتير (نفس العامل تانى مش بيتحسب)</p>
+      <p id="search-sal-hint" style="display:none;font-size:12px;color:#767676;margin:-6px 0 10px;">لعمال مواقعك بس — 5 عمال مختلفين في اليوم بالكتير (نفس العامل تانى مش بيتحسب)</p>
       <button class="btn-primary" data-call="lookupSalary" id="search-sal-btn"><i class="ti ti-search" style="font-size:15px;vertical-align:-2px;margin-left:4px;"></i>عرض المرتب</button>
       <div class="success-box" id="search-sal-ok"><i class="ti ti-circle-check" style="font-size:14px;vertical-align:-2px;margin-left:4px;"></i><span id="search-sal-ok-msg"></span></div>
       <div class="error-box" id="search-sal-error"><i class="ti ti-alert-circle" style="font-size:14px;vertical-align:-2px;margin-left:4px;"></i><span id="search-sal-error-msg"></span></div>
@@ -353,7 +353,7 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
       <div style="margin-bottom:12px;">
         <label for="reset-code" style="font-size:13px;color:#6b6b6b;display:block;margin-bottom:6px;">كود الموظف</label>
         <input type="text" id="reset-code" placeholder="ادخل كود الموظف (مثال: T1234 أو 1234)" autocapitalize="characters" autocomplete="off"/>
-        <p style="font-size:11px;color:#767676;margin-top:5px;">الموظف هيدخل بالرقم القومي وهيتطلب منه يعمل باسورد جديد</p>
+        <p style="font-size:12px;color:#767676;margin-top:5px;">الموظف هيدخل بالرقم القومي وهيتطلب منه يعمل باسورد جديد</p>
       </div>
       <div class="success-box" id="reset-success"><i class="ti ti-circle-check" style="font-size:14px;vertical-align:-2px;margin-left:4px;"></i><span id="reset-success-msg"></span></div>
       <div class="error-box" id="reset-error"><i class="ti ti-alert-circle" style="font-size:14px;vertical-align:-2px;margin-left:4px;"></i><span id="reset-error-msg"></span></div>
@@ -376,7 +376,7 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
 </div>
 
 <!-- شاشة الراتب -->
-<div id="salary-screen">
+<div id="salary-screen" role="main">
   <div class="sv-hero"><div class="sv-hrow">
     <img src="logo.jpg" alt="Theama">
     <div class="sv-who"><b id="emp-name-display"></b><span id="emp-meta-display"></span></div>
@@ -388,7 +388,7 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
 
 
 <!-- شاشة البطاقة الطبية -->
-<div id="card-screen" style="display:none;max-width:660px;margin:1rem auto;">
+<div id="card-screen" role="main" style="display:none;max-width:660px;margin:1rem auto;">
   <div class="header-bar">
     <button class="btn-logout" data-call="showScreen" data-args="salary-screen"><i class="ti ti-arrow-right" style="font-size:14px;"></i> رجوع للراتب</button>
     <div style="text-align:right;">
@@ -425,7 +425,7 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
 </div>
 
 <!-- شاشة البيانات المطلوبة -->
-<div id="request-screen" style="display:none;max-width:660px;margin:1rem auto;">
+<div id="request-screen" role="main" style="display:none;max-width:660px;margin:1rem auto;">
   <div class="header-bar">
     <button class="btn-logout" id="req-back-btn" data-call="showScreen" data-args="salary-screen"><i class="ti ti-arrow-right" style="font-size:14px;"></i> رجوع للراتب</button>
     <div style="text-align:right;">
@@ -442,15 +442,15 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
     </div>
     <div style="margin-bottom:1rem;">
       <label style="font-size:13px;color:#6b6b6b;display:block;margin-bottom:6px;">مقاس التيشرت</label>
-      <select id="req-tshirt" class="size-select"></select>
+      <select id="req-tshirt" aria-label="مقاس التيشيرت" class="size-select"></select>
     </div>
     <div style="margin-bottom:1rem;">
       <label style="font-size:13px;color:#6b6b6b;display:block;margin-bottom:6px;">مقاس الحذاء</label>
-      <select id="req-shoe" class="size-select"></select>
+      <select id="req-shoe" aria-label="مقاس الجزمة" class="size-select"></select>
     </div>
     <div style="margin-bottom:1.25rem;">
       <label style="font-size:13px;color:#6b6b6b;display:block;margin-bottom:6px;">رقم التليفون</label>
-      <input type="tel" id="req-phone" placeholder="01xxxxxxxxx" inputmode="numeric" dir="ltr" autocomplete="tel"/>
+      <input type="tel" id="req-phone" aria-label="رقم الموبايل" placeholder="01xxxxxxxxx" inputmode="numeric" dir="ltr" autocomplete="tel"/>
       <div style="font-size:12px;color:#6b6b6b;margin-top:4px;">١١ رقم، بيبدأ بـ 01 — مثال: 01012345678</div>
     </div>
     <div class="error-box" id="req-error"><i class="ti ti-alert-circle" style="font-size:14px;vertical-align:-2px;margin-left:4px;"></i><span id="req-error-msg"></span></div>
@@ -460,6 +460,6 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
 </div>
 
 <!-- Firebase SDKs -->
-<script type="module" src="page-index.js?v=20261124b"></script>
+<script type="module" src="page-index.js?v=20261124c"></script>
 </body>
 </html>

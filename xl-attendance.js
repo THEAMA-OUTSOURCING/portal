@@ -4,6 +4,7 @@
 
 const pad = n => String(n).padStart(2, "0");
 const ymd = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+const dmy = d => "\u2066" + pad(d.getDate()) + "-" + pad(d.getMonth() + 1) + "-" + d.getFullYear() + "\u2069";   // و6: للعرض بس (20-11-2026)
 const clean = v => String(v ?? "").replace(/ /g, " ").replace(/\s+/g, " ").trim();
 const arNorm = s => clean(s).replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي");
 const nidOf = v => { const s = clean(v).replace(/\.0$/, "").replace(/\D/g, ""); return s.length === 14 ? s : ""; };
@@ -98,7 +99,7 @@ export function parseChipsy(wb, XLSX) {
     dates.forEach((d, i) => {
       if (!d) return;
       const m = mark(r[i], "chipsy"); if (!m) return;
-      if (m.bad) return out.issues.push(`رمز مش مفهوم "${m.bad}" — ${clean(r[iName])} يوم ${ymd(d)}`);
+      if (m.bad) return out.issues.push(`رمز مش مفهوم "${m.bad}" — ${clean(r[iName])} يوم ${dmy(d)}`);
       const k = site + "__" + ymd(d);
       (out.days[k] = out.days[k] || { site, date: ymd(d), entries: {} }).entries[nid] =
         { name: clean(r[iName]), nid, job, sub, pj, type: clean(r[iType]), code: clean(r[iCode]), ...m };
@@ -134,7 +135,7 @@ export function parseEmdad(wb, XLSX, sheetName, year) {
       if (!dn) return;
       const d = new Date(year, mi, dn); if (d.getMonth() !== mi) return;
       const m = mark(r[i], "emdad"); if (!m) return;
-      if (m.bad) return out.issues.push(`رمز مش مفهوم "${m.bad}" — ${clean(r[1])} يوم ${ymd(d)}`);
+      if (m.bad) return out.issues.push(`رمز مش مفهوم "${m.bad}" — ${clean(r[1])} يوم ${dmy(d)}`);
       const k = site + "__" + ymd(d);
       // في الإمداد الرقم غير 1 = ساعات شغل فعلية في يوم الراحة (منسقين) → إضافي
       if (m.s === "P" && m.c) m.x = 1;
@@ -169,7 +170,7 @@ export function parseSharqia(wb, XLSX) {
     dates.forEach((d, i) => {
       if (!d) return;
       const m = mark(r[i], "sharqia"); if (!m) return;
-      if (m.bad) return out.issues.push(`رمز مش مفهوم "${m.bad}" — ${clean(r[iName])} يوم ${ymd(d)}`);
+      if (m.bad) return out.issues.push(`رمز مش مفهوم "${m.bad}" — ${clean(r[iName])} يوم ${dmy(d)}`);
       const k = site + "__" + ymd(d);
       (out.days[k] = out.days[k] || { site, date: ymd(d), entries: {} }).entries[code] =
         { name: clean(r[iName]), nid: "", job: clean(r[iJob]), loc: clean(r[iLoc]), sector: clean(r[iSec]), code, ...m };

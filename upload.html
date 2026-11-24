@@ -94,7 +94,7 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
   </div>
   <div id="denied" class="card center hidden"><h2>الصفحة دي للأدمن بس حالياً</h2><a class="btn" href="index.html" style="margin-top:12px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">رجوع للبوابة</a> <button class="btn sec" id="d-out" style="margin-top:12px;">خروج</button></div>
 
-  <div id="app" class="hidden">
+  <div id="app" class="hidden" role="main">
     <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px;">
       <div><h1>رفع حضور إكسيل</h1><div class="muted" id="who"></div></div>
       <div class="row"><button class="btn sec small" id="logout">خروج</button></div>
@@ -104,7 +104,7 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
     <div class="card">
       <h2>1. اختار الملف</h2>
       <p class="muted" style="margin-bottom:8px;">شيت حضور شيبسي (Payroll)، أو ملف الإمداد (Deployment attendance)، أو شيت الشرقية. البوابة بتتعرف على نوعه لوحدها. لو رفعت ملف لأيام اترفعت قبل كده، الأيام دي بتتحدث بالجديد، والأيام الفاضية في الملف (#N/A أو لسه مااتكتبتش) بتتساب زي ما هي.</p>
-      <input type="file" id="file" accept=".xlsx,.xlsm,.xls">
+      <input type="file" id="file" aria-label="ملف الحضور (إكسيل)" accept=".xlsx,.xlsm,.xls">
       <div class="row hidden" id="emdad-opts" style="margin-top:10px;">
         <label class="f">شهر الإمداد<select id="e-month"></select></label>
         <label class="f">السنة<input type="number" id="e-year" style="width:100px"></label>
@@ -130,6 +130,6 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
   </div>
 </div>
 
-<script type="module" src="page-upload.js?v=20261124b"></script>
+<script type="module" src="page-upload.js?v=20261124c"></script>
 </body>
 </html>

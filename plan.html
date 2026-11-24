@@ -187,7 +187,7 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
   </div>
 
   <!-- الصفحة -->
-  <div id="app" class="hidden">
+  <div id="app" class="hidden" role="main">
     <div class="top">
       <div>
         <h1>الاحتياج والأعداد</h1>
@@ -277,7 +277,7 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
       <div class="card">
         <h2>رفع شيت الاحتياج الشهري</h2>
         <p class="muted" style="margin-bottom:10px;">نفس ملف الإكسيل اللي بييجي من العميل. هتشوف المقارنة قبل الحفظ.</p>
-        <input type="file" id="u-file" accept=".xlsx,.xls">
+        <input type="file" id="u-file" aria-label="شيت الاحتياج (إكسيل)" accept=".xlsx,.xls">
         <div class="row hidden" id="u-opts" style="margin-top:10px;">
           <label class="muted" for="u-sheet">الشيت</label><select id="u-sheet"></select>
           <label class="muted" for="u-month">لشهر</label><input type="month" id="u-month">
@@ -343,10 +343,10 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
         <details class="fold" data-fold="bl-list"><summary><h2>البلاك ليست (ممنوع تشغيلهم تاني) <span class="fold-n" data-n="bl-list"></span></h2></summary>
         <p class="muted" style="margin-bottom:8px;">أي رقم قومي هنا، المشرف مش هيقدر يضيفه للكشف ولا كبديل، وبيوصل تنبيه للإدارة. السبب مبيظهرش للمشرفين.</p>
         <div class="row" id="bl-form">
-          <input id="bl-nid" placeholder="الرقم القومي" dir="ltr" style="width:170px">
-          <input id="bl-name" placeholder="الاسم" style="width:220px">
-          <select id="bl-reason"><option>سرقة</option><option>مخدرات</option><option>اعتداء / مشاجرة</option><option>تزوير</option><option>أخرى</option></select>
-          <input id="bl-note" placeholder="ملاحظة" style="width:200px">
+          <input id="bl-nid" aria-label="الرقم القومي" placeholder="الرقم القومي" dir="ltr" style="width:170px">
+          <input id="bl-name" aria-label="الاسم" placeholder="الاسم" style="width:220px">
+          <select id="bl-reason" aria-label="السبب"><option>سرقة</option><option>مخدرات</option><option>اعتداء / مشاجرة</option><option>تزوير</option><option>أخرى</option></select>
+          <input id="bl-note" aria-label="ملاحظة" placeholder="ملاحظة" style="width:200px">
           <button class="btn" id="bl-add">إضافة</button>
         </div>
         <div class="msg" id="bl-msg"></div>
@@ -356,7 +356,7 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
         <h2>رفع تعديلات كتير من إكسيل</h2>
         <p class="muted" style="margin-bottom:8px;">شيت فيه عمود <b>الكود</b>، ومعاه عمود أو أكتر من: <b>النوع</b> (أساسي / يومية / مشي)، <b>الوظيفة</b>، <b>الموقع</b>، <b>ساري من</b>، <b>ملاحظة</b>. ولعامل جديد مالوش كود: سيب الكود فاضي واكتب <b>الاسم</b> رباعي و<b>الرقم القومي</b> و<b>التليفون</b> و<b>الموقع</b> و<b>النوع</b> و<b>الوظيفة</b> (من غير بطاقة، والمشرف يرفعها بعدين). هتشوف المقارنة قبل الحفظ.
           كل سطر بيروح طلب للـ HR (والأدمن / HR الفرع بيتعتمد على طول).</p>
-        <input type="file" id="w-file" accept=".xlsx,.xls">
+        <input type="file" id="w-file" aria-label="إكسيل التعديلات" accept=".xlsx,.xls">
         <div class="msg" id="w-up-msg"></div>
         <div class="hidden" id="w-preview">
           <div class="tbl" style="margin-top:10px;"><table><thead><tr><th>الكود</th><th>الاسم</th><th>دلوقتي</th><th>الجديد</th><th></th></tr></thead><tbody id="w-prev-list"></tbody></table></div>
@@ -383,8 +383,8 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
         <p class="muted" style="margin-bottom:10px;">البيانات من السجل الموحد. أي تعديل (النوع / الوظيفة / الموقع / مشي) بيروح طلب في «اعتماد الحالات ← طلبات القوة»:
           لو إنت أدمن أو HR الفرع ده بيتعتمد على طول، والمحاسب بيستنى الـ HR. بعد الاعتماد السجل والكشف بيتحدّثوا خلال ثواني.</p>
         <div class="row">
-          <input type="text" id="w-q" placeholder="ابحث بالاسم أو الكود أو الرقم القومي" style="flex:1 1 260px;">
-          <select id="w-site"><option value="">كل المواقع</option></select>
+          <input type="text" id="w-q" aria-label="بحث" placeholder="ابحث بالاسم أو الكود أو الرقم القومي" style="flex:1 1 260px;">
+          <select id="w-site" aria-label="الموقع"><option value="">كل المواقع</option></select>
           <button class="btn sec" id="w-export" type="button">تصدير إكسيل</button>
         </div>
         <div class="tbl" style="margin-top:10px;"><table><thead><tr><th>الاسم</th><th>الكود</th><th>الموقع</th><th>النوع</th><th>الوظيفة</th><th></th></tr></thead><tbody id="w-list"></tbody></table></div></details>
@@ -469,7 +469,7 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
       <div class="card" style="margin-top:12px;">
         <h2>جدول الأكواد الإنجليزي (للبصمة)</h2>
         <p class="muted" style="margin-bottom:8px;">كل سطر: الكود العربي <b>الموقع/الوظيفة/القسم</b> وكود العميل (CODE - HC). «تصدير البصمة» في صفحة التقارير بياخد كود كل عامل من هنا (القسم من «ترتيب الكشف»). تقدر ترفع تابة CODE من شيت «قوة كاملة»: السطور الجديدة بتتضاف، واللي موجود بيتحدّث.</p>
-        <div class="row" style="margin-bottom:8px;"><input type="file" id="jc-file" accept=".xlsx,.xls,.xlsm"><button class="btn sec small" id="jc-add">+ سطر</button></div>
+        <div class="row" style="margin-bottom:8px;"><input type="file" id="jc-file" aria-label="جدول الأكواد (إكسيل)" accept=".xlsx,.xls,.xlsm"><button class="btn sec small" id="jc-add">+ سطر</button></div>
         <div class="tbl set-tbl"><table><thead><tr><th>الكود العربي</th><th>CODE - HC</th><th></th></tr></thead><tbody id="jc-list"></tbody></table></div>
         <div class="row" style="margin-top:8px;"><button class="btn" id="jc-save">حفظ الجدول</button></div>
         <div class="msg" id="jc-msg"></div>
@@ -478,6 +478,6 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
   </div>
 </div>
 
-<script type="module" src="page-plan.js?v=20261124b"></script>
+<script type="module" src="page-plan.js?v=20261124c"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 // page-hr.js — سكريبت صفحة hr.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask, typeOk, typeErr, jobsFor, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261124b';
-import { secsForJob, secOptions } from './sheet.js?v=20261124b';
+import { dTxt, db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask, typeOk, typeErr, jobsFor, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261124c';
+import { secsForJob, secOptions } from './sheet.js?v=20261124c';
 const $ = id => document.getElementById(id);
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
 const TY = { sick: "مرضي", leave: "إجازة", resign: "استقالة" };
@@ -179,7 +179,7 @@ async function workerCases(nid, code) {
 const clashesOf = (list, selfId, from, to) => list.filter(x => x.id !== selfId && ["sick", "leave"].includes(x.type) && x.status !== "rejected"
   && x.from && x.to && from && to && x.from <= to && from <= x.to);
 const SRC_AR = { supervisor: "طلب مشرف", excel_hr: "إكسيل HR", sharqia_drive: "شيت الشرقية" };
-const clashTxt = list => list.map(x => `${tyTxt(x)} من ${x.from} لحد ${x.to} — ${ST[x.status] || x.status}${SRC_AR[x.source] ? " (" + SRC_AR[x.source] + ")" : ""}`).join("\n");
+const clashTxt = list => list.map(x => `${tyTxt(x)} من ${dTxt(x.from)} لحد ${dTxt(x.to)} — ${ST[x.status] || x.status}${SRC_AR[x.source] ? " (" + SRC_AR[x.source] + ")" : ""}`).join("\n");
 async function clashMsg(ev, selfId, from, to) {
   const cl = clashesOf(await workerCases(ev.nid, ev.code), selfId, from, to);
   return cl.length ? `${ev.name || ev.nid || ev.code} عنده حالة تانية داخلة في نفس الأيام — عدّل التواريخ أو ارفض واحدة منهم الأول:\n` + clashTxt(cl) : "";
@@ -581,7 +581,7 @@ onAuthStateChanged(auth, async user => {
   onSnapshot(evQ(where("status", "==", "pending")), snap => { fill(LIVE_P, snap); ALL_LOADED = true; rebuild(); }, onErr);
   onSnapshot(evQ(where("changed", "==", true)), snap => { fill(LIVE_C, snap); rebuild(); }, onErr);
   onSnapshot(evQ(where("status", "==", "client_wait")), snap => { fill(LIVE_W, snap); rebuild(); }, onErr);
-  try { const s = await getDoc(doc(db, "admin_tasks_status", "sharqia_sync")); const t = s.data()?.last_run?.toDate?.(); if (t) $("sync").textContent = "آخر تحديث للشرقية: " + t.toLocaleString("ar-EG"); } catch (e) {}
+  try { const s = await getDoc(doc(db, "admin_tasks_status", "sharqia_sync")); const t = s.data()?.last_run?.toDate?.(); if (t) $("sync").textContent = "آخر تحديث للشرقية: " + dTxt(t, { time: true }); } catch (e) {}
 });
 $("f-st").onchange = loadDecided; $("f-ty").onchange = render; $("f-gr").onchange = render; $("f-q").oninput = render;
 
@@ -594,11 +594,11 @@ function changedHtml(e) {
     .map(k => `<li>${CH_LABEL[k]}: <s>${esc(show1(k, e[k]) || "—")}</s> ← <b>${esc(show1(k, d[k]) || "—")}</b></li>`);
   return rows.length ? `<ul style="margin:4px 18px 0 0;padding:0;">${rows.join("")}</ul>` : "";
 }
-const tsTxt = t => t?.toDate ? t.toDate().toLocaleDateString("ar-EG") : "";
+const tsTxt = t => t?.toDate ? dTxt(t) : "";
 const CDEC = { approved: "وافق", modified: "وافق وعدّل المدة", rejected: "رفض", partial: "اعتمد جزء" };
 // المرضي: HR تيما بيكتب السبب والمستشفى وهو بيوافق (لازمين لشيت العميل)، ويقدر يغيّر مرضى ↔ إصابة عمل
 const sickFields = e => e.type !== "sick" ? "" : `<div class="row" style="width:100%;gap:6px;">
-  <select data-sk="${esc(e.id)}" style="padding:4px 6px;font-size:12px;"><option value="sick" ${e.sick_kind !== "injury" ? "selected" : ""}>مرضى</option><option value="injury" ${e.sick_kind === "injury" ? "selected" : ""}>إصابة عمل</option></select>
+  <select data-sk="${esc(e.id)}" aria-label="نوع الحالة" style="padding:4px 6px;font-size:12px;"><option value="sick" ${e.sick_kind !== "injury" ? "selected" : ""}>مرضى</option><option value="injury" ${e.sick_kind === "injury" ? "selected" : ""}>إصابة عمل</option></select>
   <input data-cause="${esc(e.id)}" placeholder="سبب الحالة المرضية" value="${esc(e.cause || "")}" style="flex:2;min-width:150px;">
   <input data-hosp="${esc(e.id)}" placeholder="المستشفى" value="${esc(e.hospital || "")}" style="flex:1;min-width:110px;"></div>`;
 const kindSel = e => e.type !== "leave" ? "" : `<select data-kind="${esc(e.id)}" style="padding:4px 6px;font-size:12px;"><option value="annual" ${e.kind !== "unpaid" ? "selected" : ""}>ج — إجازة (ليه رصيد)</option><option value="unpaid" ${e.kind === "unpaid" ? "selected" : ""}>خ — بدون أجر (ملوش رصيد)</option></select>`;
@@ -624,15 +624,15 @@ function render() {
         <dl>
           <dt>الكود</dt><dd>${esc(e.code)}${e.nid ? ` — <span dir="ltr">${esc(e.nid)}</span>` : ""}</dd>
           <dt>المكان</dt><dd>${esc([placeOf(e), e.job].filter(Boolean).join(" — "))}</dd>
-          ${e.type === "resign" ? `<dt>السبب</dt><dd>${esc(e.reason)}</dd><dt>من تاريخ</dt><dd>${esc(e.entry_date)} (يوم التسجيل)</dd>`
-            : `<dt>من</dt><dd>${esc(e.from)} لحد ${esc(e.to)} — ${esc(e.days)} يوم${e.approved_days != null && +e.approved_days < +e.days ? ` — <b>العميل اعتمد ${esc(e.approved_days)}</b>` : ""}</dd>`}
+          ${e.type === "resign" ? `<dt>السبب</dt><dd>${esc(e.reason)}</dd><dt>من تاريخ</dt><dd>${esc(dTxt(e.entry_date))} (يوم التسجيل)</dd>`
+            : `<dt>من</dt><dd>${esc(dTxt(e.from))} لحد ${esc(dTxt(e.to))} — ${esc(e.days)} يوم${e.approved_days != null && +e.approved_days < +e.days ? ` — <b>العميل اعتمد ${esc(e.approved_days)}</b>` : ""}</dd>`}
           ${isInj(e) ? injuryHtml(e) : ""}
           ${e.type === "sick" && (e.cause || e.hospital) ? `<dt>السبب</dt><dd>${esc(e.cause || "—")}</dd><dt>المستشفى</dt><dd>${esc(e.hospital || "—")}</dd>` : ""}
-          <dt>اتسجل</dt><dd${byTitle(e)}>${esc(e.entry_date)} — ${esc(byTxt(e))}</dd>
-          ${e.original && (e.edited || e.client) ? `<dt>الأصل</dt><dd>${esc(TY[e.original.type] || "")} ${esc(e.original.from || e.original.entry_date)}${e.original.to ? " → " + esc(e.original.to) : ""}</dd>` : ""}
+          <dt>اتسجل</dt><dd${byTitle(e)}>${esc(dTxt(e.entry_date))} — ${esc(byTxt(e))}</dd>
+          ${e.original && (e.edited || e.client) ? `<dt>الأصل</dt><dd>${esc(TY[e.original.type] || "")} ${esc(dTxt(e.original.from || e.original.entry_date))}${e.original.to ? " → " + esc(dTxt(e.original.to)) : ""}</dd>` : ""}
           ${e.hr_ok_email ? `<dt>HR تيما</dt><dd>وافق — ${esc(e.hr_ok_email)} ${esc(tsTxt(e.hr_ok_at))}</dd>` : ""}
           ${e.status === "client_wait" ? `<dt>العميل</dt><dd>${e.sent_at ? `اتبعتت ${esc(tsTxt(e.sent_at))} — مستني الرد` : "لسه مااتصدّرتش في ملف للعميل"}</dd>` : ""}
-          ${e.client ? `<dt>العميل</dt><dd>${CDEC[e.client.decision] || ""}${e.client.decision === "modified" ? ` (${esc(e.client.from)} → ${esc(e.client.to)})` : ""}${e.client.note ? ` — ${esc(e.client.note)}` : ""}</dd>` : ""}
+          ${e.client ? `<dt>العميل</dt><dd>${CDEC[e.client.decision] || ""}${e.client.decision === "modified" ? ` (${esc(dTxt(e.client.from))} → ${esc(dTxt(e.client.to))})` : ""}${e.client.note ? ` — ${esc(e.client.note)}` : ""}</dd>` : ""}
           ${e.decided_email && !e.client ? `<dt>القرار</dt><dd>${esc(e.decided_email)}${e.note ? ` — ${esc(e.note)}` : ""}</dd>` : e.note ? `<dt>ملاحظة</dt><dd>${esc(e.note)}</dd>` : ""}
         </dl>
         ${e.changed ? `<div class="warn">السطر اتعدل في الشيت بعد القرار — راجعه${changedHtml(e)}<div style="margin-top:4px;">«اعتماد» أو «رفض» بيتطبق على البيانات الجديدة دي.</div></div>` : ""}
@@ -698,7 +698,7 @@ function injuryChain(e) {
 function injuryHtml(e) {
   const ch = injuryChain(e); if (ch.length < 2) return "";
   const first = ch[0], prev = ch[ch.length - 2], tot = ch.reduce((a, x) => a + (+x.days || 0), 0);
-  return `<dt>امتداد إصابة</dt><dd>تجديد رقم ${ch.length - 1} — آخر إصابة قبلها ${esc(prev.from || "؟")} لحد ${esc(prev.to || "؟")}، والإصابة بدأت ${esc(first.from || first.entry_date || "؟")} — مجموع ${tot} يوم${e.from ? "" : ` <b style="color:#a32d2d">— التاريخ فاضي: «من» المقترح ${esc(dayAfter(prev.to || prev.from))}</b>`}</dd>`;
+  return `<dt>امتداد إصابة</dt><dd>تجديد رقم ${ch.length - 1} — آخر إصابة قبلها ${esc(dTxt(prev.from) || "؟")} لحد ${esc(dTxt(prev.to) || "؟")}، والإصابة بدأت ${esc(dTxt(first.from || first.entry_date) || "؟")} — مجموع ${tot} يوم${e.from ? "" : ` <b style="color:#a32d2d">— التاريخ فاضي: «من» المقترح ${esc(dTxt(dayAfter(prev.to || prev.from)))}</b>`}</dd>`;
 }
 function hrOk(ev, extra) {
   const u = auth.currentUser, toClient = needsClient({ ...ev, ...extra });
@@ -766,7 +766,7 @@ $("list").onclick = async e => {
   }
   if (ds.back) {
     const st = ev.status === "client_wait" ? "مستنية رد العميل" : ev.status === "approved" ? "معتمدة" : ev.status === "rejected" ? "مرفوضة" : "متسجلة";
-    if (!(await ask(`${ev.name} — ${tyTxt(ev)} ${ev.from ? `من ${ev.from} لحد ${ev.to}` : ""}\nالحالة دي ${st} دلوقتي.\n\nترجّعها «مستنية HR تيما»؟ ${ev.status === "approved" || ev.client ? "الاعتماد ورد العميل هيتشالوا، ولازم تتعتمد من الأول." : ev.status === "client_wait" ? "موافقة HR تيما هتتشال، ولازم توافق عليها تاني." : ev.status === "rejected" ? "الرفض هيتشال." : "القرار اللي عليها هيتشال."}`, { ok: "رجّعها", danger: true }))) return;
+    if (!(await ask(`${ev.name} — ${tyTxt(ev)} ${ev.from ? `من ${dTxt(ev.from)} لحد ${dTxt(ev.to)}` : ""}\nالحالة دي ${st} دلوقتي.\n\nترجّعها «مستنية HR تيما»؟ ${ev.status === "approved" || ev.client ? "الاعتماد ورد العميل هيتشالوا، ولازم تتعتمد من الأول." : ev.status === "client_wait" ? "موافقة HR تيما هتتشال، ولازم توافق عليها تاني." : ev.status === "rejected" ? "الرفض هيتشال." : "القرار اللي عليها هيتشال."}`, { ok: "رجّعها", danger: true }))) return;
     return save(id, { status: "pending", decided_by: null, decided_email: null, decided_at: null, hr_ok_by: null, hr_ok_email: null, hr_ok_at: null, client: null, approved_days: null, client_limit: null }, "رجعت «مستني HR تيما».");
   }
   if (ds.cok) return save(id, clientUpd(ev, "approved", ev.from, ev.to, note), "اتسجل إن العميل وافق.");
@@ -780,7 +780,7 @@ $("list").onclick = async e => {
   }
   // من غير تاريخ (مثلاً تجديد إصابة من الشرقية مكتوبش فيه «من» و«لحد») مينفعش يتعتمد — يتعدّل الأول
   if (["sick", "leave"].includes(ev.type) && !(ev.changed && ev.changed_data) && (!ev.from || !ev.to))
-    return show($("msg"), "err", `${ev.name}: «من» و«لحد» فاضيين — دوس «تعديل» واكتبهم الأول${isInj(ev) && prevInjury(ev) ? ` (المقترح للامتداد: من ${dayAfter(prevInjury(ev).to || prevInjury(ev).from)})` : ""}.`);
+    return show($("msg"), "err", `${ev.name}: «من» و«لحد» فاضيين — دوس «تعديل» واكتبهم الأول${isInj(ev) && prevInjury(ev) ? ` (المقترح للامتداد: من ${dTxt(dayAfter(prevInjury(ev).to || prevInjury(ev).from))})` : ""}.`);
   // موافقة HR تيما — الإجازة لازم يتحدد نوعها: ج (ليه رصيد) أو خ (ملوش رصيد)
   const extra = { note };
   if (ev.changed && ev.changed_data) Object.assign(extra, chgOf(ev));
@@ -873,13 +873,13 @@ async function wqLoadHist() {
   } catch (err) { show($("wq-msg"), "err", err.message); }
   wqRender();
 }
-const wqDate = t => t?.toDate ? t.toDate().toLocaleDateString("ar-EG") : "";
+const wqDate = t => t?.toDate ? dTxt(t) : "";
 const wqInp = (k, v, attrs = "") => `<input data-wf="${k}" value="${esc(v ?? "")}" ${attrs}>`;
 // لو القيمة فاضية (عامل جديد اتضاف من غير نوع) أول اختيار «— اختار —» عشان الـ HR يختار بنفسه
 const wqSel = (k, v, opts) => `<select data-wf="${k}">${opts.includes(v) ? "" : `<option value="" selected>— اختار —</option>`}${opts.map(o => `<option ${o === v ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
 function wqFields(e, edit) {
   const ro = (l, v) => `<span class="muted">${l}</span><span>${esc(v || "—")}</span>`;
-  const ed = (l, html) => `<span class="muted">${l}</span>${html}`;
+  const ed = (l, html) => `<span class="muted">${l}</span>${html.replace(/^<(input|select)/, `<$1 aria-label="${esc(l)}"`)}`;
   const out = [];
   if (e.kind === "hire") {
     out.push(edit ? ed("الاسم", wqInp("name", e.name)) : ro("الاسم", e.name));
@@ -889,9 +889,9 @@ function wqFields(e, edit) {
     out.push(edit ? ed("النوع", wqSel("type", e.type, wqTypes(e))) : ro("النوع", e.type));
     wqOrd(wqSite(e));
     const secs = wqSecs(e), secNow = wqSecNow(e);
-    if (edit) out.push(`<span class="muted wq-secf${secs.length ? "" : " hidden"}">القسم</span><span class="wq-secf${secs.length ? "" : " hidden"}"><select data-wsec>${secOptions(secs, secNow)}</select></span>`);
+    if (edit) out.push(`<span class="muted wq-secf${secs.length ? "" : " hidden"}">القسم</span><span class="wq-secf${secs.length ? "" : " hidden"}"><select data-wsec aria-label="القسم">${secOptions(secs, secNow)}</select></span>`);
     else if (secNow) out.push(ro("القسم", secNow));
-    out.push(edit ? ed("أول يوم", wqInp("first_day", e.first_day, 'type="date"')) : ro("أول يوم", e.first_day));
+    out.push(edit ? ed("أول يوم", wqInp("first_day", e.first_day, 'type="date"')) : ro("أول يوم", dTxt(e.first_day)));
     if (e.branch === "الشرقية للدخان") out.push(edit ? ed("القطاع / المكان", wqInp("site", e.site)) : ro("القطاع / المكان", e.site));
     if (e.portal_code) out.push(ro("كود البوابة", e.portal_code));
     if (e.status === "done") out.push(ro("الكود", e.code + (e.rehire ? " (رجع بكوده)" : "")));
@@ -978,10 +978,14 @@ function wqRender() {
   $("wq-count").textContent = nOpen ? nOpen + " مستني" : "";
   $("tn-force").textContent = nOpen || "";
   // قايمة أسامى تحت بعض — دوس على الاسم يفتح الكارت تحته.
-  // اللي اتكتب في الكارت المفتوح بيفضل لو القايمة اتحدّثت (طلب تاني اتغير)
+  // اللي اتكتب في الكارت المفتوح بيفضل لو القايمة اتحدّثت (طلب تاني اتغير) — لنفس الطلب بس.
+  // لو اتفتح كارت طلب تاني، خاناته بتتملى من بياناته هو: قبل كده قيم الكارت القديم (الاسم، الرقم القومي، التليفون، أول يوم...)
+  // كانت بتتنقل لخانات الكارت الجديد وتتحفظ مع الاعتماد كأنها تعديل من الـ HR (T6808 — 22 نوفمبر 2026).
   const keep = {};
   const kk = el => el.dataset.wf || ("wsec" in el.dataset ? "_sec" : "wqr" in el.dataset ? "_r" : "_why");
-  document.querySelectorAll("#wq-list .wq-open [data-wf], #wq-list .wq-open [data-wqwhy], #wq-list .wq-open [data-wqr], #wq-list .wq-open [data-wsec]").forEach(el => keep[kk(el)] = el.value);
+  const wasOpen = document.querySelector("#wq-list .wq-open [data-wq]");
+  if (wasOpen && wasOpen.dataset.wq === WQ.sel)
+    document.querySelectorAll("#wq-list .wq-open [data-wf], #wq-list .wq-open [data-wqwhy], #wq-list .wq-open [data-wqr], #wq-list .wq-open [data-wsec]").forEach(el => keep[kk(el)] = el.value);
   $("wq-list").innerHTML = rows.length ? rows.slice(0, 300).map(e => wqRow(e) + (WQ.sel === e.id ? `<div class="wq-open">${wqCard(e)}</div>` : "")).join("")
     : `<p class="muted">${WQ.view === "open" ? "مفيش طلبات مستنية." : WQ.view === "returned" ? "مفيش طلبات مرتجعة للمشرفين." : "مفيش."}</p>`;
   document.querySelectorAll("#wq-list .wq-open [data-wf], #wq-list .wq-open [data-wqwhy], #wq-list .wq-open [data-wqr]").forEach(el => { const k = kk(el); if (k in keep) el.value = keep[k]; });

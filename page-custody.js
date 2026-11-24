@@ -1,6 +1,6 @@
 // page-custody.js — سكريبت صفحة custody.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { db, auth, actorEmail, SUP_SITES, ask, fetchPlanBase, planBySite, alignPlan, wireStaffLogin, esc, collection, doc, getDoc, getDocs, setDoc, addDoc, writeBatch, query, where, onSnapshot, runTransaction, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261124b';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261124b';
+import { db, auth, actorEmail, SUP_SITES, ask, fetchPlanBase, planBySite, alignPlan, wireStaffLogin, esc, collection, doc, getDoc, getDocs, setDoc, addDoc, writeBatch, query, where, onSnapshot, runTransaction, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261124c';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261124c';
 
 const $ = id => document.getElementById(id);
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }

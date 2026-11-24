@@ -123,7 +123,7 @@ th{background:#1d2024;}
   </div>
   <div id="denied" class="card center hidden"><h2>الحساب ده مالوش صلاحية على التقارير</h2><a class="btn" href="index.html" style="margin-top:12px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">رجوع للبوابة</a> <button class="btn sec" id="d-out" style="margin-top:12px;">خروج</button></div>
 
-  <div id="app" class="hidden">
+  <div id="app" class="hidden" role="main">
     <div class="row noprint" style="justify-content:space-between;align-items:center;margin-bottom:10px;">
       <div><h1>تقارير الحضور</h1><div class="muted" id="who"></div></div>
       <div class="row"><button class="btn sec small" id="logout">خروج</button></div>
@@ -183,7 +183,7 @@ th{background:#1d2024;}
         <div class="row" id="a-edit-bar" style="margin-bottom:8px;"><span class="muted">تقدر تغيّر حالة أي عامل من هنا وبعدين:</span><button class="btn small" id="a-esave">احفظ التعديل واعتمد</button></div>
         <p class="muted hidden" id="a-locked" style="margin-bottom:8px;"></p>
         <div id="a-photos" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:8px;"></div>
-        <div class="row" style="margin-bottom:8px;position:sticky;top:0;z-index:2;background:var(--card,#fff);padding:4px 0;"><input id="a-dq" placeholder="ابحث عن عامل في اليوم ده: الاسم أو الرقم القومى أو الكود" style="flex:1;min-width:220px;"><span class="muted" id="a-dq-n"></span></div><div class="tbl"><table class="list" style="width:100%"><thead><tr id="a-dhead"></tr></thead><tbody id="a-dlist"></tbody></table></div></div>
+        <div class="row" style="margin-bottom:8px;position:sticky;top:0;z-index:2;background:var(--card,#fff);padding:4px 0;"><input id="a-dq" aria-label="ابحث عن عامل في اليوم ده" placeholder="ابحث عن عامل في اليوم ده: الاسم أو الرقم القومى أو الكود" style="flex:1;min-width:220px;"><span class="muted" id="a-dq-n"></span></div><div class="tbl"><table class="list" style="width:100%"><thead><tr id="a-dhead"></tr></thead><tbody id="a-dlist"></tbody></table></div></div>
     </section>
     <div id="a-lb" class="hidden" style="position:fixed;inset:0;z-index:4000;background:rgba(0,0,0,.85);overflow:auto;text-align:center;padding:12px;">
       <button class="btn sec small" id="a-lb-x" style="position:sticky;top:0;">✕ قفل</button><br>
@@ -221,6 +221,6 @@ th{background:#1d2024;}
   </div>
 </div>
 
-<script type="module" src="page-report.js?v=20261124b"></script>
+<script type="module" src="page-report.js?v=20261124c"></script>
 </body>
 </html>

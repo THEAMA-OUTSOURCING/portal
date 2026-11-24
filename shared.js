@@ -688,6 +688,52 @@ export async function freshRead(kind, fn) {
 }
 
 // ===== esc: نص من البيانات جوه HTML (ت4 — كانت متعرّفة في كل صفحة لوحدها) =====
+// و6 (قرار محمود 24 نوفمبر): شكل تاريخ واحد في كل البوابة — 20-11-2026 بأرقام إنجليزي، وبالوقت «20-11-2026 2:30 م».
+// بياخد Date أو Timestamp بتاع Firestore أو "2026-11-20" أو رقم (ms). أي نص تاني بيرجع زي ما هو.
+// { time: true } = الساعة كمان (مش للنص "2026-11-20" اللي مالوش ساعة)، { day: true } = اسم اليوم قبله.
+const AR_DAYS = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+export function dTxt(v, o) {
+  o = o || {};
+  if (v == null || v === "" || v === false) return "";
+  let d = null, dateOnly = false;
+  if (typeof v.toDate === "function") d = v.toDate();
+  else if (v instanceof Date) d = v;
+  else if (typeof v === "number") { if (!(v > 0)) return ""; d = new Date(v); }
+  else if (typeof v !== "string") return "";
+  else {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v).trim());
+    if (!m) return String(v);
+    d = new Date(+m[1], +m[2] - 1, +m[3]); dateOnly = true;
+    if (d.getMonth() !== +m[2] - 1 || d.getDate() !== +m[3]) return String(v);   // تاريخ مش موجود (2026-13-45) = زي ما هو
+  }
+  if (!d || isNaN(d.getTime())) return typeof v === "string" ? v : "";
+  const p = n => String(n).padStart(2, "0");
+  // التاريخ والساعة كل واحد معزول (LRI…PDI): من غيرها، بعد كلمة عربي زي «لحد» المتصفح بيقلب 23-11-2026 لـ 2026-11-23
+  const iso = t => "\u2066" + t + "\u2069";
+  let s = iso(p(d.getDate()) + "-" + p(d.getMonth() + 1) + "-" + d.getFullYear());
+  if (o.day) s = AR_DAYS[d.getDay()] + " " + s;
+  if (o.time && !dateOnly) { const h = d.getHours(); s += " " + iso(((h % 12) || 12) + ":" + p(d.getMinutes())) + " " + (h < 12 ? "ص" : "م"); }
+  return s;
+}
+
+// و12: أي خانة مالهاش اسم لقارئ الشاشة (label / aria-label) بتاخده من الـ placeholder، أو من عنوان العمود لو جوه جدول.
+// بيشتغل على الصفحة كلها وعلى أي حاجة بتترسم بعدين (القوايم والجداول اللي بتتبني بالـ JS).
+function nameControls() {
+  document.querySelectorAll("input:not([type=hidden]):not([aria-label]):not([aria-labelledby]),select:not([aria-label]):not([aria-labelledby]),textarea:not([aria-label]):not([aria-labelledby])").forEach(el => {
+    if ((el.labels && el.labels.length) || el.closest("label")) return;
+    let t = el.getAttribute("placeholder") || "";
+    if (!t) { const td = el.closest("td"), tb = td && td.closest("table"); const th = tb && tb.tHead && tb.tHead.rows[0] && tb.tHead.rows[0].cells[td.cellIndex]; if (th) t = th.textContent.trim(); }
+    if (!t) t = el.title || "";
+    if (t) el.setAttribute("aria-label", t.slice(0, 80));
+  });
+}
+let NAME_PENDING = false;
+if (typeof document !== "undefined" && typeof MutationObserver !== "undefined") {
+  const run = () => { NAME_PENDING = false; try { nameControls(); } catch (e) {} };
+  const later = () => { if (!NAME_PENDING) { NAME_PENDING = true; (window.requestAnimationFrame || setTimeout)(run); } };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", later); else later();
+  new MutationObserver(later).observe(document.documentElement, { childList: true, subtree: true });
+}
 export const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 // ===== الدخول والخروج لصفحات الإدارة (ت4) =====
@@ -738,4 +784,4 @@ window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-if (FIRST_COPY) import('./notify.js?v=20261124b').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+if (FIRST_COPY) import('./notify.js?v=20261124c').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));

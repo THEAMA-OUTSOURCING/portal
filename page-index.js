@@ -1,5 +1,5 @@
 // page-index.js — سكريبت صفحة index.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { serverNow, serverClock, db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from './shared.js?v=20261124b';
+import { dTxt, serverNow, serverClock, db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from './shared.js?v=20261124c';
 
 
 let loggedUser = null;
@@ -323,13 +323,13 @@ async function reviewSheet(){
     const cnt=v=>Number(v).toLocaleString('en-US');
     const td='padding:6px 8px;border-bottom:1px solid #eee;text-align:right;', th=td+'background:#f5f5f0;font-weight:500;';
     let h='<style>.pv-n{cursor:pointer;border-radius:5px;padding:1px 3px;margin:0 -3px;font-variant-numeric:tabular-nums;white-space:nowrap;}'
-      +'.pv-n:hover,.pv-n.pv-hl{background:#eef6f0;}.pv-cp{font-style:normal;font-size:10px;color:#767676;margin-inline-start:3px;}'
-      +'.pv-toast{display:block;font-size:11px;color:#1e7a4a;font-weight:500;}</style>';
+      +'.pv-n:hover,.pv-n.pv-hl{background:#eef6f0;}.pv-cp{font-style:normal;font-size:12px;color:#767676;margin-inline-start:3px;}'
+      +'.pv-toast{display:block;font-size:12px;color:#1e7a4a;font-weight:500;}</style>';
     h+='<div style="border:1px solid #e5e5e5;border-radius:10px;padding:12px;margin-bottom:12px;font-size:13px;">';
     h+='<div class="info-box" style="margin-bottom:8px;">علّم على الشركات اللي هترفعها دلوقتي. كشوف الشركات التانية ومدة ظهورها مش هيتغيّروا.</div>';
-    h+='<p style="font-weight:500;margin-bottom:8px;">مراجعة الشيت — '+cnt(p.tabs.length)+' تابة، '+cnt(p.recs.length)+' كشف <span style="font-size:11px;color:#6b6b6b;font-weight:400;">· دوس على أي رقم ينسخه</span></p>';
+    h+='<p style="font-weight:500;margin-bottom:8px;">مراجعة الشيت — '+cnt(p.tabs.length)+' تابة، '+cnt(p.recs.length)+' كشف <span style="font-size:12px;color:#6b6b6b;font-weight:400;">· دوس على أي رقم ينسخه</span></p>';
     // كل تابة كارت لوحده: الاسم والعدد، وتحتهم المستحقات / الخصومات / الصافي
-    const cell=(l,v,st)=>'<div style="flex:1;min-width:0;"><span style="display:block;font-size:11px;color:#6b6b6b;">'+l+'</span><b style="font-size:13px;'+(st||'')+'">'+v+'</b></div>';
+    const cell=(l,v,st)=>'<div style="flex:1;min-width:0;"><span style="display:block;font-size:12px;color:#6b6b6b;">'+l+'</span><b style="font-size:13px;'+(st||'')+'">'+v+'</b></div>';
     p.tabs.forEach(t=>{
       h+='<div style="border-top:1px solid #eee;padding:8px 0;">';
       h+='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="pv-pick" value="'+esc(t.name)+'" style="width:18px;height:18px;accent-color:#c0392b;"><b style="font-size:14px;">'+esc(t.name)+(t.diffs.length?' <span style="color:#a32d2d;">⚠</span>':'')+'</b></label><span style="font-size:12px;color:#6b6b6b;">'+cnt(t.count)+' كشف</span></div>';
@@ -409,7 +409,7 @@ function latestPerTab(docs){
   use.forEach(d=>{ const k = tabKey(d.data().data?._tab), u = d.data().upload_id || ''; if(!(k in best) || u > best[k]) best[k] = u; });
   return use.filter(d=>(d.data().upload_id || '') === best[tabKey(d.data().data?._tab)]).sort((a,b)=>a.id.localeCompare(b.id));
 }
-const visFmt = d => d.toLocaleString('ar-EG',{weekday:'long',day:'numeric',month:'long',hour:'numeric',minute:'2-digit'});
+const visFmt = d => dTxt(d, {day: true, time: true});
 async function showPayVis(){
   const box = document.getElementById('pay-vis'); if(!box) return;
   const [meta] = await Promise.all([loadPayVis(), serverClock]);
@@ -665,7 +665,7 @@ function renderServerStatus(){
     el.textContent = 'السيرفر شغال ✓' + (fpAdmin && lastServerData.disk_changed && lastServerData.disk_changed.length ? ' — بس فيه ملفات اتنسخت ومحتاجة restart (شوف «ملفات السيرفر» تحت)' : '');
   } else {
     el.className = 'error-box'; el.style.display = 'block';
-    el.textContent = 'السيرفر واقف' + (t ? ' — آخر ظهور: ' + t.toLocaleString('ar-EG') : '') + ' — طلبات الريسيت والحسابات هتستنى لحد ما يشتغل';
+    el.textContent = 'السيرفر واقف' + (t ? ' — آخر ظهور: ' + dTxt(t, {time: true}) : '') + ' — طلبات الريسيت والحسابات هتستنى لحد ما يشتغل';
   }
 }
 function watchServerStatus(){
@@ -699,7 +699,7 @@ function renderCodeFp(){
   }
   const st = d.started_at && d.started_at.toDate ? d.started_at.toDate() : null;
   if(fpStale()) info.append(fpEl('p', '⚠ السيرفر واقف — دي آخر بصمة كتبها قبل ما يقف.', 'background:#fbeaea;color:#c0392b;border-radius:8px;padding:8px 10px;margin-bottom:6px;'));
-  info.append(fpEl('p', 'البرنامج اشتغل: ' + (st ? st.toLocaleString('ar-EG') : '—') + ' — ' + files.length + ' ملف شغال (البصمة بتتحدث كل 5 دقايق)', 'margin-bottom:6px;'));
+  info.append(fpEl('p', 'البرنامج اشتغل: ' + (st ? dTxt(st, {time: true}) : '—') + ' — ' + files.length + ' ملف شغال (البصمة بتتحدث كل 5 دقايق)', 'margin-bottom:6px;'));
   const changed = Array.isArray(d.disk_changed) ? d.disk_changed : [];
   if(changed.length){
     info.append(fpEl('p', '⚠ الملفات دي اتغيّرت على السيرفر بعد ما البرنامج اشتغل، والبرنامج لسه شغال بالقديم: ' + changed.join('، ') + ' — اعمل restart للـ Task «theama worker».',
@@ -1367,7 +1367,7 @@ async function exportRequests(){
         'مقاس التيشرت': d.tshirt || '',
         'مقاس الحذاء': d.shoe || '',
         'رقم التليفون': d.phone || '',
-        'آخر تحديث': d.updated_at ? new Date(d.updated_at).toLocaleString('ar-EG') : ''
+        'آخر تحديث': d.updated_at ? dTxt(new Date(d.updated_at), {time: true}) : ''
       });
     });
 

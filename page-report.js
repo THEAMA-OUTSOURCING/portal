@@ -1,6 +1,6 @@
 // page-report.js — سكريبت صفحة report.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { cnt, overPlan, db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite, alignPlan, ask, compressPage, replacePage, replacedBy, wireStaffLogin, esc, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261124b';
-import { printOrder } from './sheet.js?v=20261124b';
+import { dTxt, cnt, overPlan, db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite, alignPlan, ask, compressPage, replacePage, replacedBy, wireStaffLogin, esc, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261124c';
+import { printOrder } from './sheet.js?v=20261124c';
 
 // مواقع الساعات: الإضافي النهاري والليلي (بالدقايق) على خانة اليوم — والوقت اللي محتاج مراجعة بيتعلّم ومايتحسبش
 const TB_TIP = "الوقت محتاج مراجعة — اليوم ده مش محسوب في الإضافي";
@@ -148,7 +148,7 @@ async function loadHolidays() {
   const m = $("h-month").value; if (!m) return;
   const h = await holidaysFor([m]);
   const rows = Object.entries(h).sort();
-  $("h-list").innerHTML = rows.length ? rows.map(([d, n]) => `<tr><td>${DAYN[new Date(d + "T00:00").getDay()] || ""} ${esc(d)}</td><td>${esc(n)}</td><td>${S.role === "admin" ? `<button class="btn danger small" data-hdel="${esc(d)}">شيل</button>` : ""}</td></tr>`).join("") : `<tr><td colspan="3" class="muted">مفيش عطلات متسجلة للشهر ده.</td></tr>`;
+  $("h-list").innerHTML = rows.length ? rows.map(([d, n]) => `<tr><td>${esc(dTxt(d, { day: true }))}</td><td>${esc(n)}</td><td>${S.role === "admin" ? `<button class="btn danger small" data-hdel="${esc(d)}">شيل</button>` : ""}</td></tr>`).join("") : `<tr><td colspan="3" class="muted">مفيش عطلات متسجلة للشهر ده.</td></tr>`;
 }
 $("h-month").onchange = loadHolidays;
 $("h-add").onclick = async () => {
@@ -160,7 +160,7 @@ $("h-add").onclick = async () => {
 };
 $("h-list").onclick = async e => {
   const d = e.target.dataset.hdel; if (!d) return;
-  if (!(await ask(`تشيل عطلة يوم ${d}؟`, { ok: "شيلها", danger: true }))) return;
+  if (!(await ask(`تشيل عطلة يوم ${dTxt(d)}؟`, { ok: "شيلها", danger: true }))) return;
   const m = d.slice(0, 7), h = await holidaysFor([m]); delete h[d];
   try { await setDoc(doc(db, "holidays", m), { days: h, updated_at: serverTimestamp() }); loadHolidays(); } catch (er) { show($("h-msg"), "err", er.message); }
 };
@@ -243,7 +243,7 @@ async function applySharqiaEvents(list, from, to) {
     if (e.type === "resign") {
       if (!e.entry_date || e.entry_date > to) continue;
       r.resigned = e.entry_date;
-      for (const d of Object.keys(r.cells)) if (d >= e.entry_date && !r.cells[d].p) r.cells[d] = { v: "س", p: 0, l: true, app: true, ev: "استقالة من " + e.entry_date + (e.reason ? " — " + e.reason : "") };
+      for (const d of Object.keys(r.cells)) if (d >= e.entry_date && !r.cells[d].p) r.cells[d] = { v: "س", p: 0, l: true, app: true, ev: "استقالة من " + dTxt(e.entry_date) + (e.reason ? " — " + e.reason : "") };
       continue;
     }
     if (!e.from) continue;
@@ -260,9 +260,9 @@ async function applySharqiaEvents(list, from, to) {
       const c = r.cells[k];
       if (c?.p) { c.conf = lbl + (wait ? " مستني اعتماد العميل" : ok ? " معتمد" : " مش معتمد من العميل") + " والشيت بيقول حاضر"; continue; }
       r.cells[k] = wait
-        ? { v: code + "؟", p: 0, w: true, app: true, ev: `في انتظار اعتماد ${e.type === "sick" ? "المرضي" : "الإجازة"} من العميل ${e.from} → ${e.to}` }
-        : ok ? { v: code, p: 0, l: true, app: true, ev: lbl + ` معتمد ${e.from} → ${e.to}` + (nOk < Infinity ? ` (العميل اعتمد ${nOk} من ${e.days})` : "") }
-        : { v: "خ", p: 0, l: true, app: true, ev: `${lbl} مش معتمد من العميل — العميل اعتمد ${nOk} من ${e.days} يوم (${e.from} → ${e.to})` };
+        ? { v: code + "؟", p: 0, w: true, app: true, ev: `في انتظار اعتماد ${e.type === "sick" ? "المرضي" : "الإجازة"} من العميل ${dTxt(e.from)} → ${dTxt(e.to)}` }
+        : ok ? { v: code, p: 0, l: true, app: true, ev: lbl + ` معتمد ${dTxt(e.from)} → ${dTxt(e.to)}` + (nOk < Infinity ? ` (العميل اعتمد ${nOk} من ${e.days})` : "") }
+        : { v: "خ", p: 0, l: true, app: true, ev: `${lbl} مش معتمد من العميل — العميل اعتمد ${nOk} من ${e.days} يوم (${dTxt(e.from)} → ${dTxt(e.to)})` };
     }
   }
 }
@@ -314,12 +314,12 @@ async function leaveReport(from, to, sel, jobF, kind) {
     rows.sort((a, b) => a.site.localeCompare(b.site) || a.name.localeCompare(b.name) || a.from.localeCompare(b.from));
     const multi = site === "*";
     let h = `<thead><tr><th>م</th>${multi ? "<th>الموقع</th>" : ""}<th>الاسم</th><th>الرقم القومي / الكود</th><th>الوظيفة</th><th>من</th><th>لحد</th><th>أيام في الفترة</th><th>أيام الحالة</th><th>السبب / ملاحظة</th></tr></thead><tbody>`;
-    rows.forEach((r, i) => h += `<tr data-i="${i}"><td>${i + 1}</td>${multi ? `<td>${esc(r.site)}</td>` : ""}<td class="nm">${esc(r.name)}</td><td>${esc(r.nid || r.code)}</td><td>${esc(r.job)}</td><td>${esc(r.from)}</td><td>${esc(r.to)}</td><td><b>${esc(r.inP)}</b></td><td>${esc(r.days)}</td><td class="nm">${esc([r.reason, r.note].filter(Boolean).join(" — "))}${r.flag ? ` <b style="color:#a32d2d">(${esc(r.flag)})</b>` : ""}</td></tr>`);
+    rows.forEach((r, i) => h += `<tr data-i="${i}"><td>${i + 1}</td>${multi ? `<td>${esc(r.site)}</td>` : ""}<td class="nm">${esc(r.name)}</td><td>${esc(r.nid || r.code)}</td><td>${esc(r.job)}</td><td>${esc(dTxt(r.from))}</td><td>${esc(dTxt(r.to))}</td><td><b>${esc(r.inP)}</b></td><td>${esc(r.days)}</td><td class="nm">${esc([r.reason, r.note].filter(Boolean).join(" — "))}${r.flag ? ` <b style="color:#a32d2d">(${esc(r.flag)})</b>` : ""}</td></tr>`);
     const tot = rows.reduce((a, r) => a + r.inP, 0), ppl = new Set(rows.map(r => r.nid || r.code || r.name)).size;
     h += `<tr class="foot"><td colspan="${multi ? 7 : 6}" style="text-align:right">الإجمالي</td><td><b>${tot}</b></td><td></td><td></td></tr></tbody>`;
     $("r-table").innerHTML = h;
     S.report = { kind, from, to, site: sel, list: rows, tot, ppl };
-    $("print-head").innerHTML = `<b>تقرير ${LV_TITLE[kind]} — ${esc(multi ? "كل المواقع" : sel)}${jobF ? " — " + esc(jobF) : ""}</b> — من ${from} لحد ${to}`;
+    $("print-head").innerHTML = `<b>تقرير ${LV_TITLE[kind]} — ${esc(multi ? "كل المواقع" : sel)}${jobF ? " — " + esc(jobF) : ""}</b> — من ${esc(dTxt(from))} لحد ${esc(dTxt(to))}`;
     $("r-sum").textContent = `${cnt(rows.length, "حالة")} · ${cnt(ppl, "عامل")} · ${cnt(tot, "يوم")} في الفترة (من غير الجمعة) · الحالات المعتمدة من الـ HR بس`;
     $("r-out").classList.remove("hidden"); hide($("r-msg")); filterRows();
     $("r-print").disabled = false; $("r-xlsx").disabled = false;
@@ -334,7 +334,7 @@ async function leaveXlsx(R) {
     pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
   const thin = { style: "thin", color: { argb: "FFBFBFBF" } }, box = { top: thin, left: thin, bottom: thin, right: thin };
   ws.mergeCells(1, 1, 1, head.length);
-  Object.assign(ws.getCell(1, 1), { value: `تقرير ${title} — ${multi ? "كل المواقع" : R.site} — من ${R.from} لحد ${R.to}`, font: { bold: true, size: 13 }, alignment: { horizontal: "center" } });
+  Object.assign(ws.getCell(1, 1), { value: `تقرير ${title} — ${multi ? "كل المواقع" : R.site} — من ${dTxt(R.from)} لحد ${dTxt(R.to)}`, font: { bold: true, size: 13 }, alignment: { horizontal: "center" } });
   const hr = ws.addRow(head);
   hr.eachCell(c => { c.font = { bold: true, color: { argb: "FFFFFFFF" } }; c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2B2B2B" } }; c.alignment = { horizontal: "center", vertical: "middle", wrapText: true }; c.border = box; });
   R.list.forEach((r, i) => {
@@ -425,7 +425,7 @@ $("r-go").onclick = async () => {
     h += footRow("إجمالي الحاضرين", d => pres(list, d), timed ? `<td>${hrsTxt(otSum("otd"))}</td><td>${hrsTxt(otSum("otn"))}</td>` : "") + "</tbody>";
     $("r-table").innerHTML = h;
     const sTitle = multi ? "كل المواقع" : sel;
-    $("print-head").innerHTML = `<b>تقرير حضور ${esc(sTitle)}${jobF ? " — " + esc(jobF) : ""}</b> — من ${from} لحد ${to}`;
+    $("print-head").innerHTML = `<b>تقرير حضور ${esc(sTitle)}${jobF ? " — " + esc(jobF) : ""}</b> — من ${esc(dTxt(from))} لحد ${esc(dTxt(to))}`;
     $("r-sum").textContent = `${cnt(list.length, "عامل")} · ${cnt(days.length, "يوم")} حضور متأكد · ${unapp} لسه ماتمش اعتماده · رفع متأخر: ${cnt(late, "مرة")}` + (timed && nBad ? ` · ${cnt(nBad, "يوم")} ${nBad === 1 ? "وقته" : "وقتهم"} محتاج مراجعة (برتقالي) ومش محسوب في الإضافي` : "") + (Object.keys(hol).length ? ` · العطلات: ${Object.entries(hol).filter(([d]) => d >= from && d <= to).map(([d, n]) => d.slice(8) + " " + n).join("، ")}` : "");
     $("r-out").classList.remove("hidden"); hide($("r-msg")); filterRows();
     $("r-print").disabled = false; $("r-xlsx").disabled = false;
@@ -477,7 +477,7 @@ function buildReportWorkbook(ExcelJS, R) {
   // 1) العنوان
   ws.mergeCells(1, 1, 1, nAll);
   const t = ws.getCell(1, 1);
-  t.value = `تقرير حضور ${multi ? "كل المواقع" : R.site} — من ${R.from} لحد ${R.to}`;
+  t.value = `تقرير حضور ${multi ? "كل المواقع" : R.site} — من ${dTxt(R.from)} لحد ${dTxt(R.to)}`;
   t.font = { name: "Arial", size: 14, bold: true }; t.alignment = { horizontal: "center", vertical: "middle" };
   ws.getRow(1).height = 26;
   // 2-3) العناوين: الأعمدة الثابتة على صفين، والأيام: التاريخ فوق واسم اليوم تحت
@@ -569,7 +569,7 @@ function xlsxPlain() {   // الطريقة القديمة (من غير تنسي�
   const R = S.report; if (!R) return;
   const multi = R.site === "*";
   const head = ["م", ...(multi ? ["الموقع"] : []), "الاسم", "الرقم القومي", "الوظيفة", ...(R.hasLoc ? ["المكان"] : []), "النوع", ...R.dates.map(d => d.slice(5) + (R.off(d) ? " *" : "")), "الإجمالي", "إضافي", ...(R.timed ? ["إضافي نهاري (ساعة)", "إضافي ليلي (ساعة)"] : [])];
-  const aoa = [[`تقرير حضور ${multi ? "كل المواقع" : R.site} — من ${R.from} لحد ${R.to} (* = جمعة أو عطلة)`], head];
+  const aoa = [[`تقرير حضور ${multi ? "كل المواقع" : R.site} — من ${dTxt(R.from)} لحد ${dTxt(R.to)} (* = جمعة أو عطلة)`], head];
   R.list.forEach((r, i) => aoa.push([i + 1, ...(multi ? [r.site] : []), r.name, r.nid || r.code, r.job, ...(R.hasLoc ? [r.loc] : []), r.rep ? "بديل" : "", ...R.dates.map(d => { const c = r.cells[d]; return !c ? "" : c.v === "1" ? 1 : c.v; }), r.total, r.extra,
     ...(R.timed ? (TIME_SITES.includes(r.site) ? [hrsNum(r.otd), hrsNum(r.otn)] : ["", ""]) : [])]));
   const pre = (multi ? 6 : 5) + (R.hasLoc ? 1 : 0);
@@ -593,7 +593,7 @@ function apDeadline(d) {
   return t;
 }
 function apState(d) {
-  const dl = apDeadline(d), fmt = x => x.toLocaleString("ar-EG", { weekday: "short", day: "numeric", month: "numeric", hour: "numeric" });
+  const dl = apDeadline(d), fmt = x => dTxt(x, { day: true, time: true });
   if (d.status === "approved") {
     const at = d.approved_at?.toDate ? d.approved_at.toDate() : null;
     return `<span class="pill p-ok">معتمد</span>${dl && at && at > dl ? ` <span class="pill p-late">اتأخر</span>` : ""}`;
@@ -611,7 +611,7 @@ $("a-go").onclick = async () => {
     A = (await fetchDays(from, to, site)).filter(d => !st || d.status === st).sort((a, b) => a.date.localeCompare(b.date) || a.site.localeCompare(b.site));
     $("a-list").innerHTML = A.length ? A.map((d, i) => {
       const e = Object.values(d.entries || {}), reps = e.filter(x => x.rep).length, sup = e.filter(x => x.by === "sup").length;
-      return `<tr><td>${esc(d.site)}</td><td>${DAYN[new Date(d.date + "T00:00").getDay()]} ${d.date}</td><td>${esc(d.counts?.present ?? "")}</td><td>${esc(d.counts?.absent ?? "")}</td><td>${reps}</td><td>${sup}</td>
+      return `<tr><td>${esc(d.site)}</td><td>${esc(dTxt(d.date, { day: true }))}</td><td>${esc(d.counts?.present ?? "")}</td><td>${esc(d.counts?.absent ?? "")}</td><td>${reps}</td><td>${sup}</td>
         <td class="muted">${esc(d.confirmed_email || "")}${d.late ? ` <span class="pill p-late">متأخر</span>` : ""}${d.reviewed_email ? `<br>راجعه: ${esc(d.reviewed_email)}${d.review_late ? ` <span class="pill p-late">متأخر</span>` : ""}` : ""}</td>
         <td>${apState(d)}</td>
         <td><button class="btn sec small" data-view="${i}">تفاصيل</button> ${!S.canApprove ? "" : d.status === "approved" ? `<button class="btn danger small" data-un="${i}">إلغاء الاعتماد</button>` : (d.status === "reviewed" || S.role === "admin") ? (tIssues(d) ? `<button class="btn small" data-view="${i}">راجع الأوقات (${tIssues(d)})</button>` : `<button class="btn ok small" data-ap="${i}">اعتماد</button>`) : ""}</td></tr>`;
@@ -640,7 +640,7 @@ function stTxt(e) {
   if (e.s === "A") return `<span class="pill p-late">غايب</span>${e.rep ? ` <span class="muted">بديله: ${esc(e.rep.name || "")}</span>` : ""}`;
   return `<span class="pill p-wait">${esc(e.c === "ز" ? "زيادة مش محسوبة" : e.c || "—")}</span>`;
 }
-const tmTxt = h => h && h.min != null ? `${h.in ? `${esc(h.in)}${h.out ? " ← " + esc(h.out) : ""}<br>` : ""}<b>${hrsTxt(h.min)}</b> <span class="muted" style="font-size:11px">ن ${hrsTxt(h.dmin || 0)} · ل ${hrsTxt(h.nmin || 0)}${h.ot ? ` · إضافي ${hrsTxt(h.ot)}` : ""}</span>` : "";
+const tmTxt = h => h && h.min != null ? `${h.in ? `${esc(h.in)}${h.out ? " ← " + esc(h.out) : ""}<br>` : ""}<b>${hrsTxt(h.min)}</b> <span class="muted" style="font-size:12px">ن ${hrsTxt(h.dmin || 0)} · ل ${hrsTxt(h.nmin || 0)}${h.ot ? ` · إضافي ${hrsTxt(h.ot)}` : ""}</span>` : "";
 function renderQ() {
   const box = $("a-qres"), raw = $("a-q").value.trim(), q = qNorm(raw), dg = raw.replace(/\D/g, "");
   if (q.length < 2) { box.classList.add("hidden"); box.innerHTML = ""; return; }
@@ -655,7 +655,7 @@ function renderQ() {
   box.innerHTML = rows.length
     ? `<div class="muted" style="margin-bottom:4px;">${cnt(rows.length, "يوم")} — في الفترة والموقع والحالة المختارين فوق${$("a-st").value ? " (لو عايز كل الأيام اختار الحالة «الكل»)" : ""}</div>
       <div class="tbl"><table class="list" style="width:100%"><thead><tr><th>اليوم</th><th>الموقع</th><th>الاسم</th><th>الوظيفة</th><th>الحالة</th><th>الوقت والساعات</th><th>اليوم</th><th></th></tr></thead><tbody>${rows.map(r =>
-        `<tr><td>${DAYN[new Date(r.d.date + "T00:00").getDay()]} ${r.d.date}</td><td>${esc(r.d.site)}</td><td>${esc(r.name || "")}</td><td>${esc(r.job || "")}</td><td>${r.st}</td><td>${r.tm}</td><td>${AP_TXT[r.d.status] || esc(r.d.status || "")}</td><td><button class="btn sec small" data-view="${r.i}">تفاصيل</button></td></tr>`).join("")}</tbody></table></div>`
+        `<tr><td>${esc(dTxt(r.d.date, { day: true }))}</td><td>${esc(r.d.site)}</td><td>${esc(r.name || "")}</td><td>${esc(r.job || "")}</td><td>${r.st}</td><td>${r.tm}</td><td>${AP_TXT[r.d.status] || esc(r.d.status || "")}</td><td><button class="btn sec small" data-view="${r.i}">تفاصيل</button></td></tr>`).join("")}</tbody></table></div>`
     : `<p class="muted">مفيش عامل بالاسم ده في الأيام المعروضة${$("a-st").value ? " — جرّب الحالة «الكل»" : ""}.</p>`;
 }
 // بحث جوه تفاصيل اليوم: بيخفي الصفوف اللي مش مطابقة (اسم العامل أو بديله، أو الرقم القومى أو الكود)
@@ -694,7 +694,7 @@ $("a-list").onclick = async e => {
   const t = e.target;
   if (t.dataset.view) {
     const d = A[+t.dataset.view];
-    $("a-dtitle").textContent = `${d.site} — ${d.date}`;
+    $("a-dtitle").textContent = `${d.site} — ${dTxt(d.date)}`;
     A.cur = d;
     // اليوم المعتمد: الأدمن بس يعدّل فيه على طول، والمحاسب يلغي الاعتماد الأول (نفس اللي الـ Rules بتسمح بيه)
     const canEdit = canEd(d) || (d.status === "approved" && S.role === "admin");
@@ -743,7 +743,7 @@ $("a-list").onclick = async e => {
   if (t.dataset.un && !await ask("تلغي الاعتماد؟ الإقليمي هيقدر يعدّل اليوم تاني.", { ok: "الغي الاعتماد", danger: true })) return;
   if (t.dataset.ap) {   // الحاضرين أكتر من المطلوب: الاعتماد ممنوع (ب8)
     const d = A[+i], ovr = overPlan(d.entries, await planOf(d));
-    if (ovr.length) return show($("a-msg"), "err", `مينفعش تعتمد ${d.site} يوم ${d.date}: الحاضرين أكتر من العدد المطلوب — ` + ovr.map(o => `${o.job}: ${o.n} والمطلوب ${o.plan}`).join("، ") + ". افتح التفاصيل وعدّل اليوم الأول.");
+    if (ovr.length) return show($("a-msg"), "err", `مينفعش تعتمد ${d.site} يوم ${dTxt(d.date)}: الحاضرين أكتر من العدد المطلوب — ` + ovr.map(o => `${o.job}: ${o.n} والمطلوب ${o.plan}`).join("، ") + ". افتح التفاصيل وعدّل اليوم الأول.");
   }
   try { await setStatus(A[+i], !!t.dataset.ap); $("a-detail").classList.add("hidden"); $("a-go").click(); } catch (er) { show($("a-msg"), "err", "مااتحفظش: " + er.message); }
 };
@@ -771,7 +771,7 @@ async function dayPhotos(d) {
     // المحاسب يبدّل صورة لحد ما اليوم يتعتمد، والأدمن أي وقت (المسح للأدمن بس من صفحة الحضور)
     const canRep = p => (S.role === "admin" || (S.role === "accountant" && d.status !== "approved")) && !old(p) && ["done", "error"].includes(p.status);
     ps.sort((a, b) => old(a) - old(b) || (b.created_at?.seconds || 0) - (a.created_at?.seconds || 0));
-    const tm = p => p.created_at?.toDate ? p.created_at.toDate().toLocaleString("ar-EG", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
+    const tm = p => p.created_at?.toDate ? dTxt(p.created_at, { time: true }) : "";
     box.innerHTML = ps.length ? ps.map((p, i) => `<div style="flex:0 0 auto;width:130px;font-size:12px;text-align:center;">
         ${p.image ? `<img src="data:image/jpeg;base64,${esc(p.image)}" data-lb="${esc(p.id)}" alt="صورة ${ps.length - i}" title="دوس تكبّر" style="width:130px;height:170px;object-fit:cover;border:${!old(p) && p.status === "done" ? "3px solid #1a7f37" : "1px solid #ccc"};${old(p) ? "opacity:.55;" : ""};border-radius:8px;cursor:zoom-in;">`
           : `<div class="muted" style="width:130px;height:170px;border:1px dashed #ccc;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:6px;">الصورة على السيرفر بس (أقدم من 14 يوم)</div>`}
@@ -785,6 +785,7 @@ async function dayPhotos(d) {
   } catch (e) { box.innerHTML = `<span class="muted">الصور ماتحمّلتش: ${esc(e.message)}</span>`; }
 }
 const repInput = Object.assign(document.createElement("input"), { type: "file", accept: "image/*", className: "hidden" });
+repInput.setAttribute("aria-label", "صورة");
 document.body.appendChild(repInput);
 repInput.addEventListener("change", async () => {
   const f = repInput.files?.[0]; repInput.value = "";
@@ -807,8 +808,8 @@ function tmCell(x, dis, key) {
   const h = x.min != null ? `${hrsTxt(x.min)} س · نهاري ${hrsTxt(x.dmin)} · ليلي ${hrsTxt(x.nmin)}${x.ot ? " · إضافي " + hrsTxt(x.ot) : ""}` : "";
   const bad = x.t_issue || x.min == null;
   return `<div class="a-tm" style="margin-top:4px;display:${x.s === "P" ? "flex" : "none"};gap:4px;flex-wrap:wrap;align-items:center;font-size:12px;padding:4px;border-radius:8px;${bad ? "background:#fff6e5;" : ""}">
-    <input type="time" data-ein value="${esc(x.in || "")}"${dis} style="width:auto;padding:3px 4px;">
-    ${isHelperJob(x.job) ? "" : `<input type="time" data-eout value="${esc(x.out || "")}"${dis} style="width:auto;padding:3px 4px;">`}
+    <input type="time" aria-label="وقت الحضور" data-ein value="${esc(x.in || "")}"${dis} style="width:auto;padding:3px 4px;">
+    ${isHelperJob(x.job) ? "" : `<input type="time" aria-label="وقت الانصراف" data-eout value="${esc(x.out || "")}"${dis} style="width:auto;padding:3px 4px;">`}
     <button type="button" class="btn sec small" data-eflip${dis} title="يقلب الوقتين 12 ساعة">نهار ⇄ ليل</button>
     <span class="muted" style="flex-basis:100%;">${x.mission ? "<b>مأمورية</b> (الوردية العادية) · " : ""}مكتوب في الورقة: ${esc(x.tin || "—")} → ${esc(x.tout || "—")}${h ? " · " + h : ""}${bad ? ` · <b style="color:#a32d2d">${esc(x.t_issue || "محتاج وقت")}</b>` : ""}</span></div>`;
 }
@@ -818,7 +819,7 @@ function hrsCell(x, live) {
   if (h === undefined) return "";
   if (!h) return `<b style="color:#a32d2d">—</b>`;
   const who = (live !== undefined ? live.rep : x.s === "A") ? `<br><span class="muted">البديل</span>` : "";
-  return `<b style="font-size:15px">${hrsTxt(h.min)}</b><br><span class="muted" style="font-size:11px;white-space:nowrap">ن ${hrsTxt(h.dmin)} · ل ${hrsTxt(h.nmin)}</span>${h.ot ? `<br><span class="pill p-wait">إضافي ${hrsTxt(h.ot)}</span>` : ""}${who}`;
+  return `<b style="font-size:15px">${hrsTxt(h.min)}</b><br><span class="muted" style="font-size:12px;white-space:nowrap">ن ${hrsTxt(h.dmin)} · ل ${hrsTxt(h.nmin)}</span>${h.ot ? `<br><span class="pill p-wait">إضافي ${hrsTxt(h.ot)}</span>` : ""}${who}`;
 }
 function refreshHrs(tr) {
   const cell = tr.querySelector(".a-hrs"), sel = tr.querySelector("[data-ecode]"); if (!cell || !sel) return;
@@ -833,8 +834,8 @@ function repTm(x, dis) {
   const r = x.rep, helper = isHelperJob(x.job), bad = r.t_issue || r.min == null;
   const h = r.min != null ? `${hrsTxt(r.min)} س · نهاري ${hrsTxt(r.dmin)} · ليلي ${hrsTxt(r.nmin)}${r.ot ? " · إضافي " + hrsTxt(r.ot) : ""}` : "";
   return `<div class="a-tm a-rtm" style="margin-top:4px;display:${x.s === "A" ? "flex" : "none"};gap:4px;flex-wrap:wrap;align-items:center;font-size:12px;padding:4px;border-radius:8px;${bad ? "background:#fff6e5;" : ""}">
-    <input type="time" data-rin value="${esc(r.in || "")}"${dis} style="width:auto;padding:3px 4px;">
-    ${helper ? "" : `<input type="time" data-rout value="${esc(r.out || "")}"${dis} style="width:auto;padding:3px 4px;">`}
+    <input type="time" aria-label="وقت حضور البديل" data-rin value="${esc(r.in || "")}"${dis} style="width:auto;padding:3px 4px;">
+    ${helper ? "" : `<input type="time" aria-label="وقت انصراف البديل" data-rout value="${esc(r.out || "")}"${dis} style="width:auto;padding:3px 4px;">`}
     <button type="button" class="btn sec small" data-eflip${dis} title="يقلب الوقتين 12 ساعة">نهار ⇄ ليل</button>
     <span class="muted" style="flex-basis:100%;">${r.t_src ? `مقترحة من: ${esc(r.t_src)}` : "مفيش ساعة متسجلة"}${h ? " · " + h : ""}${bad ? ` · <b style="color:#a32d2d">${esc(r.t_issue || "اكتب ساعة البديل")}</b>` : ""}</span></div>`;
 }
@@ -859,7 +860,7 @@ function renderMissed(d, on) {
     ${c.length ? `<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px;">
       <select id="am-who" style="max-width:260px;"><option value="">— اختار العامل —</option>${c.map((x, i) => `<option value="${i}">${esc(x.w.name)} · ${esc(x.w.job || "")}${x.sub ? " · " + esc(x.w.type || "بديل") : ""}</option>`).join("")}</select>
       ${STOP3.includes(d.site) ? `<select id="am-st"><option value="P">حاضر</option><option value="Q">توقف</option></select>` : `<input type="hidden" id="am-st" value="P">`}
-      ${TIME_SITES.includes(d.site) ? `<span id="am-tm" style="display:inline-flex;gap:4px;"><input type="time" id="am-in" style="width:auto;padding:3px 4px;"><input type="time" id="am-out" style="width:auto;padding:3px 4px;"></span>` : ""}
+      ${TIME_SITES.includes(d.site) ? `<span id="am-tm" style="display:inline-flex;gap:4px;"><input type="time" id="am-in" aria-label="وقت الحضور" style="width:auto;padding:3px 4px;"><input type="time" id="am-out" aria-label="وقت الانصراف" style="width:auto;padding:3px 4px;"></span>` : ""}
       <button type="button" class="btn sec small" id="am-add">إضافة</button></div>`
     : `<div class="muted">مفيش حد تاني في كشف الموقع أو البدلاء مالوش سطر في اليوم ده.</div>`}`;
   A.missedC = c;
@@ -906,7 +907,7 @@ function addRepCell(d, x, key) {
   return `<div class="a-nrep" style="display:${x.s === "A" ? "block" : "none"};font-size:12px;">
     <select data-addrep="${esc(key)}" style="max-width:220px;"><option value="">+ إضافة بديل</option>${opts.map(p => `<option value="${esc(p.nid || p.code)}">${esc(p.name)}${p.job && p.job !== x.job ? " — " + esc(p.job) : ""}</option>`).join("")}</select>
     ${timed ? `<div class="a-tm a-rtm a-nrtm" style="margin-top:4px;display:none;gap:4px;flex-wrap:wrap;align-items:center;padding:4px;border-radius:8px;background:#fff6e5;">
-      <input type="time" data-rin style="width:auto;padding:3px 4px;">${helper ? "" : `<input type="time" data-rout style="width:auto;padding:3px 4px;">`}
+      <input type="time" aria-label="وقت حضور البديل" data-rin style="width:auto;padding:3px 4px;">${helper ? "" : `<input type="time" aria-label="وقت انصراف البديل" data-rout style="width:auto;padding:3px 4px;">`}
       <button type="button" class="btn sec small" data-eflip title="يقلب الوقتين 12 ساعة">نهار ⇄ ليل</button>
       <span class="muted" style="flex-basis:100%;">اكتب ساعة البديل</span></div>` : ""}</div>`;
 }
@@ -1025,7 +1026,7 @@ $("a-esave").onclick = async () => {
   // الحاضرين أكتر من المطلوب: الاعتماد ممنوع، زى تأكيد المشرف (ب8)
   const ovr = overPlan(entries, A.plan);
   if (ovr.length) return show($("a-msg"), "err", "مينفعش تعتمد: الحاضرين أكتر من العدد المطلوب — " + ovr.map(o => `${o.job}: ${o.n} والمطلوب ${o.plan}`).join("، ") + ". عدّل اليوم الأول (الزيادة غايب أو شيل البديل).");
-  if (!await ask(`${n ? `تعديل ${cnt(n, "عامل")} و` : ""}اعتماد ${d.site} يوم ${d.date}؟`, { ok: "اعتمد" })) return;
+  if (!await ask(`${n ? `تعديل ${cnt(n, "عامل")} و` : ""}اعتماد ${d.site} يوم ${dTxt(d.date)}؟`, { ok: "اعتمد" })) return;
   const v = Object.values(entries), u = auth.currentUser;
   try {
     const counts = { ...(d.counts || {}), present: v.filter(e => e.s === "P").length, absent: v.filter(e => e.s === "A").length };

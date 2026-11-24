@@ -1,5 +1,5 @@
 // page-sijil.js — سكريبت صفحة sijil.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { db, auth, enDigits, actorEmail, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, Timestamp, writeBatch, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261124b';
+import { dTxt, db, auth, enDigits, actorEmail, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, Timestamp, writeBatch, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261124c';
 const $ = id => document.getElementById(id);
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
 const fmt = n => Number(n).toLocaleString("ar-EG");
@@ -52,7 +52,7 @@ async function load(full) {
       const snap = await getDocs(maxU ? query(c, where("updated_at", ">", Timestamp.fromMillis(maxU))) : c);
       snap.forEach(d => { const r = slim(d); S.all.set(d.id, r); if (r.u > maxU) maxU = r.u; });
       saveCache(maxU);
-      $("sync").textContent = (cache ? `اتحدّث ${fmt(snap.size)} من آخر مرة` : `اتحمّل ${fmt(snap.size)}`) + " — " + new Date().toLocaleTimeString("ar-EG");
+      $("sync").textContent = (cache ? `اتحدّث ${fmt(snap.size)} من آخر مرة` : `اتحمّل ${fmt(snap.size)}`) + " — " + dTxt(new Date(), { time: true });
     }
     $("msg").className = "msg";
   } catch (err) { show($("msg"), "err", "مش قادر أقرا السجل: " + (err.code === "permission-denied" ? "مش مسموح للحساب ده." : err.message)); }
@@ -124,7 +124,7 @@ function render() {
     const so = socTxt(r), he = hlTxt(r);
     return `<tr data-id="${esc(r.id)}"><td><b>${esc(r.code)}</b>${r.portal_code ? `<div class="muted">${esc(r.portal_code)}</div>` : ""}</td><td>${esc(r.name)}${r.blacklist ? ' <span class="st-no">بلاك ليست</span>' : ""}</td>
       <td dir="ltr" style="text-align:right">${esc(r.nid)}</td><td>${esc(r.company)}${r.group ? `<div class="muted">${esc(r.group)}</div>` : ""}</td><td>${esc(r.site)}</td><td>${esc(r.job)}</td><td>${esc(r.type)}</td>
-      <td>${esc(r.status)}${r.left_date ? `<div class="muted">${esc(r.left_date)}</div>` : ""}</td><td class="${cls(so)}">${esc(so)}</td><td class="${cls(he)}">${esc(he)}</td><td style="white-space:normal;min-width:160px;">${esc(r.todo || "")}</td></tr>`;
+      <td>${esc(r.status)}${r.left_date ? `<div class="muted">${esc(dTxt(r.left_date))}</div>` : ""}</td><td class="${cls(so)}">${esc(so)}</td><td class="${cls(he)}">${esc(he)}</td><td style="white-space:normal;min-width:160px;">${esc(r.todo || "")}</td></tr>`;
   }).join("") || `<tr><td colspan="11" class="muted">مفيش.</td></tr>`;
 }
 // البحث بيدوّر في الكل (بيلغي التقرير المختار والحالة)، والشركة / الموقع / النوع بيضيّقوا التقرير
@@ -153,7 +153,7 @@ $("list").onclick = async e => {
   $("wm-box").innerHTML = `<div class="row" style="justify-content:space-between;align-items:center;"><h2 style="margin:0;">${esc(r.name)} — ${esc(r.code)}</h2><button class="btn sec small" id="wm-x">قفل</button></div>
     ${kv([["كود البوابة", esc(r.portal_code)], ["الرقم القومي", `<span dir="ltr">${esc(r.nid)}</span>`], ["التليفون", `<span dir="ltr">${esc(r.phone || "—")}</span>`], ["الميلاد", esc(r.birth || x.birth)],
       ["الشركة", esc(r.company) + (r.group ? " — " + esc(r.group) : "")], ["الموقع", esc(r.site)], ["الوظيفة", esc(r.job)], ["النوع", esc(r.type)],
-      ["الحالة", esc(r.status) + (r.left_date ? " من " + esc(r.left_date) : "") + (r.left_reason ? " — " + esc(r.left_reason) : "")], ["تاريخ التعيين", esc(r.hire_date)],
+      ["الحالة", esc(r.status) + (r.left_date ? " من " + esc(dTxt(r.left_date)) : "") + (r.left_reason ? " — " + esc(r.left_reason) : "")], ["تاريخ التعيين", esc(dTxt(r.hire_date))],
       ["بلاك ليست", r.blacklist ? `<span class="st-no">${esc(x.blacklist_reason || "أيوه")}</span>` : ""]])}
     <div class="sec"><h3>التأمين الاجتماعي — <span class="${cls(so)}">${esc(so)}</span></h3>${kv([["الرقم التأميني", esc(r.s.no)], ["من", esc(r.s.since)], ["خروج", esc(r.s.out)]])}</div>
     <div class="sec"><h3>التأمين الصحي — <span class="${cls(he)}">${esc(he)}</span></h3>${kv([["CRT", esc(r.h.crt)], ["من", esc(r.h.since)], ["اتحذف", esc(r.h.deleted)]])}</div>
@@ -274,7 +274,7 @@ document.querySelectorAll("[data-up]").forEach(inp => inp.onchange = async () =>
       const res = x.err ? `<span class="st-no">${esc(x.err)}</span>` : x.same ? `<span class="st-na">مفيش تغيير</span>`
         : `<span class="st-ok">${x.move === "in" ? "هيتسجل مؤمن" : k === "social" ? "هيتسجل خرج" : "هيتسجل اتحذف"}</span>${x.warn ? `<div class="warn">${esc(x.warn)}</div>` : ""}`;
       return `<tr><td>${esc(x.w?.code || x.code || "")}</td><td>${esc(x.w?.name || "")}</td><td dir="ltr" style="text-align:right">${esc(x.nid)}</td><td>${esc(x.w?.site || "")}</td>
-        <td>${esc(x.mvTxt)}</td><td dir="ltr" style="text-align:right">${esc(x.date)}</td><td dir="ltr" style="text-align:right">${esc(x.num)}</td><td>${esc(st)}</td><td style="white-space:normal;min-width:170px;">${res}</td></tr>`;
+        <td>${esc(x.mvTxt)}</td><td dir="ltr" style="text-align:right">${esc(dTxt(x.date))}</td><td dir="ltr" style="text-align:right">${esc(x.num)}</td><td>${esc(st)}</td><td style="white-space:normal;min-width:170px;">${res}</td></tr>`;
     }).join("");
     $("ins-prev").classList.remove("hidden"); $("ins-save").disabled = !ok.length;
     show($("ins-msg"), bad.length ? "err" : warn.length ? "info" : "ok",

@@ -1,6 +1,6 @@
 // page-upload.js — سكريبت صفحة upload.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { cnt, db, auth, actorEmail, fetchPlanBase, planBySite, alignPlan, nearWorkers, sameName, ask, wireStaffLogin, esc, doc, getDoc, getDocs, addDoc, collection, query, where, writeBatch, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261124b';
-import { detect, parseChipsy, parseEmdad, parseSharqia, emdadMonths, counts, COMPANY_LABEL, CHIPSY_PLAN, countsForPlan, chipsySections, trimOverPlan } from './xl-attendance.js?v=20261124b';
+import { dTxt, cnt, db, auth, actorEmail, fetchPlanBase, planBySite, alignPlan, nearWorkers, sameName, ask, wireStaffLogin, esc, doc, getDoc, getDocs, addDoc, collection, query, where, writeBatch, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261124c';
+import { detect, parseChipsy, parseEmdad, parseSharqia, emdadMonths, counts, COMPANY_LABEL, CHIPSY_PLAN, countsForPlan, chipsySections, trimOverPlan } from './xl-attendance.js?v=20261124c';
 
 const $ = id => document.getElementById(id);
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
@@ -164,7 +164,7 @@ function renderPreview() {
   }
   const rows = Object.entries(by);
   $("p-title").textContent = `2. راجع قبل الحفظ — ${COMPANY_LABEL[S.type]} (${S.fileName})`;
-  $("p-sites").innerHTML = rows.length ? rows.map(([s, x]) => `<tr><td>${esc(s)}</td><td class="num">${x.workers.size}</td><td class="num">${x.days}</td><td>${esc(x.from)}</td><td>${esc(x.to)}</td>
+  $("p-sites").innerHTML = rows.length ? rows.map(([s, x]) => `<tr><td>${esc(s)}</td><td class="num">${x.workers.size}</td><td class="num">${x.days}</td><td>${esc(dTxt(x.from))}</td><td>${esc(dTxt(x.to))}</td>
     <td class="num">${Math.round(x.p / x.days)}</td><td class="num">${Math.round(x.a / x.days)}</td><td class="num">${x.l}</td></tr>`).join("")
     : `<tr><td colspan="8" class="muted">مفيش أيام في الفترة دي.</td></tr>`;
   const iss = S.res.issues, fx = S.fixes || [], ms = S.missing || [];
@@ -174,13 +174,13 @@ function renderPreview() {
          `<tr><td>${esc(f.site)}</td><td>${esc(f.name)}</td><td dir="ltr">${esc(f.nid)}</td><td>${esc(f.old)}</td><td>${esc(f.reason)}</td><td class="num">${f.present}</td></tr>`).join("")}</tbody></table>` : "")
     + (nw.length ? `<div class="msg show warn" style="display:block;margin-top:8px;">${cnt(nw.length, "عامل")} مش في السجل — مع الحفظ ${nw.length === 1 ? "هيروح" : "هيروحوا"} لـ HR في «اعتماد الحالات» يراجعوا الاسم والرقم القومي ويكمّلوا التليفون. اللي ليه كود قديم بيرجع بيه، والجديد بياخد كود جديد.</div>
        <table style="margin-top:6px"><thead><tr><th>الموقع</th><th>الاسم في الشيت</th><th>الرقم القومي</th><th>الكود</th><th>الوظيفة</th><th>أول يوم</th><th>أيام حضور</th></tr></thead><tbody>${nw.map(f =>
-         `<tr><td>${esc(f.site)}</td><td>${esc(f.name)}</td><td dir="ltr">${esc(f.nid)}</td><td>${f.active ? `شغال في ${esc(f.active.site || "موقع تاني")} — ${esc(f.active.code)}` : f.old ? `راجع — ${esc(f.old)}` : "جديد"}</td><td>${esc(f.job)}</td><td>${esc(f.first)}</td><td class="num">${f.present}</td></tr>`).join("")}</tbody></table>` : "")
+         `<tr><td>${esc(f.site)}</td><td>${esc(f.name)}</td><td dir="ltr">${esc(f.nid)}</td><td>${f.active ? `شغال في ${esc(f.active.site || "موقع تاني")} — ${esc(f.active.code)}` : f.old ? `راجع — ${esc(f.old)}` : "جديد"}</td><td>${esc(f.job)}</td><td>${esc(dTxt(f.first))}</td><td class="num">${f.present}</td></tr>`).join("")}</tbody></table>` : "")
     + (ms.length ? `<div class="msg show err" style="display:block;margin-top:8px;">${cnt(ms.length, "عامل")} مش هيترفع ${ms.length === 1 ? "حضوره" : "حضورهم"}: الرقم في الشيت مش رقم قومي، ومالقيناش في السجل عامل واحد بنفس الاسم في نفس الموقع. ${ms.length === 1 ? "ضيفه أو صحّح اسمه" : "ضيفهم أو صحّح اسمهم"} في السجل وارفع الشيت تاني.</div>
        <table style="margin-top:6px"><thead><tr><th>الموقع</th><th>الاسم في الشيت</th><th>الرقم في الشيت</th><th>أيام</th></tr></thead><tbody>${ms.map(f =>
          `<tr><td>${esc(f.site)}</td><td>${esc(f.name)}</td><td dir="ltr">${esc(f.raw)}</td><td class="num">${f.days}</td></tr>`).join("")}</tbody></table>` : "")
     + (fx.length ? `<div class="msg show warn" style="display:block;margin-top:8px;">اتصلح الرقم القومي لـ ${cnt(fx.length, "عامل")} من السجل: الرقم في الشيت مش رقم قومي أو مختلف في رقم أو اتنين، فالحضور هيترفع برقم السجل. بلّغ العميل يصلّحه عنده.</div>
        <table style="margin-top:6px"><thead><tr><th>الموقع</th><th>الاسم في الشيت</th><th>الرقم في الشيت</th><th>الرقم في السجل</th><th>الكود</th></tr></thead><tbody>${fx.map(f =>
-         `<tr><td>${esc(f.site)}</td><td>${esc(f.name)}</td><td dir="ltr">${esc(f.from)}</td><td dir="ltr">${esc(f.to)}</td><td>${esc(f.code)}</td></tr>`).join("")}</tbody></table>` : "")
+         `<tr><td>${esc(f.site)}</td><td>${esc(f.name)}</td><td dir="ltr">${esc(dTxt(f.from))}</td><td dir="ltr">${esc(dTxt(f.to))}</td><td>${esc(f.code)}</td></tr>`).join("")}</tbody></table>` : "")
     + (iss.length ? `<details open><summary>${iss.length} ملاحظة — الخانات دي مش هتترفع</summary><ul>${iss.slice(0, 300).map(t => `<li>${esc(t)}</li>`).join("")}</ul></details>` : "");
   $("save").disabled = !rows.length;
   $("preview").classList.remove("hidden");
@@ -217,10 +217,10 @@ async function renderOver() {
   const { rows, note } = await overPlan(selected());
   const a = $("p-from").value, b = $("p-to").value, tr = (S.trim || []).filter(t => t.date >= a && t.date <= b);
   const trimHtml = tr.length ? `<div class="msg show info" style="display:block;margin-top:8px;">في ${tr.length} حضور زيادة عن المخطط — البوابة شالتهم من العدد (اليومية الأول، وبعدين البديل، وبعدين آخر حد اتعيّن). هيتسجلوا «ز» = زيادة مش محسوبة.</div>
-       <table style="margin-top:6px"><thead><tr><th>اليوم</th><th>الموقع</th><th>سطر المخطط</th><th>الاسم</th><th>النوع</th><th>الحاضرين / المخطط</th></tr></thead><tbody>${tr.map(t => `<tr><td>${esc(t.date)}</td><td>${esc(t.site)}</td><td>${esc(t.job)}</td><td>${esc(t.name)}</td><td>${esc(t.type)}</td><td class="num">${t.n} / ${t.plan}</td></tr>`).join("")}</tbody></table>` : "";
+       <table style="margin-top:6px"><thead><tr><th>اليوم</th><th>الموقع</th><th>سطر المخطط</th><th>الاسم</th><th>النوع</th><th>الحاضرين / المخطط</th></tr></thead><tbody>${tr.map(t => `<tr><td>${esc(dTxt(t.date))}</td><td>${esc(t.site)}</td><td>${esc(t.job)}</td><td>${esc(t.name)}</td><td>${esc(t.type)}</td><td class="num">${t.n} / ${t.plan}</td></tr>`).join("")}</tbody></table>` : "";
   el.innerHTML = trimHtml + (rows.length
     ? `<div class="msg show warn" style="display:block">في ${rows.length} يوم/وظيفة الحاضرين فيهم أكتر من المخطط (${note}) — تنبيه بس، الحفظ مسموح.</div>
-       <table style="margin-top:6px"><thead><tr><th>اليوم</th><th>الموقع</th><th>الوظيفة</th><th>الحاضرين</th><th>المخطط</th><th>الزيادة</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(r.date)}</td><td>${esc(r.site)}</td><td>${esc(r.job)}</td><td class="num">${r.c}</td><td class="num">${r.plan}</td><td class="num" style="color:#a32d2d">+${r.c - r.plan}</td></tr>`).join("")}</tbody></table>`
+       <table style="margin-top:6px"><thead><tr><th>اليوم</th><th>الموقع</th><th>الوظيفة</th><th>الحاضرين</th><th>المخطط</th><th>الزيادة</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(dTxt(r.date))}</td><td>${esc(r.site)}</td><td>${esc(r.job)}</td><td class="num">${r.c}</td><td class="num">${r.plan}</td><td class="num" style="color:#a32d2d">+${r.c - r.plan}</td></tr>`).join("")}</tbody></table>`
     : `<p class="muted" style="margin-top:8px;">✓ مفيش يوم الحاضرين فيه زادوا عن المخطط. ${note}</p>`);
 }
 

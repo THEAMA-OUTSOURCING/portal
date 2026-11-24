@@ -1,8 +1,8 @@
 // page-plan.js — سكريبت صفحة plan.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, isBasic, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions, wireStaffLogin, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, canOpen } from './shared.js?v=20261124b';
-import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261124b';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261124b';
-import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261124b';
+import { dTxt, db, auth, actorEmail, ATT_SITES, SUP_SITES, isBasic, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions, wireStaffLogin, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, canOpen } from './shared.js?v=20261124c';
+import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261124c';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261124c';
+import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261124c';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====
@@ -46,7 +46,8 @@ const cls = d => d < 0 ? "s" : d > 0 ? "o" : "k";
 const ckey = (loc, pos) => norm(loc) + "|" + nkey(pos);
 function show(el, type, text) { el.className = "msg show " + type; el.textContent = text; }
 function hide(el) { el.className = "msg"; el.textContent = ""; }
-function monthLabel(m) { const [y, mm] = m.split("-").map(Number); return new Date(y, mm - 1, 1).toLocaleDateString("ar-EG", { month: "long", year: "numeric" }); }
+// و6: اسم الشهر بالعربي والسنة بأرقام إنجليزي زي التواريخ (نوفمبر 2026)
+function monthLabel(m) { const [y, mm] = m.split("-").map(Number); return new Date(y, mm - 1, 1).toLocaleDateString("ar-EG", { month: "long" }) + " " + y; }
 function monthEnd(m) { const [y, mm] = m.split("-").map(Number); return m + "-" + String(new Date(y, mm, 0).getDate()).padStart(2, "0"); }
 function thisMonth() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
 function today() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
@@ -432,7 +433,7 @@ function renderAmends() {
   $("a-list").innerHTML = S.amends.length ? S.amends.map(a => {
     const b = full.get(ckey(a.loc, a.pos));
     return `<tr><td>${esc(short(a.loc))}</td><td>${esc(a.pos)}</td><td class="n">${b ? fmt(b.base) : "—"}</td><td class="n"><b>${fmt(a.to)}</b></td>
-      <td style="direction:ltr;text-align:right">${esc(a.effective_date)}</td><td>${esc(a.reason)}</td><td class="muted">${esc(a.created_email || "")}</td></tr>`; }).join("")
+      <td style="direction:ltr;text-align:right">${esc(dTxt(a.effective_date))}</td><td>${esc(a.reason)}</td><td class="muted">${esc(a.created_email || "")}</td></tr>`; }).join("")
     : `<tr><td colspan="7" class="muted">مفيش تعديلات الشهر ده.</td></tr>`;
 }
 $("a-save").addEventListener("click", async () => {
@@ -443,7 +444,7 @@ $("a-save").addEventListener("click", async () => {
   if (!date || !date.startsWith(S.month)) return show(msg, "err", "التاريخ لازم يكون جوه الشهر المختار.");
   if (!reason) return show(msg, "err", "اكتب السبب أو المرجع، عشان يبان في السجل بعدين.");
   const e = clientPlan(S.month, S.amends, monthEnd(S.month)).get(k);
-  if (!await ask(`${short(e.loc)} — ${e.pos}\nمن ${e.value} إلى ${to}، ساري من ${date}.\nالتعديل مش هيتمسح بعد الحفظ. متأكد؟`)) return;
+  if (!await ask(`${short(e.loc)} — ${e.pos}\nمن ${e.value} إلى ${to}، ساري من ${dTxt(date)}.\nالتعديل مش هيتمسح بعد الحفظ. متأكد؟`)) return;
   $("a-save").disabled = true;
   try {
     await addDoc(collection(db, "plan_amendments"), {
@@ -550,7 +551,7 @@ $("u-save").addEventListener("click", async () => {
 function renderCountsStatus() {
   const s = S.summary;
   $("c-status").innerHTML = s
-    ? `آخر ملخص${S.summaryMonth !== S.month ? ` (لشهر ${monthLabel(S.summaryMonth)})` : ""}: ${fmt(s.total)} سجل، من رواتب <b>${esc(s.period || "—")}</b>، اتحدّث ${s.computed_at?.toDate ? s.computed_at.toDate().toLocaleString("ar-EG") : ""}.`
+    ? `آخر ملخص${S.summaryMonth !== S.month ? ` (لشهر ${monthLabel(S.summaryMonth)})` : ""}: ${fmt(s.total)} سجل، من رواتب <b>${esc(s.period || "—")}</b>، اتحدّث ${s.computed_at?.toDate ? dTxt(s.computed_at, { time: true }) : ""}.`
     : "مفيش ملخص لسه.";
 }
 $("c-run").addEventListener("click", async () => {
@@ -671,7 +672,7 @@ function initAccounts() {
   onSnapshot(doc(db, "staff_accounts", "all"), snap => {
     const d = snap.exists() ? snap.data() : null;
     STAFF = d?.accounts || [];
-    $("ac-updated").textContent = d?.updated_at?.toDate ? "آخر تحديث للقايمة: " + d.updated_at.toDate().toLocaleString("ar-EG") : "القايمة لسه ماتعملتش — هتظهر أول ما السيرفر يشتغل بالنسخة الجديدة.";
+    $("ac-updated").textContent = d?.updated_at?.toDate ? "آخر تحديث للقايمة: " + dTxt(d.updated_at, { time: true }) : "القايمة لسه ماتعملتش — هتظهر أول ما السيرفر يشتغل بالنسخة الجديدة.";
     renderAccounts();
   }, err => show($("ac-server"), "warn", "مش قادر أقرا قايمة الحسابات: " + err.message));
   onSnapshot(doc(db, "admin_tasks_status", "server"), snap => {
@@ -1151,7 +1152,7 @@ function ficheCell(x) {
   if (x.fiche) return `<span class="c-k">اترفع</span>`;
   const due = ficheDue(x.first_day), late = due && ymdOf(new Date()) > ymdOf(due);   // يوم المهلة نفسه لسه مسموح (زي صفحة الحضور)
   const can = (auth.currentUser?.email || "").toLowerCase() === FICHE_EXCEPTION_EMAIL;
-  let h = due ? `<span class="${late ? "c-s" : "muted"}">${late ? "المهلة خلصت" : "لحد"} ${due.toLocaleDateString("ar-EG", { day: "numeric", month: "short" })}</span>` : "";
+  let h = due ? `<span class="${late ? "c-s" : "muted"}">${late ? "المهلة خلصت" : "لحد"} ${dTxt(due)}</span>` : "";
   if (x.fiche_exception) h += ` <span class="amd">استثناء</span>`;
   if (can) h += ` <button class="btn sec small" data-fex="${esc(x.id)}" data-on="${x.fiche_exception ? 0 : 1}">${x.fiche_exception ? "إلغاء الاستثناء" : "استثناء"}</button>`;
   return h;
@@ -1246,7 +1247,7 @@ function renderOverrides() {
       if (o.site && o.site !== b.site) ch.push(`${b.site || "—"} ← ${o.site}`);
     }
     return `<tr><td>${esc(o.name || b.name || "")}</td><td>${esc(code)}</td><td>${esc(ch.join("، ") || "بدون فرق عن السجل")}${o.note ? `<div class="muted">${esc(o.note)}</div>` : ""}</td>
-      <td style="direction:ltr;text-align:right">${esc(o.from || "")}</td><td class="muted">${esc(o.by_email || "")}</td>
+      <td style="direction:ltr;text-align:right">${esc(dTxt(o.from || ""))}</td><td class="muted">${esc(o.by_email || "")}</td>
       <td class="muted" style="font-size:12px;">مستني الـ HR</td></tr>`;
   }).join("") : `<tr><td colspan="6" class="muted">مفيش تعديلات.</td></tr>`;
 }
