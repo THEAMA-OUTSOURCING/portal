@@ -75,7 +75,11 @@ details.fold .fold-n{font-weight:400;font-size:13px;color:#6b6b6b;}
 .kpi .v{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.2;}
 .kpi .l{color:#6b6b6b;font-size:12px;}
 .kpi.s .v{color:#b42318;} .kpi.o .v{color:#185fa5;}
-.site{display:grid;grid-template-columns:130px 1fr 80px;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid #f0efe9;cursor:pointer;}
+.site{display:grid;grid-template-columns:130px 1fr 96px 80px;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid #f0efe9;cursor:pointer;}
+.site .cnt{font-size:12px;color:#555;text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.site-m,.cov-m{display:none;font-size:12px;color:#6b6b6b;font-weight:400;}
+/* الموقع واحد في الجدول = عمود «الموقع» مالوش لازمة */
+table.one-site .site-col{display:none;}
 .site:last-child{border-bottom:0;}
 .site:hover .nm{text-decoration:underline;}
 .bar{position:relative;height:22px;background:#efeee8;border-radius:4px;overflow:hidden;}
@@ -123,6 +127,19 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
 .tbl{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 @media(max-width:600px){
  body{padding:10px;}
+ /* و4: الأرقام عمودين، والأخير لو فردي ياخد السطر كله (بدل مربع رمادي فاضي) */
+ .kpis{grid-template-columns:1fr 1fr;}
+ .kpis>.kpi:last-child:nth-child(odd){grid-column:1/-1;}
+ /* و4: كل موقع: الاسم والعدد والفرق في سطر، والشريط بعرض الكارت تحتهم */
+ .site{grid-template-columns:1fr auto auto;grid-template-areas:"nm cnt gap" "bar bar bar";row-gap:6px;}
+ .site .nm{grid-area:nm;} .site .bar{grid-area:bar;height:14px;} .site .cnt{grid-area:cnt;} .site .gap{grid-area:gap;min-width:52px;}
+ /* و4: جدول التفاصيل وجدول الشهر اللي فات يلحقوا الشاشة: من غير عرض أدنى، والموقع تحت الوظيفة،
+    و«جداد وبدايل ويوميات» تحت «الموجود» بدل عمود لوحده */
+ table.fit{min-width:0;}
+ table.fit th,table.fit td{padding:7px 6px;}
+ table.fit .site-col,table.fit .cov-col{display:none;}
+ table.fit .site-m,table.fit .cov-m{display:block;}
+ table.fit .amd{display:block;margin-inline-start:0;}
  /* التابات سطر واحد بيتسحب بالعرض بدل ما تتكسر على 3 سطور */
  .tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
  .tabs::-webkit-scrollbar{display:none;}
@@ -218,7 +235,7 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
             <button class="chip" data-f="k" aria-pressed="false">مطابق</button>
             <select id="site-sel" aria-label="الموقع"><option value="">كل المواقع</option></select>
           </div>
-          <div class="tbl"><table><thead><tr><th>الموقع</th><th>الوظيفة</th><th class="n">المطلوب</th><th class="n">الموجود</th><th class="n">الفرق</th><th class="n">جداد وبدايل ويوميات</th></tr></thead><tbody id="detail"></tbody></table></div>
+          <div class="tbl"><table class="fit"><thead><tr><th class="site-col">الموقع</th><th>الوظيفة</th><th class="n">المطلوب</th><th class="n">الموجود</th><th class="n">الفرق</th><th class="n cov-col">جداد وبدايل ويوميات</th></tr></thead><tbody id="detail"></tbody></table></div>
         </div>
         <div class="card">
           <h2>التغيير عن الشهر اللي فات <span class="muted" id="prev-label"></span></h2>
@@ -229,7 +246,7 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
             <div id="chg-preview"></div>
             <div class="row" id="chg-acts" style="margin-top:10px;"><button class="btn" id="chg-go">تأكيد الإرسال</button><button class="btn sec" id="chg-cancel">إلغاء</button></div>
           </div>
-          <div class="tbl"><table><thead><tr><th>الموقع في شيت العميل</th><th>الوظيفة</th><th class="n">اللي فات</th><th class="n">الحالي</th><th class="n">الفرق</th></tr></thead><tbody id="months"></tbody></table></div>
+          <div class="tbl"><table class="fit"><thead><tr><th>الموقع في شيت العميل</th><th>الوظيفة</th><th class="n">اللي فات</th><th class="n">الحالي</th><th class="n">الفرق</th></tr></thead><tbody id="months"></tbody></table></div>
         </div>
         <div class="card" id="unplanned-card"><h2>موجودين ومالهمش مكان في شيت العميل</h2><div id="unplanned" class="muted"></div></div>
       </div>
@@ -461,6 +478,6 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
   </div>
 </div>
 
-<script type="module" src="page-plan.js?v=20261124a"></script>
+<script type="module" src="page-plan.js?v=20261124b"></script>
 </body>
 </html>

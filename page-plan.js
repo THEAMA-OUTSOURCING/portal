@@ -1,8 +1,8 @@
 // page-plan.js — سكريبت صفحة plan.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, isBasic, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions, wireStaffLogin, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, canOpen } from './shared.js?v=20261124a';
-import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261124a';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261124a';
-import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261124a';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, isBasic, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions, wireStaffLogin, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, canOpen } from './shared.js?v=20261124b';
+import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261124b';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261124b';
+import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261124b';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====
@@ -275,7 +275,8 @@ function renderDash() {
   $("sites").innerHTML = list.map(([s, v]) => {
     const d = v.actual - v.plan, pw = v.plan / max * 100, fw = Math.min(v.actual, v.plan) / max * 100, xw = d > 0 ? d / max * 100 : 0;
     return `<div class="site" tabindex="0" role="button" data-site="${esc(s)}"><div class="nm">${esc(s)}</div>
-      <div class="bar"><div class="p" style="width:${pw}%"></div><div class="f" style="width:${fw}%"></div>${xw ? `<div class="x" style="right:${pw}%;width:${xw}%"></div>` : ""}<div class="t">${fmt(v.actual)} من ${fmt(v.plan)}</div></div>
+      <div class="bar"><div class="p" style="width:${pw}%"></div><div class="f" style="width:${fw}%"></div>${xw ? `<div class="x" style="right:${pw}%;width:${xw}%"></div>` : ""}</div>
+      <div class="cnt">${fmt(v.actual)} من ${fmt(v.plan)}</div>
       <div class="gap c-${cls(d)}">${d === 0 ? "مطابق" : sign(d)}</div></div>`;
   }).join("");
   const sel = $("site-sel"), cur = sel.value;
@@ -314,18 +315,19 @@ function secRows(site, job, secs) {
 }
 function renderDetail() {
   const site = $("site-sel").value;
+  $("detail").closest("table").classList.toggle("one-site", !!site);   // و4: موقع واحد = من غير عمود الموقع
   const rows = DASH.filter(r => r.plan > 0 && (!site || r.site === site) && (F === "all" || cls(r.actual - r.plan) === F))
     .sort((a, b) => (a.actual - a.plan) - (b.actual - b.plan));
   $("detail").innerHTML = rows.length ? rows.map(r => { const d = r.actual - r.plan;
     const need = r.secs ? r.secs.reduce((a, x) => a + x.need, 0) : null;
-    const main = `<tr${r.secs ? ` class="has-sec"` : ""}><td>${esc(r.site)}</td><td>${esc(r.job)}${r.amended ? `<span class="amd">معدّل</span>` : ""}${r.fixed ? `<span class="amd">مخطط ثابت</span>` : ""}</td>
-      <td class="n">${fmt(r.plan)}${r.plan !== r.base ? `<span class="was">${fmt(r.base)}</span>` : ""}</td><td class="n">${fmt(r.actual)}</td>
-      <td class="n"><span class="pill ${cls(d)}">${d === 0 ? "مطابق" : sign(d)}</span></td><td class="n">${r.cover ? fmt(r.cover) : "—"}</td></tr>`;
+    const main = `<tr${r.secs ? ` class="has-sec"` : ""}><td class="site-col">${esc(r.site)}</td><td>${esc(r.job)}${r.amended ? `<span class="amd">معدّل</span>` : ""}${r.fixed ? `<span class="amd">مخطط ثابت</span>` : ""}${site ? "" : `<span class="site-m">${esc(r.site)}</span>`}</td>
+      <td class="n">${fmt(r.plan)}${r.plan !== r.base ? `<span class="was">${fmt(r.base)}</span>` : ""}</td><td class="n">${fmt(r.actual)}${r.cover ? `<span class="cov-m">+${fmt(r.cover)} جداد وبدايل</span>` : ""}</td>
+      <td class="n"><span class="pill ${cls(d)}">${d === 0 ? "مطابق" : sign(d)}</span></td><td class="n cov-col">${r.cover ? fmt(r.cover) : "—"}</td></tr>`;
     if (!r.secs) return main;
     const subs = r.secs.map(x => { const sd = x.actual - x.need;
-      return `<tr class="sec-row"><td></td><td>▸ ${esc(x.sec)}</td><td class="n">${x.none ? "—" : fmt(x.need)}</td><td class="n">${fmt(x.actual)}</td>
-        <td class="n"><span class="pill ${cls(sd)}">${sd === 0 ? "مطابق" : sign(sd)}</span></td><td></td></tr>`; }).join("");
-    const warn = need !== r.plan ? `<tr class="sec-row"><td></td><td colspan="5" class="sec-warn">مجموع الأقسام ${fmt(need)} والمطلوب ${fmt(r.plan)} — عدّل أعداد الأقسام من «ترتيب الكشف».</td></tr>` : "";
+      return `<tr class="sec-row"><td class="site-col"></td><td>▸ ${esc(x.sec)}</td><td class="n">${x.none ? "—" : fmt(x.need)}</td><td class="n">${fmt(x.actual)}</td>
+        <td class="n"><span class="pill ${cls(sd)}">${sd === 0 ? "مطابق" : sign(sd)}</span></td><td class="cov-col"></td></tr>`; }).join("");
+    const warn = need !== r.plan ? `<tr class="sec-row"><td class="site-col"></td><td colspan="5" class="sec-warn">مجموع الأقسام ${fmt(need)} والمطلوب ${fmt(r.plan)} — عدّل أعداد الأقسام من «ترتيب الكشف».</td></tr>` : "";
     return main + subs + warn; }).join("")
     : `<tr><td colspan="6" class="muted">مفيش وظايف بالفلتر ده.</td></tr>`;
 }

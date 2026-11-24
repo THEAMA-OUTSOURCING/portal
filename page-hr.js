@@ -1,6 +1,6 @@
 // page-hr.js — سكريبت صفحة hr.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask, typeOk, typeErr, jobsFor, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261124a';
-import { secsForJob, secOptions } from './sheet.js?v=20261124a';
+import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask, typeOk, typeErr, jobsFor, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261124b';
+import { secsForJob, secOptions } from './sheet.js?v=20261124b';
 const $ = id => document.getElementById(id);
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
 const TY = { sick: "مرضي", leave: "إجازة", resign: "استقالة" };
@@ -602,6 +602,9 @@ const sickFields = e => e.type !== "sick" ? "" : `<div class="row" style="width:
   <input data-cause="${esc(e.id)}" placeholder="سبب الحالة المرضية" value="${esc(e.cause || "")}" style="flex:2;min-width:150px;">
   <input data-hosp="${esc(e.id)}" placeholder="المستشفى" value="${esc(e.hospital || "")}" style="flex:1;min-width:110px;"></div>`;
 const kindSel = e => e.type !== "leave" ? "" : `<select data-kind="${esc(e.id)}" style="padding:4px 6px;font-size:12px;"><option value="annual" ${e.kind !== "unpaid" ? "selected" : ""}>ج — إجازة (ليه رصيد)</option><option value="unpaid" ${e.kind === "unpaid" ? "selected" : ""}>خ — بدون أجر (ملوش رصيد)</option></select>`;
+// و11: مين سجّل الحالة: طلب مشرف = «مشرف <الموقع>» (الإيميل في التلميح)، الأدمن «ادمن»، والمكتب بإيميله زي ما هو
+const byTxt = e => e.source === "supervisor" && /@/.test(String(e.by_email || "")) ? "مشرف " + (placeOf(e) || e.site || "") : (e.by_email || "");
+const byTitle = e => byTxt(e) !== (e.by_email || "") ? ` title="${esc(e.by_email)}"` : "";
 function render() {
   const st = $("f-st").value, ty = $("f-ty").value, gr = $("f-gr").value, q = $("f-q").value.trim();
   // اللي اتعدل في الشيت بعد القرار بيظهر مع «مستني HR تيما» وفوق خالص، عشان محدش يفوّته
@@ -616,8 +619,8 @@ function render() {
       <div class="ph" ${hasImg(e, "image") ? `data-zoom="${esc(e.id)}"` : ""}>${e.image ? `<img src="${esc(e.image)}" alt="">` : hasImg(e, "image") ? lazyImg(e, "image", "") : `<span class="muted">${e.image_path ? "الصورة اتنقلت لسيرفر الشركة" : e.type === "leave" ? "الإجازة مالهاش صورة" : e.image_missing ? "الصورة مش لاقيها على Drive" : "مفيش صورة"}</span>`}</div>
       ${hasImg(e, "image2") ? `<div style="display:flex;border-top:1px solid #e5e5e5;">${MAHDAR.filter(f => hasImg(e, f)).map((f, i) => `<div class="ph" style="height:120px;flex:1;${i ? "border-right:1px solid #e5e5e5;" : ""}" data-zoom2="${esc(e.id)}" data-f="${f}" title="المحضر المختوم ${i + 1}">${e[f] ? `<img src="${esc(e[f])}" alt="المحضر">` : lazyImg(e, f, "المحضر")}</div>`).join("")}</div>` : e.sick_kind === "injury" && e.source === "supervisor" ? `<div class="warn" style="margin:6px 12px 0;">مفيش صورة المحضر</div>` : ""}
       <div class="bd">
-        <div class="row" style="justify-content:space-between;align-items:center;"><span class="nm">${esc(e.name)}</span><span><span class="pill t-${cls(e.type)}">${tyTxt(e)}${e.kind ? " " + (KINDS[e.kind] || "") : ""}</span> <span class="pill s-${cls(e.status)}">${stTxt(e)}</span></span></div>
-        <div style="margin-top:4px;"><span class="pill g">${GROUP_AR[groupOf(e)]}</span> <span class="muted">${SRC[e.source] || ""}</span></div>
+        <div class="nm">${esc(e.name)}</div>
+        <div class="pills"><span class="pill t-${cls(e.type)}">${tyTxt(e)}${e.kind ? " " + (KINDS[e.kind] || "") : ""}</span><span class="pill s-${cls(e.status)}">${stTxt(e)}</span><span class="pill g">${GROUP_AR[groupOf(e)]}</span><span class="muted">${SRC[e.source] || ""}</span></div>
         <dl>
           <dt>الكود</dt><dd>${esc(e.code)}${e.nid ? ` — <span dir="ltr">${esc(e.nid)}</span>` : ""}</dd>
           <dt>المكان</dt><dd>${esc([placeOf(e), e.job].filter(Boolean).join(" — "))}</dd>
@@ -625,7 +628,7 @@ function render() {
             : `<dt>من</dt><dd>${esc(e.from)} لحد ${esc(e.to)} — ${esc(e.days)} يوم${e.approved_days != null && +e.approved_days < +e.days ? ` — <b>العميل اعتمد ${esc(e.approved_days)}</b>` : ""}</dd>`}
           ${isInj(e) ? injuryHtml(e) : ""}
           ${e.type === "sick" && (e.cause || e.hospital) ? `<dt>السبب</dt><dd>${esc(e.cause || "—")}</dd><dt>المستشفى</dt><dd>${esc(e.hospital || "—")}</dd>` : ""}
-          <dt>اتسجل</dt><dd>${esc(e.entry_date)} — ${esc(e.by_email)}</dd>
+          <dt>اتسجل</dt><dd${byTitle(e)}>${esc(e.entry_date)} — ${esc(byTxt(e))}</dd>
           ${e.original && (e.edited || e.client) ? `<dt>الأصل</dt><dd>${esc(TY[e.original.type] || "")} ${esc(e.original.from || e.original.entry_date)}${e.original.to ? " → " + esc(e.original.to) : ""}</dd>` : ""}
           ${e.hr_ok_email ? `<dt>HR تيما</dt><dd>وافق — ${esc(e.hr_ok_email)} ${esc(tsTxt(e.hr_ok_at))}</dd>` : ""}
           ${e.status === "client_wait" ? `<dt>العميل</dt><dd>${e.sent_at ? `اتبعتت ${esc(tsTxt(e.sent_at))} — مستني الرد` : "لسه مااتصدّرتش في ملف للعميل"}</dd>` : ""}

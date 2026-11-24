@@ -33,6 +33,8 @@ input,select{padding:8px 10px;border:1px solid #ddd;border-radius:9px;background
 .card{background:#fff;border:1px solid #e5e5e5;border-radius:14px;padding:14px 16px;margin-bottom:12px;}
 h1{font-size:19px;font-weight:600;} h2{font-size:15px;font-weight:600;margin-bottom:8px;}
 .muted{color:#6b6b6b;font-size:13px;}
+details.why{margin-top:8px;} details.why>summary{cursor:pointer;color:#185fa5;font-size:13px;width:max-content;padding:6px 0;}
+details.why>p{margin-top:4px;}
 .row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
 label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#6b6b6b;}
 .btn{padding:9px 16px;font-weight:500;cursor:pointer;background:#c0392b;color:#fff;border:none;border-radius:9px;}
@@ -151,7 +153,7 @@ th{background:#1d2024;}
           <button class="btn sec" id="r-print" disabled><i class="ti ti-printer"></i> طباعة</button>
           <button class="btn sec office-only hidden" id="r-xlsx" disabled><i class="ti ti-file-spreadsheet"></i> إكسيل</button>
         </div>
-        <p class="muted" style="margin-top:6px;">1 = حاضر، غ = غايب، فاضي = مفيش حضور متأكد لليوم ده. في المواقع المرفوعة إكسيل الرمز بيظهر زي ما هو: ج إجازة، م/ض مرضي، ر راحة، ق توقف، ن نص يوم، ورقم = ساعات (إضافي). في الشرقية: الإجازات والمرضي المعتمدين من الـ HR بيظهروا ج / م، والمستقيل «س» من يوم تسجيل الاستقالة، والخانة اللي عليها إطار برتقالي = تعارض (حالة معتمدة والشيت بيقول حاضر). الجمعة والعطلات متلوّنة، واللي اشتغل فيها بيتحسب إضافي. الخانات الصفرا = متأكدة من المشرف ولسه ماتمش اعتمادها.</p>
+        <details class="why"><summary>الشرح</summary><p class="muted">1 = حاضر، غ = غايب، فاضي = مفيش حضور متأكد لليوم ده. في المواقع المرفوعة إكسيل الرمز بيظهر زي ما هو: ج إجازة، م/ض مرضي، ر راحة، ق توقف، ن نص يوم، ورقم = ساعات (إضافي). في الشرقية: الإجازات والمرضي المعتمدين من الـ HR بيظهروا ج / م، والمستقيل «س» من يوم تسجيل الاستقالة، والخانة اللي عليها إطار برتقالي = تعارض (حالة معتمدة والشيت بيقول حاضر). الجمعة والعطلات متلوّنة، واللي اشتغل فيها بيتحسب إضافي. الخانات الصفرا = متأكدة من المشرف ولسه ماتمش اعتمادها.</p></details>
         <div class="msg" id="r-msg"></div>
       </div>
       <div class="card hidden" id="r-out">
@@ -219,6 +221,6 @@ th{background:#1d2024;}
   </div>
 </div>
 
-<script type="module" src="page-report.js?v=20261124a"></script>
+<script type="module" src="page-report.js?v=20261124b"></script>
 </body>
 </html>

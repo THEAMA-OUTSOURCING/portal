@@ -35,20 +35,29 @@
   watch($("app"), steps, { attributes: true, attributeFilter: ["class"] });
 
   // --- فلتر العمال ---
-  let F = "all";
+  let F = "all", ctx = "", KEEP = new Set();
   const isAbs = w => !!w.querySelector('.seg button.a[aria-pressed="true"]');
-  const match = w => F === "all" || (F === "flag" && w.classList.contains("flag")) ||
+  const codeOf = w => { const b = w.querySelector(".seg button[data-c]"); return b ? b.dataset.c : ""; };
+  // محتاج قرار = مفيش ولا اختيار متعلّم في الصف (زي عدّاد «محتاج قرار» اللي فوق).
+  // KEEP = اللي اتقرر وانت جوه الفلتر: بيفضل ظاهر لحد ما تغيّر الفلتر (عشان لو دوست غلط تلاقيه)
+  const isNeed = w => !!w.querySelector(".seg button[data-c]") && !w.querySelector('.seg button[aria-pressed="true"]');
+  const match = w => F === "all" || (F === "flag" && w.classList.contains("flag")) || (F === "need" && (isNeed(w) || KEEP.has(codeOf(w)))) ||
     (F === "abs" && isAbs(w)) || (F === "miss" && w.classList.contains("missing"));
   function filter() {
     const box = $("workers"), rows = [...box.querySelectorAll(":scope > .w")];
-    const c = { all: rows.length, flag: 0, abs: 0, miss: 0 };
-    rows.forEach(w => { if (w.classList.contains("flag")) c.flag++; if (isAbs(w)) c.abs++; if (w.classList.contains("missing")) c.miss++; });
-    if (F !== "all" && !c[F]) F = "all";
+    const c = { all: rows.length, need: 0, flag: 0, abs: 0, miss: 0 };
+    rows.forEach(w => { if (isNeed(w)) c.need++; if (w.classList.contains("flag")) c.flag++; if (isAbs(w)) c.abs++; if (w.classList.contains("missing")) c.miss++; });
+    // و10: أول مرة الكشف يترسم لموقع ويوم: يفتح على «محتاج قرار» لو فيه (والكشف طويل كفاية)
+    const key = ($("site") ? $("site").value : "") + "|" + ($("date") ? $("date").value : "");
+    // (اليوم المقفول عليك = مفيش قرار تاخده، فالكشف كله)
+    if (rows.length && key !== ctx) { ctx = key; KEEP = new Set(); F = rows.length >= 6 && c.need && box.querySelector(".seg button[data-c]:not([disabled])") ? "need" : "all"; }
+    if (F === "need" && !c.need) F = "all";   // كله اتقرر = رجوع للكل
+    else if (F !== "all" && F !== "need" && !c[F]) F = "all";
     const bar = $("fbar");
-    bar.classList.toggle("hidden", rows.length < 6 || (!c.flag && !c.abs && !c.miss));
-    bar.innerHTML = [["all", "الكل"], ["flag", "راجعهم"], ["abs", "غايب"], ["miss", "مش في الصور"]]
+    bar.classList.toggle("hidden", rows.length < 6 || (!c.need && !c.flag && !c.abs && !c.miss));
+    bar.innerHTML = [["all", "الكل"], ["need", "محتاج قرار"], ["flag", "راجعهم"], ["abs", "غايب"], ["miss", "مش في الصور"]]
       .filter(([k]) => k === "all" || c[k])
-      .map(([k, t]) => `<button type="button" data-f="${k}" class="${k === "flag" ? "fw" : ""}" aria-pressed="${F === k}">${t} ${ar(c[k])}</button>`).join("");
+      .map(([k, t]) => `<button type="button" data-f="${k}" class="${k === "flag" ? "fw" : k === "need" ? "fn" : ""}" aria-pressed="${F === k}">${t} ${ar(c[k])}</button>`).join("");
     let shown = 0, grp = null, grpShown = 0;
     const closeGrp = () => { if (grp) grp.classList.toggle("f-off", F !== "all" && !grpShown); };
     [...box.children].forEach(el => {
@@ -63,9 +72,11 @@
   }
   $("fbar").addEventListener("click", e => {
     const b = e.target.closest("button[data-f]"); if (!b) return;
-    F = b.dataset.f; filter();
+    F = b.dataset.f; KEEP = new Set(); filter();
     $("workers").closest(".card").scrollIntoView({ block: "start", behavior: "smooth" });
   });
+  // القرار اللي اتاخد جوه «محتاج قرار» يتسجل قبل ما الصفحة ترسم الكشف تاني (capture)
+  $("workers").addEventListener("click", e => { const b = e.target.closest(".seg button[data-c]"); if (b && !b.disabled && F === "need") KEEP.add(b.dataset.c); }, true);
   watch($("workers"), filter);
 
   // --- ملخص العدد المطلوب ---

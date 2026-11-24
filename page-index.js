@@ -1,5 +1,5 @@
 // page-index.js — سكريبت صفحة index.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { serverNow, serverClock, db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from './shared.js?v=20261124a';
+import { serverNow, serverClock, db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from './shared.js?v=20261124b';
 
 
 let loggedUser = null;
@@ -856,8 +856,9 @@ async function doSetPass(){
   if(!auth.currentUser){ fail('انتهت الجلسة — اخرج وادخل تاني'); return; }
   const btn = document.getElementById('setpass-btn');
   if(btn.disabled) return;
-  const resetSetBtn = ()=>{ btn.innerHTML='حفظ كلمة المرور <i class="ti ti-check" style="font-size:16px;vertical-align:-2px;margin-right:4px;"></i>'; btn.disabled=false; };
-  btn.innerHTML='<span class="spinner"></span> جاري الحفظ...'; btn.disabled=true;
+  const back = document.getElementById('setpass-back');
+  const resetSetBtn = ()=>{ btn.innerHTML='حفظ كلمة المرور <i class="ti ti-check" style="font-size:16px;vertical-align:-2px;margin-right:4px;"></i>'; btn.disabled=false; if(back) back.disabled=false; };
+  btn.innerHTML='<span class="spinner"></span> جاري الحفظ...'; btn.disabled=true; if(back) back.disabled=true;
   try{
     await updatePassword(auth.currentUser, p1);
     document.getElementById('new-pass1').value='';
@@ -884,7 +885,7 @@ async function doSetPass(){
     console.error('set password error:', e);
     fail(passErrorMsg(e));
   }
-  btn.innerHTML='حفظ كلمة المرور <i class="ti ti-check" style="font-size:16px;vertical-align:-2px;margin-right:4px;"></i>'; btn.disabled=false;
+  resetSetBtn();
 }
 window.doSetPass = doSetPass;
 
@@ -1078,8 +1079,9 @@ async function doLogout(){
   document.getElementById('card-preview').innerHTML='';
   if(currentCardUrl){ URL.revokeObjectURL(currentCardUrl); currentCardUrl=null; }
   showScreen('login-screen');
-  ['emp-code','emp-pass'].forEach(id=>document.getElementById(id).value='');
+  ['emp-code','emp-pass','new-pass1','new-pass2'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('login-error').style.display='none';
+  document.getElementById('setpass-error').style.display='none';
 }
 window.doLogout = doLogout;
 
