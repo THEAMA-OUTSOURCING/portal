@@ -97,23 +97,25 @@ export function canOpen(claims, href) {
   return !!(p && claims && claims.role && p.can(claims));
 }
 
-// شكل الأزرار: مربعات صغيرة، الأيقونة فوق والاسم تحتها (زي شاشة التطبيقات). على الموبايل 3 في السطر.
+// شكل الأزرار (و2): شريط صغير، الأيقونة جنب الاسم. على الموبايل سطر واحد بيتسحب بالعرض، وعلى الكمبيوتر بينزل سطر لو مالحقش.
 function navStyle() {
   if (document.getElementById("pnav-style")) return;
   const s = document.createElement("style");
   s.id = "pnav-style";
   s.textContent = `
-    .pnav{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px;}
+    .pnav{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px;}
     .pnav:empty{display:none;}
-    .pnav a{display:flex;flex-direction:column;align-items:center;gap:6px;width:96px;padding:12px 4px 10px;
-      border:0;border-radius:16px;background:#fff;color:#1d2024;font-size:12.5px;font-weight:500;
-      line-height:1.25;text-align:center;text-decoration:none;flex:0 0 auto;}
+    .pnav a{display:flex;flex-direction:row;align-items:center;justify-content:center;gap:6px;flex:0 0 auto;min-width:80px;
+      padding:9px 12px;border:0;border-radius:16px;background:#fff;color:#1d2024;font-size:13px;font-weight:500;
+      line-height:1.25;text-align:center;text-decoration:none;white-space:nowrap;}
     .pnav a:hover{background:#fbeceb;}
-    .pnav a svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;
+    .pnav a svg{width:18px;height:18px;flex:0 0 auto;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;
       stroke-linejoin:round;color:#a61b12;}
-    .pnav a.on{background:#a61b12;border-color:#a61b12;color:#fff;cursor:default;}
+    .pnav a.on{background:#a61b12;color:#fff;cursor:default;}
+    .pnav a.on:hover{background:#a61b12;}
     .pnav a.on svg{color:#fff;}
-    @media (max-width:520px){.pnav{display:grid;grid-template-columns:repeat(3,1fr);}.pnav a{width:auto;}}
+    @media (max-width:599px){.pnav{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px;}
+      .pnav::-webkit-scrollbar{display:none;}}
     @media print{.pnav{display:none !important;}}`;
   document.head.appendChild(s);
 }
@@ -134,6 +136,18 @@ export function renderNav(el, claims) {
     if (p.href === here) { a.className = "on"; a.setAttribute("aria-current", "page"); }
     el.appendChild(a);
   }
+  // الشريط بيتسحب على الموبايل: زرار الصفحة الحالية يبقى في النص لو كان برا الشاشة.
+  // الصفحة ممكن تكون لسه مستخبية (قبل ما الدخول يخلص)، فبنستنى لحد ما الشريط يبان (لحد 5 ثوانى).
+  const on = el.querySelector("a.on");
+  if (!on) return;
+  let tries = 0;
+  (function center() {
+    if (!on.isConnected) return;
+    if (!el.clientWidth) { if (++tries < 25) setTimeout(center, 200); return; }
+    if (el.scrollWidth <= el.clientWidth + 1) return;
+    const r = on.getBoundingClientRect(), b = el.getBoundingClientRect();
+    if (r.left < b.left || r.right > b.right) el.scrollLeft += (r.left + r.width / 2) - (b.left + b.width / 2);
+  })();
 }
 
 // ===== اسم اللي عمل التعديل =====
@@ -724,4 +738,4 @@ window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-if (FIRST_COPY) import('./notify.js?v=20261123a').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+if (FIRST_COPY) import('./notify.js?v=20261124a').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));

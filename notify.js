@@ -6,7 +6,7 @@
 // - كل مستلم ليه نسخة في notif_inbox (id = uid__id) — منها «اتقرا إمتى» و«قرأه كام واحد».
 // - الإشعارات ما بتتمسحش. الجرس بيعرض آخر 14 يوم، والأقدم بزرار «عرض الأقدم».
 // - توفير القراءات: أول ما الصفحة تفتح = عدّ بس (قراية واحدة)، والقايمة بتتحمل لما حد يدوس على الجرس.
-import { tell, askText, esc, collection, doc, getDoc, getDocs, query, where, orderBy, limit, startAfter, writeBatch, serverTimestamp, getCountFromServer, Timestamp, onAuthStateChanged } from './shared.js?v=20261123a';
+import { tell, askText, esc, collection, doc, getDoc, getDocs, query, where, orderBy, limit, startAfter, writeBatch, serverTimestamp, getCountFromServer, Timestamp, onAuthStateChanged } from './shared.js?v=20261124a';
 
 const DAYS_SHOWN = 14;
 const PAGE = 20;
@@ -71,10 +71,15 @@ function style() {
   s.textContent = `
   #nb-btn{position:fixed;bottom:16px;left:16px;z-index:9000;width:52px;height:52px;border-radius:50%;border:0;background:#fff;
     box-shadow:0 2px 10px rgba(0,0,0,.22);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;}
-  /* صفحة فيها شريط تأكيد لازق تحت (زي «تأكيد الحضور»): الجرس يطلع فوقه بدل ما يغطي على الزرار */
-  body:has(#app:not(.hidden) .sticky) #nb-btn{bottom:92px;}
-  body:has(#nb-btn){padding-bottom:84px;}
+  /* صفحة فيها شريط تأكيد لازق تحت (زي «تأكيد الحضور»): الجرس العايم يطلع فوقه بدل ما يغطي على الزرار */
+  body:has(#app:not(.hidden) .sticky) #nb-btn:not(.nb-inline){bottom:92px;}
+  body:has(#nb-btn:not(.nb-inline)){padding-bottom:84px;}
   @media (max-width:520px){#nb-btn{width:46px;height:46px;bottom:12px;left:12px;}}
+  /* و1: الجرس في رأس الصفحة جنب «خروج» */
+  #nb-btn.nb-inline{position:relative;bottom:auto;left:auto;z-index:auto;width:38px;height:38px;flex:0 0 auto;margin-left:8px;
+    box-shadow:none;border:1px solid #e6e7ea;}
+  #nb-btn.nb-inline svg{width:22px;height:22px;}
+  #nb-btn.nb-inline .nb-n{top:-6px;right:-6px;}
   #nb-btn svg{width:24px;height:24px;stroke:#a61b12;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
   #nb-btn .nb-n{position:absolute;top:-3px;right:-3px;min-width:20px;height:20px;border-radius:10px;background:#a61b12;color:#fff;
     font:700 11.5px/20px system-ui,sans-serif;text-align:center;padding:0 5px;box-sizing:border-box;}
@@ -115,7 +120,14 @@ function mount() {
   b.id = "nb-btn"; b.type = "button"; b.setAttribute("aria-label", "الإشعارات");
   b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>';
   b.onclick = togglePanel;
-  document.body.appendChild(b);
+  // و1: لو الصفحة فيها زرار «خروج» في الرأس (#logout)، الجرس يتحط جنبه (ويبان لما الصفحة تبان). غير كده يفضل عايم تحت.
+  const out = document.getElementById("logout");
+  if (out && out.parentNode) {
+    b.className = "nb-inline";
+    out.parentNode.insertBefore(b, out);
+    const row = out.parentNode;   // المسافة بين الجرس و«خروج» من margin الجرس (gap مش شغال في كروم قبل 84)
+    if (getComputedStyle(row).display !== "flex") { row.style.display = "flex"; row.style.alignItems = "center"; }
+  } else document.body.appendChild(b);
   if (CLICK_ON) return;   // مرة واحدة بس (mount بيتنادى مع كل دخول)
   CLICK_ON = true;
   document.addEventListener("click", e => {
@@ -162,6 +174,13 @@ function togglePanel() {
   if (!tabs.some(t => t[0] === TAB)) TAB = "inbox";
   p.innerHTML = `<div class="nb-tabs">${tabs.map(([k, l]) => `<button type="button" data-tab="${k}" class="${k === TAB ? "on" : ""}">${esc(l)}</button>`).join("")}</div><div class="nb-body"></div>`;
   p.querySelector(".nb-tabs").onclick = e => { const t = e.target.closest("[data-tab]"); if (!t) return; TAB = t.dataset.tab; p.querySelectorAll("[data-tab]").forEach(x => x.classList.toggle("on", x === t)); showTab(); };
+  // و1: الجرس في الرأس = اللوحة تفتح تحته (مش من تحت الشاشة)
+  const b = document.getElementById("nb-btn");
+  if (b && b.classList.contains("nb-inline")) {
+    const r = b.getBoundingClientRect(), top = Math.max(8, Math.round(r.bottom + 8));
+    p.style.top = top + "px"; p.style.bottom = "auto"; p.style.maxHeight = "calc(100vh - " + (top + 12) + "px)";
+    if (window.innerWidth > 520) p.style.left = Math.max(12, Math.min(Math.round(r.left), window.innerWidth - 412)) + "px";
+  }
   document.body.appendChild(p);
   showTab();
 }

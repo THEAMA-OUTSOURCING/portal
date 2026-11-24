@@ -74,6 +74,12 @@ input[type=file]{width:100%;padding:8px;cursor:pointer;font-size:13px;border:1px
 .net-amount{font-size:22px;font-weight:500;color:#3b6d11;}
 .net-amount span{font-size:12px;font-weight:400;}
 .header-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;}
+/* و8: زرار الخروج/الرجوع شمال الرأس في كل الشاشات (زي شاشة المرتب وصفحات المكتب) */
+.header-bar .btn-logout{order:2;}
+.header-bar .avatar{order:-1;flex:0 0 auto;}
+.header-bar>div:not(.avatar){flex:1;margin-right:10px;}
+.adm-top{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:10px;}
+.adm-top .btn-logout{height:40px;border-radius:12px;color:#1d2024;border-color:#e6e7ea;background:#fff;padding:6px 16px;}
 .logo-header{text-align:center;margin-bottom:1.5rem;}
 .logo-header img{height:80px;object-fit:contain;}
 .logo-header h1{font-size:18px;font-weight:600;color:#c0392b;margin-top:6px;}
@@ -288,10 +294,10 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
     <div style="text-align:center;margin-top:10px;"><a href="#" data-call="showScreen" data-args="login-screen" style="font-size:13px;color:#767676;text-decoration:none;padding:8px 12px;display:inline-block;">رجوع</a></div>
   </form>
   <div id="admin-upload-box" style="display:none;">
+    <div class="adm-top"><button type="button" class="btn-logout" id="logout" data-call="adminLogout">خروج</button></div>
     <div id="server-status" class="info-box admin-only" style="margin-bottom:12px;">جاري التحقق من حالة السيرفر...</div>
     <!-- أزرار الصفحات (حسب الدور) — بتترسم من shared.js -->
     <nav id="pnav" class="pnav" aria-label="صفحات البوابة"></nav>
-    <div style="text-align:left;margin-bottom:10px;"><a href="#" data-call="adminLogout" style="font-size:13px;color:#c0392b;text-decoration:none;display:inline-block;padding:10px 4px;"><i class="ti ti-logout" style="font-size:15px;vertical-align:-2px;margin-left:4px;"></i>خروج الإدارة</a></div>
     <div class="card payroll-only">
       <p style="font-size:14px;font-weight:500;color:#222;margin-bottom:12px;"><i class="ti ti-upload" style="font-size:16px;vertical-align:-2px;margin-left:6px;color:#c0392b;"></i>رفع شيت الرواتب الجديد</p>
       <input type="file" id="admin-excel" accept=".xlsx,.xls" style="margin-bottom:6px;" data-change="resetPayReview"/>
@@ -364,7 +370,6 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
       <p id="req-export-count" style="font-size:13px;color:#6b6b6b;margin-bottom:10px;"></p>
       <button class="btn-primary" data-call="exportRequests" id="req-export-btn"><i class="ti ti-file-spreadsheet" style="font-size:16px;vertical-align:-2px;margin-left:4px;"></i>تحميل البيانات Excel</button>
     </div>
-    <div style="text-align:center;margin-top:4px;"><a href="#" data-call="showScreen" data-args="login-screen" style="font-size:13px;color:#6b6b6b;text-decoration:none;display:inline-block;padding:10px 12px;">خروج من الإدارة</a></div>
   </div>
 </div>
 
@@ -453,6 +458,6 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
 </div>
 
 <!-- Firebase SDKs -->
-<script type="module" src="page-index.js?v=20261123a"></script>
+<script type="module" src="page-index.js?v=20261124a"></script>
 </body>
 </html>

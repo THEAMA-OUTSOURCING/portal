@@ -1,5 +1,5 @@
 // page-index.js — سكريبت صفحة index.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { serverNow, serverClock, db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from './shared.js?v=20261123a';
+import { serverNow, serverClock, db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from './shared.js?v=20261124a';
 
 
 let loggedUser = null;
@@ -178,6 +178,8 @@ onAuthStateChanged(auth, async (user)=>{
     });
     loginBox.style.display='none';
     uploadBox.style.display='block';
+    // و3: أول فتح للصفحة والحساب الداخل مش عامل = لوحة الإدارة على طول (لو لسه على شاشة دخول العامل بس)
+    if(firstRun && role && !loggedUser && getComputedStyle(document.getElementById('login-screen')).display !== 'none') showScreen('admin-screen');
     fpAdmin = isAdmin;
     // حالة السيرفر وملفاته للأدمن بس (الـ Rules كمان بتقفلها على غيره)
     if(isAdmin) watchServerStatus(); else stopServerStatus();
@@ -1251,12 +1253,12 @@ async function openRequestForm(){
   const backBtn = document.getElementById('req-back-btn');
   const infoEl = document.getElementById('req-info-text');
   if(reqMandatory){
-    backBtn.innerHTML = '<i class="ti ti-logout" style="font-size:14px;"></i> خروج';
-    backBtn.setAttribute('onclick', "doLogout()");
+    backBtn.textContent = 'خروج';
+    backBtn.setAttribute('data-call', 'doLogout'); backBtn.removeAttribute('data-args');
     if(infoEl) infoEl.textContent = 'من فضلك املأ البيانات دي الأول عشان تقدر تشوف شيت راتبك.';
   } else {
     backBtn.innerHTML = '<i class="ti ti-arrow-right" style="font-size:14px;"></i> رجوع للراتب';
-    backBtn.setAttribute('onclick', "showScreen('salary-screen')");
+    backBtn.setAttribute('data-call', 'showScreen'); backBtn.setAttribute('data-args', 'salary-screen');
     if(infoEl) infoEl.textContent = 'من فضلك اكتب البيانات دي بدقة، هنحتاجها في تجهيز مستلزماتك.';
   }
 

@@ -1,6 +1,6 @@
 // page-hr.js — سكريبت صفحة hr.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask, typeOk, typeErr, jobsFor, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261123a';
-import { secsForJob, secOptions } from './sheet.js?v=20261123a';
+import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask, typeOk, typeErr, jobsFor, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261124a';
+import { secsForJob, secOptions } from './sheet.js?v=20261124a';
 const $ = id => document.getElementById(id);
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
 const TY = { sick: "مرضي", leave: "إجازة", resign: "استقالة" };
