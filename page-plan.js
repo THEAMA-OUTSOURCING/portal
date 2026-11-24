@@ -934,6 +934,7 @@ async function initWorkers() {
     renderWorkers(); renderOverrides();
   }, err => show($("w-msg"), "err", "مش قادر أقرا التعديلات: " + err.message));
   renderWorkers();
+  Promise.all(W_SITES.map(wOrd)).then(() => { fillSecFilter(); renderWorkers(); });   // القسم من «ترتيب الكشف»
   onSnapshot(bySites("new_workers"), snap => {
     WS.newAll = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     // اللي اتكوّد قبل السجل الموحد (رقمه القومي بقى في السجل بكود T) مش بيظهر هنا
@@ -1224,15 +1225,33 @@ $("w-rem")?.addEventListener("click", async e => {
   } catch (err) { tell("ماتسجلش: " + err.message); }
 });
 function current(w) { const o = WS.ovr[w.code]; return o ? { ...w, site: o.site || w.site, job: o.job || w.job, type: o.type || w.type, edited: true } : w; }
-function renderWorkers() {
-  const q = arNorm($("w-q").value), site = $("w-site").value;
+// القسم بيتقرا من «ترتيب الكشف» (sheet_order) — للمواقع المتقسمة بس. «ناقص» = وظيفته متقسمة في موقعه ولسه مالوش قسم
+const NO_SEC = "__none__";
+const wSecCell = w => { const o = W_ORD[w.site]; return { sec: wSecOf(o, w), need: secsForJob(o, w.job).length > 0 }; };
+function fillSecFilter() {
+  const el = $("w-secf"); if (!el) return;
+  const site = $("w-site").value, keep = el.value, secs = [];
+  (site ? [site] : W_SITES).forEach(s => secsAll(W_ORD[s]).forEach(x => { if (!secs.includes(x)) secs.push(x); }));
+  el.innerHTML = `<option value="">كل الأقسام</option><option value="${NO_SEC}">من غير قسم</option>` + secs.map(x => `<option>${esc(x)}</option>`).join("");
+  el.value = [...el.options].some(o => o.value === keep) ? keep : "";
+  el.classList.toggle("hidden", !secs.length);
+}
+const secsAll = o => { const out = (o?.secOrder || []).filter(Boolean).slice(); Object.keys(o?.secNeed || {}).forEach(k => { const x = splitJob(k).sec; if (x && !out.includes(x)) out.push(x); }); return out; };
+function workersList() {
+  const q = arNorm($("w-q").value), site = $("w-site").value, sf = $("w-secf")?.value || "";
   let list = WS.base.map(current);
   if (site) list = list.filter(w => w.site === site);
   if (q) list = list.filter(w => arNorm(w.name).includes(q) || String(w.code).toLowerCase().includes(q.toLowerCase()) || String(w.nid).includes(q));
+  if (sf) list = list.filter(w => { const c = wSecCell(w); return sf === NO_SEC ? (c.need && !c.sec) : c.sec === sf; });
+  return list;
+}
+function renderWorkers() {
+  const list = workersList();
   $("w-count").textContent = `${fmt(list.length)} عامل` + (list.length > 100 ? " — بيظهر أول 100، ضيّق البحث" : "");
-  $("w-list").innerHTML = list.slice(0, 100).map(w => `<tr><td>${esc(w.name)}</td><td>${esc(w.code)}</td><td>${esc(w.site)}</td>
+  $("w-list").innerHTML = list.slice(0, 100).map(w => { const c = wSecCell(w); return `<tr><td>${esc(w.name)}</td><td>${esc(w.code)}</td><td>${esc(w.site)}</td>
     <td>${esc(typeLabel(w.type))}${w.edited ? ` <span class="amd">معدّل</span>` : ""}</td><td>${esc(w.job)}</td>
-    <td><button class="btn sec small" data-w="${esc(w.code)}">تعديل</button></td></tr>`).join("") || `<tr><td colspan="6" class="muted">مفيش نتايج.</td></tr>`;
+    <td>${c.sec ? esc(c.sec) : c.need ? `<span class="amd" style="color:#a32d2d;margin:0;">من غير قسم</span>` : ""}</td>
+    <td><button class="btn sec small" data-w="${esc(w.code)}">تعديل</button></td></tr>`; }).join("") || `<tr><td colspan="7" class="muted">مفيش نتايج.</td></tr>`;
 }
 function renderOverrides() {
   const byCode = Object.fromEntries(WS.base.map(w => [w.code, w]));
@@ -1251,21 +1270,14 @@ function renderOverrides() {
       <td class="muted" style="font-size:12px;">مستني الـ HR</td></tr>`;
   }).join("") : `<tr><td colspan="6" class="muted">مفيش تعديلات.</td></tr>`;
 }
-// تصدير القايمة اللي ظاهرة (بالبحث والموقع المختارين) — كل العمال مش أول 100 بس
-function workersList() {
-  const q = arNorm($("w-q").value), site = $("w-site").value;
-  let list = WS.base.map(current);
-  if (site) list = list.filter(w => w.site === site);
-  if (q) list = list.filter(w => arNorm(w.name).includes(q) || String(w.code).toLowerCase().includes(q.toLowerCase()) || String(w.nid).includes(q));
-  return list;
-}
+// تصدير القايمة اللي ظاهرة (بالبحث والموقع والقسم المختارين) — كل العمال مش أول 100 بس
 $("w-export")?.addEventListener("click", () => {
   const site = $("w-site").value;
   const list = workersList().sort((a, b) => a.site.localeCompare(b.site, "ar") || String(a.job).localeCompare(String(b.job), "ar") || String(a.name).localeCompare(String(b.name), "ar"));
   if (!list.length) return tell("مفيش عمال في القايمة دي.");
-  const head = ["الاسم", "الكود", "الرقم القومي", "الموقع", "الوظيفة", "النوع", "معدّل يدوي"];
+  const head = ["الاسم", "الكود", "الرقم القومي", "الموقع", "الوظيفة", "القسم", "النوع", "معدّل يدوي"];
   // كل الخانات نص — عشان الرقم القومي مايتحولش لرقم علمي في الإكسيل
-  const aoa = [head, ...list.map(w => [String(w.name || ""), String(w.code || ""), String(w.nid || ""), String(w.site || ""), String(w.job || ""), typeLabel(w.type), w.edited ? "أيوه" : ""])];
+  const aoa = [head, ...list.map(w => [String(w.name || ""), String(w.code || ""), String(w.nid || ""), String(w.site || ""), String(w.job || ""), wSecCell(w).sec, typeLabel(w.type), w.edited ? "أيوه" : ""])];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws["!cols"] = [{ wch: 34 }, { wch: 10 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, { wch: 10 }, { wch: 10 }];
   const wb = XLSX.utils.book_new();
@@ -1274,7 +1286,8 @@ $("w-export")?.addEventListener("click", () => {
   XLSX.writeFile(wb, `بيانات العمال ${site || "كل المواقع"} ${today()}.xlsx`);
 });
 $("w-q")?.addEventListener("input", renderWorkers);
-$("w-site")?.addEventListener("change", renderWorkers);
+$("w-site")?.addEventListener("change", () => { fillSecFilter(); renderWorkers(); });
+$("w-secf")?.addEventListener("change", () => { document.querySelector('[data-fold="w-list"]').open = true; renderWorkers(); });
 $("w-list")?.addEventListener("click", e => {
   const code = e.target.dataset.w; if (!code) return;
   const w = current(WS.base.find(x => x.code === code));
@@ -1347,6 +1360,7 @@ $("w-save")?.addEventListener("click", async () => {
       try {
         await updateDoc(doc(db, "sheet_order", site), { ["sections." + keyOf(w)]: secNew, updated_by: u.uid, updated_email: actorEmail(u), updated_at: serverTimestamp() });
         delete W_ORD[site]; secMsg = ` القسم بقى «${secNew}».`;
+        wOrd(site).then(() => { fillSecFilter(); renderWorkers(); });
       } catch (er) { secMsg = ` بس القسم ماتحفظش (${er.code === "permission-denied" ? "مش مسموح للحساب ده" : er.message}) — حدده من «ترتيب الكشف».`; }
     }
     show($("w-msg"), secMsg.includes("ماتحفظش") ? "warn" : "ok", (!force ? "تم." : n ? "تم الاعتماد — السجل والكشف هيتحدّثوا خلال ثواني."

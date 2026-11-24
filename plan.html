@@ -385,9 +385,10 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
         <div class="row">
           <input type="text" id="w-q" aria-label="بحث" placeholder="ابحث بالاسم أو الكود أو الرقم القومي" style="flex:1 1 260px;">
           <select id="w-site" aria-label="الموقع"><option value="">كل المواقع</option></select>
+          <select id="w-secf" aria-label="القسم" class="hidden"><option value="">كل الأقسام</option></select>
           <button class="btn sec" id="w-export" type="button">تصدير إكسيل</button>
         </div>
-        <div class="tbl" style="margin-top:10px;"><table><thead><tr><th>الاسم</th><th>الكود</th><th>الموقع</th><th>النوع</th><th>الوظيفة</th><th></th></tr></thead><tbody id="w-list"></tbody></table></div></details>
+        <div class="tbl" style="margin-top:10px;"><table><thead><tr><th>الاسم</th><th>الكود</th><th>الموقع</th><th>النوع</th><th>الوظيفة</th><th>القسم</th><th></th></tr></thead><tbody id="w-list"></tbody></table></div></details>
         <p class="muted" id="w-count" style="margin-top:6px;"></p>
       </div>
       <div class="card hidden" id="w-form">
@@ -478,6 +479,6 @@ input:focus,select:focus{border-color:#a61b12;background:#fff;}
   </div>
 </div>
 
-<script type="module" src="page-plan.js?v=20261124e"></script>
+<script type="module" src="page-plan.js?v=20261124f"></script>
 </body>
 </html>
