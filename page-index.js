@@ -1,5 +1,5 @@
 // page-index.js — سكريبت صفحة index.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { dTxt, serverNow, serverClock, db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from './shared.js?v=20261124c';
+import { dTxt, serverNow, serverClock, db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from './shared.js?v=20261124d';
 
 
 let loggedUser = null;
@@ -930,11 +930,12 @@ function renderSalary(src, viewOnly){
   const get=salGet;
   const num=salNum;
   // نسبة الحافز في الشيت كسر (0.6) → ٦٠٪ ؛ لو مكتوبة رقم أكبر من 1 (60) بتتعرض زي ما هي
-  const pct=v=>{const n=num(v); if(!n) return ''; const p=n<=1?n*100:n; return (Number.isInteger(p)?p:+p.toFixed(2)).toLocaleString('ar-EG')+'٪';};
+  const pct=v=>{const n=num(v); if(!n) return ''; const p=n<=1?n*100:n; return (Number.isInteger(p)?p:+p.toFixed(2)).toLocaleString('en-US')+'%';};
   const clean=v=>{const t=String(v==null?'':v).trim();return (t&&t!=='nan'&&t!=='NaN'&&t!=='undefined')?t:'';};
-  const money=v=>num(v).toLocaleString('ar-EG',{minimumFractionDigits:2,maximumFractionDigits:2});
-  const count=v=>{const n=num(v);return (Number.isInteger(n)?n:+n.toFixed(2)).toLocaleString('ar-EG');};
-  const ar=s=>String(s).replace(/[0-9]/g,d=>'٠١٢٣٤٥٦٧٨٩'[d]);
+  const money=v=>num(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});   // أرقام إنجليزي في كل البوابة
+  const count=v=>{const n=num(v);return (Number.isInteger(n)?n:+n.toFixed(2)).toLocaleString('en-US');};
+  // فترة الكشف (جاية من الشيت): أرقام إنجليزي، وكل تاريخ معزول عشان مايتقلبش بعد «الى»
+  const ar=s=>String(s).replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/\d+(?:[-\/]\d+)+/g,m=>'\u2066'+m+'\u2069');
 
   const rows = src.rows;
   const r0 = rows[0];
@@ -966,7 +967,7 @@ function renderSalary(src, viewOnly){
     const job=clean(get(row,'الوظيفة'));
 
     let h='';
-    if(idx>0) h+='<p class="sv-sep">كشف '+(idx+1).toLocaleString('ar-EG')+'</p>';
+    if(idx>0) h+='<p class="sv-sep">كشف '+(idx+1)+'</p>';
     h+='<div class="sv-sum'+(idx===0?' sv-first':'')+'">';
     if(period) h+='<p class="sv-per">'+esc(ar(period))+'</p>';
     if(rows.length>1&&job) h+='<p class="sv-job">'+esc(job)+'</p>';

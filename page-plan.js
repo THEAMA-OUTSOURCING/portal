@@ -1,8 +1,8 @@
 // page-plan.js — سكريبت صفحة plan.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { dTxt, db, auth, actorEmail, ATT_SITES, SUP_SITES, isBasic, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions, wireStaffLogin, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, canOpen } from './shared.js?v=20261124c';
-import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261124c';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261124c';
-import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261124c';
+import { dTxt, db, auth, actorEmail, ATT_SITES, SUP_SITES, isBasic, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions, wireStaffLogin, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, canOpen } from './shared.js?v=20261124d';
+import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261124d';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261124d';
+import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261124d';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====
@@ -40,7 +40,7 @@ const $ = id => document.getElementById(id);
 const norm = s => String(s ?? "").replace(/\s+/g, " ").trim();
 const nkey = s => norm(s).toLowerCase();
 const short = loc => norm(loc).replace(/\s*Bev-EGY$/i, "");
-const fmt = n => Number(n || 0).toLocaleString("ar-EG");
+const fmt = n => Number(n || 0).toLocaleString("en-US");   // أرقام إنجليزي في كل البوابة
 const sign = n => (n > 0 ? "+" : n < 0 ? "−" : "") + fmt(Math.abs(n));
 const cls = d => d < 0 ? "s" : d > 0 ? "o" : "k";
 const ckey = (loc, pos) => norm(loc) + "|" + nkey(pos);
@@ -771,7 +771,7 @@ async function runAccountTask(type, extra) {
 // القوايم المقفولة: العدد جنب العنوان (صفوف فيها بيانات بس، مش «مفيش»)
 document.querySelectorAll("[data-n]").forEach(n => {
   const tb = document.getElementById(n.dataset.n); if (!tb) return;
-  const upd = () => { const k = [...tb.rows].filter(r => !(r.cells.length === 1 && r.cells[0].colSpan > 1)).length; n.textContent = `(${k.toLocaleString("ar-EG")})`; };
+  const upd = () => { const k = [...tb.rows].filter(r => !(r.cells.length === 1 && r.cells[0].colSpan > 1)).length; n.textContent = `(${k.toLocaleString("en-US")})`; };
   new MutationObserver(upd).observe(tb, { childList: true }); upd();
 });
 ["w-q", "w-site"].forEach(id => document.getElementById(id)?.addEventListener("input", () => { document.querySelector('[data-fold="w-list"]').open = true; }));

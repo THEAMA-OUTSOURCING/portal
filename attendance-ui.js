@@ -3,7 +3,7 @@
 // بيقرا من الصفحة بس (اللي الكود الأصلي بيرسمه) ومش بيغيّر أي بيانات أو قرارات.
 (() => {
   const $ = id => document.getElementById(id);
-  const ar = n => Number(n || 0).toLocaleString("ar-EG");
+  const ar = n => Number(n || 0).toLocaleString("en-US");   // أرقام إنجليزي في كل البوابة (24 نوفمبر)
   const num = t => Number(String(t || "").replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).replace(/[^\d]/g, "")) || 0;
   const visible = el => el && !el.classList.contains("hidden");
   const watch = (el, fn, opts) => { if (!el) return; new MutationObserver(fn).observe(el, opts || { childList: true }); fn(); };
@@ -21,8 +21,8 @@
     const s2 = confirmed ? "done" : review ? "now" : "";
     const s3 = confirmed ? "done" : "";
     const st = (cls, n, t) => `<span class="st ${cls}"><i>${cls === "done" ? "✓" : n}</i>${t}</span>`;
-    box.innerHTML = st(s1, "١", "صوّر") + `<span class="ln ${hasPages ? "done" : ""}"></span>` +
-      st(s2, "٢", "راجع") + `<span class="ln ${confirmed ? "done" : ""}"></span>` + st(s3, "٣", "أكّد");
+    box.innerHTML = st(s1, "1", "صوّر") + `<span class="ln ${hasPages ? "done" : ""}"></span>` +
+      st(s2, "2", "راجع") + `<span class="ln ${confirmed ? "done" : ""}"></span>` + st(s3, "3", "أكّد");
   }
   watch($("pages"), steps);
   watch($("day-state"), steps, { attributes: true, attributeFilter: ["class"] });
