@@ -932,7 +932,7 @@ function wqCard(e) {
     e.status === "rejected" && e.decision_note && `سبب الرفض: ${e.decision_note}`,
     e.status === "returned" && `تم رده للمشرف: ${e.decision_note || WQ_RET[e.return_reason] || ""}`,
     e.completed_at && e.status !== "returned" && `المشرف استكمل (${wqDate(e.completed_at)}) — كان ناقص: ${WQ_RET[e.return_reason] || e.return_reason || ""}${e.completion_note ? "\nرد المشرف: " + e.completion_note : ""}`].filter(Boolean);
-  const src = e.source === "page" ? "" : e.source === "sharqia_attendance_2026_10" ? " — من حضور الشرقية 2 أكتوبر" : e.source === "excel" ? ` — من إكسيل ${e.company === "chipsy" ? "شيبسي" : e.company === "sharqia" ? "الشرقية" : "الإمداد"} (اكتب التليفون)` : " — من التعديلات القديمة";
+  const src = e.source === "page" ? "" : /^sharqia_attendance_\d{4}_\d{2}$/.test(e.source || "") ? ` — من حضور الشرقية 2 ${["يناير", "فبراير", "مارس", "ابريل", "مايو", "يونيو", "يوليو", "اغسطس", "سبتمبر", "اكتوبر", "نوفمبر", "ديسمبر"][+e.source.slice(-2) - 1] || ""}` : e.source === "excel" ? ` — من إكسيل ${e.company === "chipsy" ? "شيبسي" : e.company === "sharqia" ? "الشرقية" : "الإمداد"} (اكتب التليفون)` : " — من التعديلات القديمة";
   return `<div class="ev" data-wq="${esc(e.id)}">${img}
     <div class="bd">
       <div class="row" style="justify-content:space-between;align-items:center;"><span class="nm">${esc(e.name || e.code || "")}</span>
@@ -961,7 +961,7 @@ function wqCard(e) {
   </div>`;
 }
 function wqRow(e) {
-  const src = e.source === "page" ? "" : e.source === "sharqia_attendance_2026_10" ? " — من حضور الشرقية 2 أكتوبر" : e.source === "excel" ? ` — من إكسيل ${e.company === "chipsy" ? "شيبسي" : e.company === "sharqia" ? "الشرقية" : "الإمداد"} (اكتب التليفون)` : " — من التعديلات القديمة";
+  const src = e.source === "page" ? "" : /^sharqia_attendance_\d{4}_\d{2}$/.test(e.source || "") ? ` — من حضور الشرقية 2 ${["يناير", "فبراير", "مارس", "ابريل", "مايو", "يونيو", "يوليو", "اغسطس", "سبتمبر", "اكتوبر", "نوفمبر", "ديسمبر"][+e.source.slice(-2) - 1] || ""}` : e.source === "excel" ? ` — من إكسيل ${e.company === "chipsy" ? "شيبسي" : e.company === "sharqia" ? "الشرقية" : "الإمداد"} (اكتب التليفون)` : " — من التعديلات القديمة";
   return `<button type="button" class="wq-row ${WQ.sel === e.id ? "on" : ""}" data-wqopen="${esc(e.id)}">
     <div class="row" style="justify-content:space-between;align-items:center;gap:6px;"><span class="nm">${esc(e.name || e.code || "")}</span>
       <span>${wqTwins(e).length ? `<span class="pill s-error" title="نفس العامل عليه طلب تاني مفتوح">طلبين</span> ` : ""}<span class="pill t-${cls(e.kind)}">${WQ_KIND[e.kind] || esc(e.kind)}</span> <span class="pill s-${cls(e.status)}">${WQ_ST[e.status] || esc(e.status)}</span></span></div>
