@@ -1,6 +1,6 @@
 // page-report.js — سكريبت صفحة report.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { dTxt, cnt, overPlan, db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite, alignPlan, ask, compressPage, replacePage, replacedBy, wireStaffLogin, esc, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261124d';
-import { printOrder } from './sheet.js?v=20261124d';
+import { dTxt, cnt, overPlan, db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite, alignPlan, ask, compressPage, replacePage, replacedBy, wireStaffLogin, esc, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261124e';
+import { printOrder } from './sheet.js?v=20261124e';
 
 // مواقع الساعات: الإضافي النهاري والليلي (بالدقايق) على خانة اليوم — والوقت اللي محتاج مراجعة بيتعلّم ومايتحسبش
 const TB_TIP = "الوقت محتاج مراجعة — اليوم ده مش محسوب في الإضافي";

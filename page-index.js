@@ -1,5 +1,5 @@
 // page-index.js — سكريبت صفحة index.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { dTxt, serverNow, serverClock, db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from './shared.js?v=20261124d';
+import { dTxt, serverNow, serverClock, db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from './shared.js?v=20261124e';
 
 
 let loggedUser = null;
@@ -1102,19 +1102,32 @@ function cardType(stored, b){
 }
 // متصفحات الموبايل مش بتعرض PDF جوه iframe (بتطلع زرار تحميل/فتح بس)،
 // فبنرسم صفحات الـ PDF صور بـ pdf.js — تظهر على الموبايل والكمبيوتر، والعامل يقدر يضغط عليها مطوّلاً ويحفظها.
-const PDFJS_BASE = 'vendor/pdfjs-3.11.174/';   // من البوابة نفسها (مش من CDN) — ومعاه pdf.worker
+// pdf.js من البوابة نفسها (مش من CDN) — ومعاه pdf.worker.
+// 3.11 محتاج متصفح من 2022 وطالع (كروم 98 / آيفون iOS 15.4). الأقدم منه (كروم 80–97 / iOS 13.4–15.3 — أقل من كده البوابة
+// نفسها مابتشتغلش) بياخد 2.16 legacy، وكمان لو 3.11 مااشتغلش لأي سبب. الاتنين بنفس الحماية: isEvalSupported: false (تحت).
+const PDFJS = [
+  { base: 'vendor/pdfjs-3.11.174/', sri: 'sha384-OemFRmhjDZwhIKuUld0HJozkF2YErsgDaCL41trxGQZt4/WgnopJQqQl2DvDZ07Z' },
+  { base: 'vendor/pdfjs-2.16.105-legacy/', sri: 'sha384-4yF691FhcjEHOIvMawLtG8eeSDQblQ75ikYitzluB+3JNiohBa6FWD27H1s/iBoP' },
+];
+// متصفح حديث كفاية لـ 3.11؟ (الحاجات دي نزلت مع نفس الجيل: كروم 98 / سفاري 15.4)
+const modernJs = () => typeof Array.prototype.at === 'function' && typeof Object.hasOwn === 'function' && typeof window.structuredClone === 'function';
 let pdfjsReady = null;
-function loadPdfJs(){
-  if(window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
-  if(!pdfjsReady) pdfjsReady = new Promise((ok,fail)=>{
+function loadPdfJsFrom(v){
+  return new Promise((ok,fail)=>{
     const sc = document.createElement('script');
-    sc.src = PDFJS_BASE+'pdf.min.js';
-    sc.integrity = 'sha384-OemFRmhjDZwhIKuUld0HJozkF2YErsgDaCL41trxGQZt4/WgnopJQqQl2DvDZ07Z'; sc.crossOrigin = 'anonymous';   // لو الملف على الـ CDN اتغيّر مايشتغلش
+    sc.src = v.base+'pdf.min.js';
+    sc.integrity = v.sri; sc.crossOrigin = 'anonymous';   // لو الملف اتغيّر مايشتغلش
+    // ملف ماتقرّاش (متصفح قديم) بيخلّص تحميل من غير pdfjsLib
     sc.onload = ()=>{ if(!window.pdfjsLib){ fail(new Error('pdf.js')); return; }
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_BASE+'pdf.worker.min.js'; ok(window.pdfjsLib); };
-    sc.onerror = ()=>{ pdfjsReady = null; fail(new Error('pdf.js مااتحمّلش')); };
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = v.base+'pdf.worker.min.js'; ok(window.pdfjsLib); };
+    sc.onerror = ()=>fail(new Error('pdf.js مااتحمّلش'));
     document.head.appendChild(sc);
   });
+}
+function loadPdfJs(){
+  if(window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if(!pdfjsReady) pdfjsReady = (modernJs() ? loadPdfJsFrom(PDFJS[0]).catch(()=>loadPdfJsFrom(PDFJS[1])) : loadPdfJsFrom(PDFJS[1]))
+    .catch(e=>{ pdfjsReady = null; throw e; });
   return pdfjsReady;
 }
 async function renderCardPreview(preview, bytes, type, url){
