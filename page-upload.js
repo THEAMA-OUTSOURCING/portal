@@ -1,5 +1,5 @@
 // page-upload.js — سكريبت صفحة upload.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { dTxt, cnt, db, auth, actorEmail, fetchPlanBase, planBySite, alignPlan, nearWorkers, sameName, ask, wireStaffLogin, esc, doc, getDoc, getDocs, addDoc, collection, query, where, writeBatch, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261124e';
+import { dTxt, cnt, db, auth, actorEmail, fetchPlanBase, planBySite, alignPlan, nearWorkers, sameName, ask, wireStaffLogin, esc, serverNow, serverClock, doc, getDoc, getDocs, addDoc, collection, query, where, writeBatch, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261124e';
 import { detect, parseChipsy, parseEmdad, parseSharqia, emdadMonths, counts, COMPANY_LABEL, CHIPSY_PLAN, countsForPlan, chipsySections, trimOverPlan } from './xl-attendance.js?v=20261124e';
 
 const $ = id => document.getElementById(id);
@@ -47,6 +47,12 @@ async function run() {
     S.res = S.type === "chipsy" ? parseChipsy(S.wb, XLSX)
       : S.type === "sharqia" ? parseSharqia(S.wb, XLSX)
       : parseEmdad(S.wb, XLSX, $("e-month").value, Number($("e-year").value));
+    // أيام بعد النهارده مالهاش حضور لسه: بتتشال قبل أي حاجة (ملف شيبسي نوفمبر 2026 كان فيه 21–30 نوفمبر منسوخين من أكتوبر)
+    await serverClock;
+    const nowD = new Date(serverNow()), todayStr = nowD.getFullYear() + "-" + String(nowD.getMonth() + 1).padStart(2, "0") + "-" + String(nowD.getDate()).padStart(2, "0");
+    const future = Object.keys(S.res.days).filter(k => S.res.days[k].date > todayStr);
+    S.future = [...new Set(future.map(k => S.res.days[k].date))].sort();
+    future.forEach(k => delete S.res.days[k]);
     show($("f-msg"), "info", "بيقارن الأرقام القومية بالسجل...");
     await fixNids();
     S.trim = [];
@@ -58,9 +64,10 @@ async function run() {
       S.trim = trimOverPlan(S.res, s => CHIPSY_PLAN[s]);
     }
     const dates = Object.values(S.res.days).map(d => d.date).sort();
-    if (!dates.length) { $("preview").classList.add("hidden"); return show($("f-msg"), "warn", "مفيش أيام فيها حضور في الملف ده."); }
+    const futTxt = S.future.length ? ` — اتشال ${cnt(S.future.length, "يوم")} بعد النهارده (${dTxt(S.future[0])}${S.future.length > 1 ? " لـ " + dTxt(S.future[S.future.length - 1]) : ""}) ومش هيترفعوا` : "";
+    if (!dates.length) { $("preview").classList.add("hidden"); return show($("f-msg"), "warn", "مفيش أيام فيها حضور في الملف ده." + futTxt); }
     $("p-from").value = dates[0]; $("p-to").value = dates[dates.length - 1];
-    show($("f-msg"), "ok", `${COMPANY_LABEL[S.type]} — ${cnt(S.res.workers, "عامل")}` + (S.res.ignored ? ` (اتساب ${cnt(S.res.ignored, "سطر")} مش تبعنا: شركات تانية أو فرع MN)` : ""));
+    show($("f-msg"), "ok", `${COMPANY_LABEL[S.type]} — ${cnt(S.res.workers, "عامل")}` + (S.res.ignored ? ` (اتساب ${cnt(S.res.ignored, "سطر")} مش تبعنا: شركات تانية أو فرع MN)` : "") + futTxt);
     renderPreview();
   } catch (e) { show($("f-msg"), "err", e.message); }
 }
