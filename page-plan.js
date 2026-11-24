@@ -1,8 +1,8 @@
 // page-plan.js — سكريبت صفحة plan.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { db, auth, actorEmail, ATT_SITES, SUP_SITES, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions, wireStaffLogin, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, canOpen } from './shared.js?v=20261122g';
-import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261122g';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261122g';
-import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261122g';
+import { db, auth, actorEmail, ATT_SITES, SUP_SITES, isBasic, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions, wireStaffLogin, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, canOpen } from './shared.js?v=20261123a';
+import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261123a';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261123a';
+import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261123a';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====
@@ -836,11 +836,16 @@ function forceEv(kind, w, extra) {
   return { kind, status: "pending", source: "page", branch: w.site, site: w.site, name: w.name || "", ...extra,
     by: u.uid, by_email: actorEmail(u), created_at: serverTimestamp() };
 }
-// evs = [[ref, data]] — بيتكتبوا مع بعض، وبعدين الاعتماد لو اللى بعت HR (طلب الـ HR بيعتمده هو) — بيرجّع عدد اللي اتعتمد.
+// evs = [[ref, data, شيل؟]] — بيتكتبوا مع بعض، وبعدين الاعتماد لو اللى بعت HR (طلب الـ HR بيعتمده هو) — بيرجّع عدد اللي اتعتمد.
 // طلب الأدمن بيستنى الـ HR: مابيتعتمدش هنا، والـ Rules بترفض إن الأدمن يعتمد طلب هو اللى باعته.
+// الشيل من الكشف المطبوع (لو فيه) بيتكتب في نفس الدفعة مع طلبه — الـ Rules بتتأكد إن الطلب معاه
 async function sendForce(evs) {
   const u = auth.currentUser;
-  for (let i = 0; i < evs.length; i += 400) { const b = writeBatch(db); evs.slice(i, i + 400).forEach(([r, d]) => b.set(r, d)); await b.commit(); }
+  for (let i = 0; i < evs.length; i += 200) {
+    const b = writeBatch(db);
+    evs.slice(i, i + 200).forEach(([r, d, rm]) => { b.set(r, d); if (rm) b.set(rm[0], rm[1]); });
+    await b.commit();
+  }
   const mine = S.role === "hr" ? evs.filter(([, d]) => canDecideSite(d.branch)) : [];
   for (let i = 0; i < mine.length; i += 400) {
     const b = writeBatch(db);
@@ -859,6 +864,37 @@ function changeEv(w, type, job, site, from, note, reason) {
   if (job && job !== w.job) to.job = job;
   if (site && site !== w.site) to.site = site;
   return forceEv("change", w, { code, to, effective: from || today(), ...(note ? { note: note.slice(0, 300) } : {}) });
+}
+// [ref, data] للطلب، ومعاه الشيل من الكشف المطبوع لو التغيير بيطلّع العامل من كشف موقعه:
+// أساسي ← يومية / بديل راحات، أو نقل لموقع تاني. الاسم بيتشال على طول لحد قرار الـ HR (زي «شيل اسم» في صفحة الحضور)،
+// ولو الطلب اترفض أو اتلغى السيرفر بيرجّعه (record_events.py — الشيل مربوط بالطلب بـ event_id).
+// طلب الـ HR بيتم اعتماده على طول (sendForce)، فمالوش شيل. ولو الاسم متشال أصلاً مابيتشالش تاني.
+function forceItem(w, type, job, site, from, note, reason) {
+  const ref = doc(collection(db, "worker_events")), d = changeEv(w, type, job, site, from, note, reason);
+  if (d.kind !== "change" || !isBasic(w.type) || (S.role === "hr" && canDecideSite(d.branch))) return [ref, d];
+  const toType = d.to.type && !isBasic(d.to.type), toSite = !!d.to.site;
+  if (!toType && !toSite || (WS.rem || []).some(r => r.site === w.site && r.code === String(w.code))) return [ref, d];
+  d.roster_code = String(w.code);
+  const u = auth.currentUser;
+  return [ref, d, [doc(db, "sheet_removals", w.site + "__" + w.code), { site: w.site, code: String(w.code), name: w.name || "",
+    reason: toType ? "تغيير نوع" : "نقل لموقع تاني",
+    note: (toType ? `${typeLabel(w.type)} ← ${typeLabel(d.to.type)}` : `طلب نقل ← ${d.to.site}`) + " — مستني الـ HR",
+    event_id: ref.id, by: u.uid, by_email: actorEmail(u), at: serverTimestamp() }]];
+}
+// طلبات الخروج والتغيير المفتوحة (مستني / فيه خطأ / بيتنفذ) — عشان مايتبعتش طلبين متعارضين لنفس العامل
+const EV_OPEN = ["pending", "error", "approved"];
+const evDesc = e => e.kind === "leave" ? "خروج" : "تغيير " + Object.entries(e.to || {}).map(([k, v]) => ({ type: "النوع", job: "الوظيفة", site: "الموقع" }[k] || k) + " ← " + v).join("، ");
+async function openEvsOf(w) {
+  const code = recCode(w); if (!code) return [];
+  const snap = await getDocs(query(collection(db, "worker_events"), where("branch", "==", w.site), where("code", "==", code)));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(e => ["leave", "change"].includes(e.kind) && EV_OPEN.includes(e.status));
+}
+// كل الطلبات المفتوحة مرة واحدة (رفع الإكسيل) — {كود السجل: [طلبات]}
+async function openEvsAll() {
+  const c = collection(db, "worker_events"), out = {};
+  const snaps = await Promise.all(EV_OPEN.map(st => getDocs(S.scoped ? query(c, where("status", "==", st), where("branch", "in", W_SITES)) : query(c, where("status", "==", st)))));
+  snaps.forEach(sn => sn.forEach(d => { const e = d.data(); if (e.code && ["leave", "change"].includes(e.kind)) (out[e.code] = out[e.code] || []).push(e); }));
+  return out;
 }
 // رفض عامل جديد لسه بكود مؤقت: بيترفض طلب إضافته (الـ HR بس) — السيرفر بيشيله من الكشف ويبلّغ المشرف
 async function rejectNew(nw, why) {
@@ -1096,10 +1132,13 @@ function renderRem() {
     const rows = WS.rem || [];
     $("w-rem").innerHTML = rows.length ? rows.map(x => `<tr><td>${esc(x.name)}</td><td>${esc(x.code)}</td><td>${esc(x.site)}</td><td>${esc(x.reason)}${x.note ? `<div class="muted">${esc(x.note)}</div>` : ""}</td>
       <td class="muted">${esc(x.by_email || "")}</td><td>${WS.ovr[x.code]?.type === "مشي" ? `<span class="c-k">متسجل مشي</span>`
+        : chgRemoval(x) ? `<span class="muted">مستني الـ HR (${x.reason === "تغيير نوع" ? "تغيير نوع" : "نقل"})</span>`
         : newOf(x)?.status === "rejected" ? `<span class="c-k">اترفض واتشال</span>`
         : `<button class="btn sec small" data-left="${esc(x.code)}" data-rsite="${esc(x.site)}" data-rname="${esc(x.name)}">${!WS.base.some(w => w.code === x.code) && newOf(x) ? "ارفضه (اتضاف بالغلط)" : "سجّل إنه مشي"}</button>`}</td></tr>`).join("")
       : `<tr><td colspan="6" class="muted">مفيش.</td></tr>`;
 }
+// شيل مربوط بطلب تغيير (مش خروج): تغيير نوع، أو نقل لموقع تاني
+const chgRemoval = r => r.reason === "تغيير نوع" || String(r.note || "").startsWith("طلب نقل");
 function ficheDue(first) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(first || "")) return null;
   const d = new Date(first + "T00:00:00"); let n = 5;
@@ -1171,8 +1210,12 @@ $("w-rem")?.addEventListener("click", async e => {
     try { await rejectNew(nw, why); tell("اترفض."); } catch (err) { tell("ماتسجلش: " + err.message); }
     return;
   }
-  if (!await ask(`تسجل ${w.name} إنه مشي؟ (طلب خروج — السبب: اتشال من الكشف)`, { ok: "مشي", danger: true })) return;
   try {
+    const open = await openEvsOf(w);
+    if (open.some(e => e.kind === "leave")) return tell(`${w.name} عليه طلب خروج لسه مستني الـ HR — في «اعتماد الحالات ← طلبات القوة».`);
+    const ch = open.find(e => e.kind === "change");
+    if (!await ask((ch ? `${w.name} عليه طلب ${evDesc(ch)} لسه مستني الـ HR — لو مشي فعلاً، الـ HR يرفض طلب التغيير.\n\n` : "")
+      + `تسجل ${w.name} إنه مشي؟ (طلب خروج — السبب: اتشال من الكشف)`, { ok: "مشي", danger: true })) return;
     const n = await sendForce([[doc(collection(db, "worker_events")), changeEv(w, "مشي", w.job, w.site, today(), "اتشال من الكشف", "أخرى")]]);
     tell(n ? "اتسجل — السجل هيتحدّث خلال ثواني." : "طلب الخروج راح للـ HR يعتمده.");
   } catch (err) { tell("ماتسجلش: " + err.message); }
@@ -1287,7 +1330,14 @@ $("w-save")?.addEventListener("click", async () => {
   $("w-save").disabled = true;
   try {
     const force = !(type === w.type && job === w.job && site === w.site);
-    const n = force ? await sendForce([[doc(collection(db, "worker_events")), changeEv(w, type, job, site, $("w-from").value, $("w-note").value.trim(), $("w-reason").value)]]) : 0;
+    // طلب مفتوح لنفس العامل: خروج مستني ← مفيش تغيير ولا خروج تاني، وتغيير مستني ← مفيش تغيير تاني، والخروج بتنبيه
+    const open = force ? await openEvsOf(w) : [];
+    const lv = open.find(e => e.kind === "leave"), ch = open.find(e => e.kind === "change");
+    if (lv || (ch && type !== "مشي")) { $("w-save").disabled = false;
+      return show($("w-msg"), "err", `${w.name} عليه طلب ${evDesc(lv || ch)} لسه مستني الـ HR — استنى قراره، أو عدّله أو ارفضه من «اعتماد الحالات ← طلبات القوة».`); }
+    if (ch && !await ask(`${w.name} عليه طلب ${evDesc(ch)} لسه مستني الـ HR.\nلو مشي فعلاً كمّل، والـ HR يرفض طلب التغيير.`, { ok: "ابعت الخروج", danger: true })) { $("w-save").disabled = false; return; }
+    const item = force ? forceItem(w, type, job, site, $("w-from").value, $("w-note").value.trim(), $("w-reason").value) : null;
+    const n = force ? await sendForce([item]) : 0;
     let secMsg = "";
     if (secNew) {   // القسم: على طول في «ترتيب الكشف» (مش طلب قوة)
       const u = auth.currentUser;
@@ -1296,7 +1346,8 @@ $("w-save")?.addEventListener("click", async () => {
         delete W_ORD[site]; secMsg = ` القسم بقى «${secNew}».`;
       } catch (er) { secMsg = ` بس القسم ماتحفظش (${er.code === "permission-denied" ? "مش مسموح للحساب ده" : er.message}) — حدده من «ترتيب الكشف».`; }
     }
-    show($("w-msg"), secMsg.includes("ماتحفظش") ? "warn" : "ok", (!force ? "تم." : n ? "تم الاعتماد — السجل والكشف هيتحدّثوا خلال ثواني." : "اتبعت للـ HR يعتمده (في «اعتماد الحالات ← طلبات القوة»).") + secMsg);
+    show($("w-msg"), secMsg.includes("ماتحفظش") ? "warn" : "ok", (!force ? "تم." : n ? "تم الاعتماد — السجل والكشف هيتحدّثوا خلال ثواني."
+      : "اتبعت للـ HR يعتمده (في «اعتماد الحالات ← طلبات القوة»)." + (item?.[2] ? " واسمه اتشال من الكشف المطبوع لحد قرار الـ HR — لو اترفض هيرجع." : "")) + secMsg);
     setTimeout(() => $("w-form").classList.add("hidden"), 1500);
   } catch (err) { show($("w-msg"), "err", "ماتحفظش: " + (err.code === "permission-denied" ? "مش مسموح للحساب ده." : err.message)); }
   $("w-save").disabled = false;
@@ -1325,6 +1376,7 @@ $("w-file")?.addEventListener("change", async e => {
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "", raw: false });
     const col = (r, ...names) => { for (const n of names) { const k = Object.keys(r).find(k => norm(k) === n); if (k !== undefined && norm(r[k])) return norm(r[k]); } return ""; };
     const byCode = Object.fromEntries(WS.base.map(w => [String(w.code).toUpperCase(), w]));
+    const openAll = await openEvsAll();   // العامل اللي عليه طلب خروج أو تغيير مستني: سطره مابيتبعتش
     const problems = []; let same = 0;
     rows.forEach((r, i) => {
       let code = col(r, "الكود", "كود الموظف", "code").toUpperCase();
@@ -1357,6 +1409,8 @@ $("w-file")?.addEventListener("change", async e => {
       if (type !== "مشي" && type !== cur.type && !typeOk(site, type)) { problems.push(`سطر ${i + 2}: ${typeErr(site)}`); return; }
       if (type !== "مشي" && (job !== cur.job || site !== cur.site) && !jobOk(site, job)) { problems.push(`سطر ${i + 2}: الوظيفة "${job}" مش من قايمة الوظايف`); return; }
       if (type === cur.type && job === cur.job && site === cur.site) { same++; return; }
+      const op = (openAll[recCode(w)] || [])[0];
+      if (op) { problems.push(`سطر ${i + 2}: ${w.code} ${w.name} — عليه طلب ${evDesc(op)} لسه مستني الـ HR`); return; }
       WS.pending.push({ w, cur, type, job, site, from: col(r, "ساري من") || today(), note: col(r, "ملاحظة") });
     });
     // عمال على نفس المواقع في البوابة ومش في الشيت (مش بيتغيروا، للمعلومة بس)
@@ -1387,9 +1441,10 @@ $("w-apply")?.addEventListener("click", async () => {
       b.set(evRef, forceEv("hire", { site: n.site, name: n.name }, { nid: n.nid, phone: n.phone, job: n.job, type: n.type, first_day: today() }));
       await b.commit();
     }
-    const evs = WS.pending.map(p => [doc(collection(db, "worker_events")), changeEv(p.cur, p.type, p.job, p.site, p.from, p.note, "أخرى")]);
-    const nOk = await sendForce(evs);
+    const evs = WS.pending.map(p => forceItem(p.cur, p.type, p.job, p.site, p.from, p.note, "أخرى"));
+    const nOk = await sendForce(evs), nOff = evs.filter(x => x[2]).length;
     show($("w-up-msg"), "ok", `اتبعت ${fmt(WS.pending.length)} تعديل و${fmt(WS.pendingNew.length)} عامل جديد للـ HR` + (nOk ? ` — منهم ${fmt(nOk)} تعديل تم اعتماده على طول.` : ".")
+      + (nOff ? ` و${fmt(nOff)} اسم اتشال من الكشف المطبوع لحد قرار الـ HR (أساسي اتحوّل يومية/بديل أو اتنقل).` : "")
       + " الجداد بيظهروا في «اعتماد الحالات ← طلبات القوة».");
     WS.pending = []; WS.pendingNew = []; $("w-preview").classList.add("hidden"); $("w-file").value = "";
   } catch (err) { show($("w-up-msg"), "err", "ماتحفظش: " + err.message); }

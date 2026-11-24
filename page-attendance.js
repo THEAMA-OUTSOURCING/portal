@@ -1,7 +1,7 @@
 // page-attendance.js — سكريبت صفحة attendance.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { cnt, db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, hasRestSubs, typeOk, typeErr, typeSelect, jobOk, jobOptions, isBasic, nearWorkers, nameParts, ask, tell, compressPage, replacePage, replacedBy, wireStaffLogin, esc, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261122g';
-import { openPrintView, openOrderEditor, printOrder, secsForJob, secOptions } from './sheet.js?v=20261122g';
-import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261122g';
+import { cnt, db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, hasRestSubs, typeOk, typeErr, typeSelect, jobOk, jobOptions, isBasic, nearWorkers, nameParts, ask, tell, compressPage, replacePage, replacedBy, wireStaffLogin, esc, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261123a';
+import { openPrintView, openOrderEditor, printOrder, secsForJob, secOptions } from './sheet.js?v=20261123a';
+import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261123a';
 
 
 const $ = id => document.getElementById(id);
@@ -1307,7 +1307,17 @@ $("m-remove-save").addEventListener("click", async () => {
   const resign = resignOn();
   if (resign && !RS.img) return show($("m-msg"), "err", "صوّر الاستقالة الأول.");
   if (resign && !/^\d{14}$/.test(String(w.nid || ""))) return show($("m-msg"), "err", "الرقم القومي للعامل ده ناقص في الكشف — ابعت الاستقالة للإدارة.");
-  if (!await ask(`تشيل ${w.name} من الكشف؟ (السبب: ${$("m-reason").value})`, { ok: "شيله", danger: true })) return;
+  const tcode = w.tcode || (/^T\d+$/.test(code) ? code : "");
+  // طلب مفتوح لنفس العامل: خروج مستني ← الشيل بيتربط بيه (مفيش طلب خروج تاني)، وتغيير مستني ← تنبيه
+  let open = [];
+  if (tcode) { try { open = await openEvents(tcode); } catch (e) { return show($("m-msg"), "err", "مش قادر أتأكد من طلبات العامل: " + e.message); } }
+  const lvOpen = open.find(e => e.kind === "leave" && e.status === "pending" && e.roster_code === code);
+  const chOpen = open.find(e => e.kind === "change");
+  if (open.some(e => e.kind === "leave") && !lvOpen) return show($("m-msg"), "err", `${w.name} عليه طلب خروج لسه مستني الـ HR.`);
+  const q = lvOpen ? `${w.name} عليه طلب خروج مستني الـ HR من قبل كده. تشيله من الكشف لحد قرار الـ HR؟ (مفيش طلب تاني هيتبعت)`
+    : chOpen ? `${w.name} عليه طلب تغيير (${evDesc(chOpen)}) لسه مستني الـ HR.\nلو مشي فعلاً كمّل، والـ HR يرفض طلب التغيير.\nلو عايز تغيّر نوعه أو وظيفته بس، ماتشيلوش.\n\nتشيله من الكشف؟ (السبب: ${$("m-reason").value})`
+    : `تشيل ${w.name} من الكشف؟ (السبب: ${$("m-reason").value})`;
+  if (!await ask(q, { ok: "شيله", danger: true })) return;
   const u = auth.currentUser;
   try {
     // الاستقالة الأول: لو الصورة مارفعتش، الاسم ميتشالش
@@ -1315,11 +1325,10 @@ $("m-remove-save").addEventListener("click", async () => {
       uploaded_by: u.uid, uploaded_email: actorEmail(u), status: "pending", created_at: serverTimestamp() });
     // الاسم بيتشال من الكشف المطبوع على طول، والخروج نفسه بيروح طلب للـ HR يعتمده (لو اترفض بيرجع للكشف)
     const reason = $("m-reason").value, note = $("m-note").value.trim();
-    const bt = writeBatch(db), evRef = doc(collection(db, "worker_events"));
-    const tcode = w.tcode || (/^T\d+$/.test(code) ? code : "");
+    const bt = writeBatch(db), evRef = lvOpen ? doc(db, "worker_events", lvOpen.id) : doc(collection(db, "worker_events"));
     bt.set(doc(db, "sheet_removals", S.site + "__" + code), { site: S.site, code, name: w.name, reason,
       note, ...(tcode ? { event_id: evRef.id } : {}), by: u.uid, by_email: actorEmail(u), at: serverTimestamp() });
-    if (tcode) bt.set(evRef, { kind: "leave", status: "pending", source: "page", branch: S.site, site: S.site,
+    if (tcode && !lvOpen) bt.set(evRef, { kind: "leave", status: "pending", source: "page", branch: S.site, site: S.site,
       code: tcode, roster_code: code, name: w.name, nid: String(w.nid || ""), job: w.job || "", type: w.type || "",
       left_date: ymd(new Date()), reason, ...(note ? { note: note.slice(0, 300) } : {}),
       by: u.uid, by_email: actorEmail(u), created_at: serverTimestamp() });
@@ -1327,19 +1336,22 @@ $("m-remove-save").addEventListener("click", async () => {
     // عامل جديد لسه بكود مؤقت: طلب إضافته (لو المشرف ده اللي بعته) بيتلغي
     if (!tcode && w.nid) await cancelMine("hire", "nid", String(w.nid));
     show($("m-msg"), "ok", (resign ? "اتشال، وصورة الاستقالة اترفعت." : "اتشال.")
-      + (tcode ? " طلب الخروج راح للـ HR يعتمده — لو اترفض هيرجع للكشف." : "") + " الكشف هيتحدّث خلال ثواني.");
+      + (lvOpen ? " طلب الخروج اللي كان مستني هو اللي هيتقرر — لو اترفض هيرجع للكشف." : tcode ? " طلب الخروج راح للـ HR يعتمده — لو اترفض هيرجع للكشف." : "") + " الكشف هيتحدّث خلال ثواني.");
     RS.img = null; $("m-resign-img").classList.add("hidden"); $("m-note").value = ""; $("m-q").value = ""; rmPick(""); $("m-remove-form").classList.add("hidden");
   } catch (err) { show($("m-msg"), "err", "ماتشالش: " + err.message); }
 });
 $("m-removed").addEventListener("click", async e => {
   const id = e.target.dataset.restore; if (!id) return;
   const nm = e.target.closest("div")?.querySelector("b")?.textContent || "العامل ده";
-  if (!(await ask(`ترجّع ${nm} للكشف؟ الشيل هيتلغي.`, { ok: "رجّعه" }))) return;
+  const r = S.removals.find(x => x.id === id) || {}, chg = chgRemoval(r), what = chg ? "طلب التغيير" : "طلب الخروج";
+  if (!(await ask(`ترجّع ${nm} للكشف؟ الشيل هيتلغي${chg ? "، و" + what + " هيتلغي لو انت اللي باعته" : ""}.`, { ok: "رجّعه" }))) return;
   try {
     await deleteDoc(doc(db, "sheet_removals", id));
-    // طلب الخروج المستني بيتلغي (لو المشرف ده اللي بعته)، غير كده الـ HR يرفضه
-    const n = await cancelMine("leave", "roster_code", id.split("__").slice(1).join("__"));
-    show($("m-msg"), "ok", n ? "رجع للكشف، وطلب الخروج اتلغى." : "رجع للكشف. لو كان فيه طلب خروج مستني من حد تاني، بلّغ الـ HR يرفضه.");
+    // الطلب المربوط بالشيل (خروج أو تغيير) بيتلغي لو الحساب ده اللي بعته، غير كده الـ HR يقرر فيه
+    const n = r.event_id ? await cancelEvent(r.event_id) : await cancelMine("leave", "roster_code", id.split("__").slice(1).join("__"));
+    show($("m-msg"), "ok", n ? `رجع للكشف، و${what} اتلغى.`
+      : chg ? "رجع للكشف. طلب التغيير لسه مستني الـ HR — لو تم الاعتماد، الاسم هيتشال من الكشف تاني."
+      : "رجع للكشف. لو كان فيه طلب خروج مستني من حد تاني، بلّغ الـ HR يرفضه.");
   }
   catch (err) { show($("m-msg"), "err", "مارجعش: " + err.message); }
 });
@@ -1393,19 +1405,29 @@ $("mt-save").addEventListener("click", async () => {
   if (!type || type === w.typeNow) return show($("m-msg"), "err", "اختار نوع غير نوعه الحالي.");
   if (!typeOk(S.site, type)) return show($("m-msg"), "err", typeErr(S.site));
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) return show($("m-msg"), "err", "اختار التاريخ.");
-  if (!await ask(`تبعت طلب تغيير نوع ${w.name} من «${w.typeNow}» لـ «${type}» من ${from}؟\nالنوع مش هيتغير غير بعد ما الـ HR يعتمد الطلب.`, { ok: "ابعت للـ HR" })) return;
+  // أساسي على الكشف ← يومية / بديل راحات: الاسم بيتشال من الكشف المطبوع على طول لحد قرار الـ HR (زي «شيل اسم»)،
+  // ولو الطلب اترفض أو اتلغى السيرفر بيرجّعه للكشف (record_events.py — الشيل مربوط بالطلب بـ event_id)
+  const row = S.rosterNow.find(x => mtCode(x) === tc);
+  const offSheet = !!row && isBasic(row.type) && !isBasic(type) && !S.removals.some(r => r.code === row.code);
+  if (!await ask(`تبعت طلب تغيير نوع ${w.name} من «${w.typeNow}» لـ «${type}» من ${from}؟\n`
+    + (offSheet ? "اسمه هيتشال من الكشف المطبوع لحد ما الـ HR يقرر — لو اترفض هيرجع للكشف." : "النوع مش هيتغير غير بعد ما الـ HR يعتمد الطلب."), { ok: "ابعت للـ HR" })) return;
   $("mt-save").disabled = true;
   try {
-    // طلب تغيير مفتوح لنفس العامل: مانبعتش تاني
-    const snap = await getDocs(query(collection(db, "worker_events"), where("branch", "==", S.site), where("code", "==", tc)));
-    const open = snap.docs.map(d => d.data()).find(e => e.kind === "change" && e.to?.type && ["pending", "approved", "error"].includes(e.status));
-    if (open) { $("mt-save").disabled = false; return show($("m-msg"), "err", `فيه طلب تغيير نوع لـ ${w.name} لسه مستني الـ HR (← ${open.to.type}).`); }
-    const u = auth.currentUser;
-    await addDoc(collection(db, "worker_events"), { kind: "change", status: "pending", source: "page", branch: S.site, site: S.site,
-      code: tc, name: w.name || "", nid: String(w.nid || ""), job: w.job || "", type: w.typeNow,
+    // طلب مفتوح لنفس العامل (تغيير أو خروج): مانبعتش تاني
+    const open = await openEvents(tc);
+    const ch = open.find(e => e.kind === "change" && e.to?.type), lv = open.find(e => e.kind === "leave");
+    if (ch || lv) { $("mt-save").disabled = false; return show($("m-msg"), "err", ch ? `فيه طلب تغيير نوع لـ ${w.name} لسه مستني الـ HR (← ${ch.to.type}).`
+      : `فيه طلب خروج لـ ${w.name} لسه مستني الـ HR — لو لسه شغال، الـ HR لازم يرفض طلب الخروج الأول.`); }
+    const u = auth.currentUser, bt = writeBatch(db), evRef = doc(collection(db, "worker_events"));
+    bt.set(evRef, { kind: "change", status: "pending", source: "page", branch: S.site, site: S.site,
+      code: tc, ...(offSheet ? { roster_code: row.code } : {}), name: w.name || "", nid: String(w.nid || ""), job: w.job || "", type: w.typeNow,
       to: { type }, effective: from, ...(note ? { note: note.slice(0, 300) } : {}),
       by: u.uid, by_email: actorEmail(u), created_at: serverTimestamp() });
-    show($("m-msg"), "ok", `طلب تغيير نوع ${w.name} لـ «${type}» راح للـ HR. هيتنفذ بعد ما يتم الاعتماد، وهتلاقيه في طلباتك.`);
+    if (offSheet) bt.set(doc(db, "sheet_removals", S.site + "__" + row.code), { site: S.site, code: row.code, name: w.name || "",
+      reason: "تغيير نوع", note: `${w.typeNow} ← ${type} — مستني الـ HR`, event_id: evRef.id, by: u.uid, by_email: actorEmail(u), at: serverTimestamp() });
+    await bt.commit();
+    show($("m-msg"), "ok", offSheet ? `طلب تغيير نوع ${w.name} لـ «${type}» راح للـ HR، واسمه اتشال من الكشف المطبوع. لو اترفض هيرجع للكشف. الكشف هيتحدّث خلال ثواني.`
+      : `طلب تغيير نوع ${w.name} لـ «${type}» راح للـ HR. هيتنفذ بعد ما يتم الاعتماد، وهتلاقيه في طلباتك.`);
     $("m-type-form").classList.add("hidden"); mtPick("");
   } catch (err) {
     show($("m-msg"), "err", "مااتبعتش: " + (err.code === "permission-denied" ? "مش مسموح — يمكن العامل مش «شغال» في السجل أو مش تبع الموقع ده." : err.message));
@@ -1509,6 +1531,24 @@ async function cancelMine(kind, field, value) {
   }
   return n;
 }
+// إلغاء طلب واحد بعينه (الطلب المربوط بالشيل) لو الحساب ده اللي بعته ولسه مستني — بيرجّع 1 أو 0
+async function cancelEvent(id) {
+  try {
+    const d = await getDoc(doc(db, "worker_events", id)), e = d.exists() ? d.data() : null;
+    if (!e || e.status !== "pending" || e.source !== "page" || e.by !== auth.currentUser.uid) return 0;
+    await updateDoc(d.ref, { status: "cancelled", cancelled_at: serverTimestamp() });
+    return 1;
+  } catch (e) { return 0; }
+}
+// طلبات الخروج والتغيير المفتوحة لعامل (بكود السجل T) في الموقع ده — عشان مايتبعتش طلبين متعارضين لنفس العامل
+const EV_OPEN = ["pending", "error", "approved"];
+async function openEvents(tcode) {
+  const snap = await getDocs(query(collection(db, "worker_events"), where("branch", "==", S.site), where("code", "==", tcode)));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(e => ["leave", "change"].includes(e.kind) && EV_OPEN.includes(e.status));
+}
+const evDesc = e => e.kind === "leave" ? "خروج" : Object.entries(e.to || {}).map(([k, v]) => ({ type: "النوع", job: "الوظيفة", site: "الموقع" }[k] || k) + " ← " + v).join("، ");
+// شيل مربوط بطلب تغيير (مش خروج): تغيير نوع، أو نقل لموقع تاني من «بيانات العمال»
+const chgRemoval = r => r.reason === "تغيير نوع" || String(r.note || "").startsWith("طلب نقل");
 // ===== طلب إضافة للـ HR (السجل الموحد) =====
 // العامل الجديد بيظهر على الكشف بكود مؤقت (new_workers) لحد ما الـ HR يعتمد ويطلع له كود T
 const PHONE_RE = /^01[0125][0-9]{8}$/;

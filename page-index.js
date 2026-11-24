@@ -1,5 +1,5 @@
 // page-index.js — سكريبت صفحة index.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { serverNow, serverClock, db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from './shared.js?v=20261122g';
+import { serverNow, serverClock, db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from './shared.js?v=20261123a';
 
 
 let loggedUser = null;

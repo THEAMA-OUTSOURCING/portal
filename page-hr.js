@@ -1,6 +1,6 @@
 // page-hr.js — سكريبت صفحة hr.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask, typeOk, typeErr, jobsFor, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261122g';
-import { secsForJob, secOptions } from './sheet.js?v=20261122g';
+import { db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask, typeOk, typeErr, jobsFor, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261123a';
+import { secsForJob, secOptions } from './sheet.js?v=20261123a';
 const $ = id => document.getElementById(id);
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
 const TY = { sick: "مرضي", leave: "إجازة", resign: "استقالة" };
@@ -907,6 +907,17 @@ function wqFields(e, edit) {
   }
   return `<div class="wq-f">${out.join("")}</div>`;
 }
+// طلب تاني مفتوح لنفس العامل (خروج / تغيير): نفس كود السجل، ومش مرتجع للمشرف
+const wqTwins = e => (e.kind === "leave" || e.kind === "change") && e.code && ["pending", "error", "approved"].includes(e.status)
+  ? [...WQ.open.values()].filter(x => x.id !== e.id && x.code === e.code && (x.kind === "leave" || x.kind === "change") && x.status !== "returned") : [];
+function wqTwinNote(e) {
+  const t = wqTwins(e); if (!t.length) return "";
+  const kinds = new Set([e.kind, ...t.map(x => x.kind)]);
+  const list = t.map(x => `${WQ_KIND[x.kind]} (${WQ_ST[x.status] || x.status}، ${wqDate(x.created_at)})`).join("، ");
+  return `نفس العامل عليه طلب تاني مفتوح: ${list}.\n` + (kinds.has("leave") && kinds.has("change")
+    ? "لو لسه شغال: اعتمد التغيير وارفض الخروج. لو مشي فعلاً: اعتمد الخروج وارفض التغيير."
+    : "اعتمد واحد بس منهم وارفض التاني.");
+}
 // طلب الأدمن بيستنى الـ HR: الأدمن مايعتمدش طلب هو اللى باعته (الـ Rules بترفضه) — زرار «اعتماد» بيتشال من طلباته
 const wqOwn = e => WQ.role === "admin" && !!e.by && e.by === WQ.uid;
 function wqCard(e) {
@@ -914,7 +925,7 @@ function wqCard(e) {
   const retEdit = !VIEW && e.status === "returned";   // المشرف ماستكملش: الـ HR يقدر يرفضه نهائي
   const img = e.kind === "hire" ? `<div class="ph" style="height:170px;" ${e.card_img ? `data-wqzoom="${esc(e.id)}"` : ""}>${e.card_img
     ? `<img src="${esc(e.card_img)}" alt="البطاقة">` : `<span class="muted">${e.check_id ? "صورة البطاقة اتحفظت على سيرفر الشركة" : "من غير بطاقة"}</span>`}</div>` : "";
-  const notes = [e.note && `ملاحظة: ${e.note}`, e.status === "error" && e.error && `السيرفر: ${e.error}`,
+  const notes = [edit && wqTwinNote(e), e.note && `ملاحظة: ${e.note}`, e.status === "error" && e.error && `السيرفر: ${e.error}`,
     e.status === "rejected" && e.decision_note && `سبب الرفض: ${e.decision_note}`,
     e.status === "returned" && `تم رده للمشرف: ${e.decision_note || WQ_RET[e.return_reason] || ""}`,
     e.completed_at && e.status !== "returned" && `المشرف استكمل (${wqDate(e.completed_at)}) — كان ناقص: ${WQ_RET[e.return_reason] || e.return_reason || ""}${e.completion_note ? "\nرد المشرف: " + e.completion_note : ""}`].filter(Boolean);
@@ -950,7 +961,7 @@ function wqRow(e) {
   const src = e.source === "page" ? "" : e.source === "sharqia_attendance_2026_10" ? " — من حضور الشرقية 2 أكتوبر" : e.source === "excel" ? ` — من إكسيل ${e.company === "chipsy" ? "شيبسي" : e.company === "sharqia" ? "الشرقية" : "الإمداد"} (اكتب التليفون)` : " — من التعديلات القديمة";
   return `<button type="button" class="wq-row ${WQ.sel === e.id ? "on" : ""}" data-wqopen="${esc(e.id)}">
     <div class="row" style="justify-content:space-between;align-items:center;gap:6px;"><span class="nm">${esc(e.name || e.code || "")}</span>
-      <span><span class="pill t-${cls(e.kind)}">${WQ_KIND[e.kind] || esc(e.kind)}</span> <span class="pill s-${cls(e.status)}">${WQ_ST[e.status] || esc(e.status)}</span></span></div>
+      <span>${wqTwins(e).length ? `<span class="pill s-error" title="نفس العامل عليه طلب تاني مفتوح">طلبين</span> ` : ""}<span class="pill t-${cls(e.kind)}">${WQ_KIND[e.kind] || esc(e.kind)}</span> <span class="pill s-${cls(e.status)}">${WQ_ST[e.status] || esc(e.status)}</span></span></div>
     <div class="muted">${esc(e.site || e.branch || "")}${e.branch && e.branch !== e.site ? " — " + esc(e.branch) : ""} — ${wqDate(e.created_at)}${src}</div></button>`;
 }
 function wqRender() {

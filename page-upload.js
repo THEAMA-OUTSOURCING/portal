@@ -1,6 +1,6 @@
 // page-upload.js — سكريبت صفحة upload.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { cnt, db, auth, actorEmail, fetchPlanBase, planBySite, alignPlan, nearWorkers, sameName, ask, wireStaffLogin, esc, doc, getDoc, getDocs, addDoc, collection, query, where, writeBatch, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261122g';
-import { detect, parseChipsy, parseEmdad, parseSharqia, emdadMonths, counts, COMPANY_LABEL, CHIPSY_PLAN, countsForPlan, chipsySections, trimOverPlan } from './xl-attendance.js?v=20261122g';
+import { cnt, db, auth, actorEmail, fetchPlanBase, planBySite, alignPlan, nearWorkers, sameName, ask, wireStaffLogin, esc, doc, getDoc, getDocs, addDoc, collection, query, where, writeBatch, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261123a';
+import { detect, parseChipsy, parseEmdad, parseSharqia, emdadMonths, counts, COMPANY_LABEL, CHIPSY_PLAN, countsForPlan, chipsySections, trimOverPlan } from './xl-attendance.js?v=20261123a';
 
 const $ = id => document.getElementById(id);
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
