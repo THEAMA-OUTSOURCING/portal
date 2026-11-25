@@ -2004,19 +2004,32 @@ $("lv-q").addEventListener("input", renderLvHits);
 $("lv-hits").addEventListener("click", e => { const b = e.target.closest("[data-lvpick]"); if (b) lvPick(b.dataset.lvpick); });
 $("lv-picked").addEventListener("click", e => { if (e.target.closest("[data-lvclear]")) { lvPick(""); $("lv-q").focus(); } });
 // نفس العامل في أيام متداخلة مع طلب تاني لسه شغال أو تم اعتماده
+const lvPrevDay = d => { const x = new Date(d + "T00:00"); x.setDate(x.getDate() - 1); return ymd(x); };
 function lvOverlap(w, f, t) {
   return LV.list.find(e => e.status !== "rejected" && ((w.nid && e.nid === w.nid) || String(e.code) === String(w.code)) && e.from <= t && (e.to || e.from) >= f);
 }
 function lvCheck() {
-  const f = $("lv-from").value, t = $("lv-to").value;
+  let f = $("lv-from").value;
+  const t = $("lv-to").value;
   let err = "";
   if (!f || !t) err = "حدد من ولحد";
   else if (t < f) err = "«لحد» قبل «من»";
   // الإجازة والمرضي وإصابة العمل للأساسي بس (بيبسي وشيبسي والإمداد) — اليومية وبدايل الراحات لأ
   else if (LV.who && !isBasic(LV.who.type)) err = "الإجازة والمرضي للأساسي بس — العامل ده مش أساسي";
+  let ov = !err && LV.who ? lvOverlap(LV.who, f, t) : null, moved = null;
+  // طلب بيبدأ جوه طلب قبله وبيكمّل بعده (مرضي 19–21 وبعده 21–23): «من» بتتنقل لليوم اللي بعد آخر يوم في القديم (22)
+  // عشان اليوم مايتحسبش مرتين. لو الطلب كله جوه القديم، أو بيبدأ قبله، بيفضل مقفول (مكرر).
+  for (let i = 0; ov && i < 5; i++) {
+    const end = ov.to || ov.from;
+    if (!(ov.from <= f && end < t)) break;
+    const x = new Date(end + "T00:00"); x.setDate(x.getDate() + 1);
+    moved = moved ? { ...moved, n: moved.n + 1 } : { from: f, ov, n: 1 };
+    f = ymd(x); $("lv-from").value = f;
+    ov = lvOverlap(LV.who, f, t);
+  }
   $("lv-days").textContent = err || `${cnt(lvWorkDays(f, t), "يوم")} (الجمعة مش بتتحسب)`;
-  const ov = !err && LV.who ? lvOverlap(LV.who, f, t) : null;
   if (ov) show($("lv-m"), "warn", `فيه طلب تاني لنفس العامل في الأيام دي (${lvTyTxt(ov)} من ${dTxt(ov.from)} لحد ${dTxt(ov.to)} — ${(LV_ST[ov.status] || [ov.status])[0]}).`);
+  else if (moved) show($("lv-m"), "warn", `${moved.from === lvPrevDay(f) ? "يوم " + dTxt(moved.from) : "من " + dTxt(moved.from) + " لحد " + dTxt(lvPrevDay(f))} متسجل في ${moved.n > 1 ? cnt(moved.n, "طلب") + " قبل كده" : `طلب قبل كده (${lvTyTxt(moved.ov)} من ${dTxt(moved.ov.from)} لحد ${dTxt(moved.ov.to || moved.ov.from)})`}، فالطلب ده هيبدأ من ${dTxt(f)}.`);
   else if ($("lv-m").classList.contains("warn")) hide($("lv-m"));
   const inj = $("lv-type").value === "injury";
   $("lv-send").disabled = !!err || !LV.who || !LV.img || (inj && !lvIsExt() && !LV.pages.length) || !!ov;
