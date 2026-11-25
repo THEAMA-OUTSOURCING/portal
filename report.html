@@ -42,6 +42,7 @@ label.f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:#6b6b6b;
 .tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
 .tab{padding:8px 14px;border:1px solid #ddd;background:#fff;border-radius:999px;cursor:pointer;}
 .tab[aria-selected=true]{background:#2b2b2b;color:#fff;border-color:#2b2b2b;}
+.btns{display:flex;gap:10px;flex-wrap:nowrap;} /* و10: «طباعة» و«إكسيل» مع بعض، مايتفرقوش على سطرين */
 .msg{padding:9px 12px;border-radius:9px;font-size:13px;margin-top:10px;display:none;white-space:pre-line;}
 .msg.show{display:block;} .msg.ok{background:#eaf3de;color:#3b6d11;} .msg.err{background:#fcebeb;color:#a32d2d;} .msg.warn{background:#fff5de;color:#8a5a10;} .msg.info{background:#eef4fb;color:#185fa5;}
 .hidden{display:none !important;}
@@ -91,7 +92,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
 th{background:#1d2024;}
 @media(max-width:600px){
  .tbl{max-height:65vh;}
- td.nm{white-space:normal;min-width:130px;max-width:170px;line-height:1.35;font-size:12.5px;}
+ table{font-size:13px;} th,td{padding:4px 6px;}
+ .row>.btns{flex:1 1 100%;} .btns>.btn{flex:1 1 0;}
+ td.nm{white-space:normal;min-width:130px;max-width:170px;line-height:1.35;font-size:13px;}
 }
 }
 </style>
@@ -129,11 +132,11 @@ th{background:#1d2024;}
       <div class="row"><button class="btn sec small" id="logout">خروج</button></div>
     </div>
     <nav id="pnav" class="pnav" aria-label="صفحات البوابة"></nav>
-    <div class="tabs noprint">
-      <button class="tab" data-tab="report" aria-selected="true">التقرير الشهري</button>
-      <button class="tab hidden" data-tab="approve" aria-selected="false" id="tab-approve">اعتماد الحضور</button>
-      <button class="tab hidden" data-tab="holidays" aria-selected="false" id="tab-hol">العطلات</button>
-      <button class="tab hidden" data-tab="fp" aria-selected="false" id="tab-fp">تصدير البصمة</button>
+    <div class="tabs noprint" role="tablist">
+      <button class="tab" role="tab" data-tab="report" aria-selected="true">التقرير الشهري</button>
+      <button class="tab hidden" role="tab" data-tab="approve" aria-selected="false" id="tab-approve">اعتماد الحضور</button>
+      <button class="tab hidden" role="tab" data-tab="holidays" aria-selected="false" id="tab-hol">العطلات</button>
+      <button class="tab hidden" role="tab" data-tab="fp" aria-selected="false" id="tab-fp">تصدير البصمة</button>
     </div>
 
     <!-- التقرير -->
@@ -150,8 +153,8 @@ th{background:#1d2024;}
           <label class="row" style="align-items:center;gap:4px;font-size:13px;"><input type="checkbox" id="r-approved"> المعتمد بس</label>
           <button class="btn" id="r-go">اعرض</button>
           <label class="f">بحث<input id="r-q" placeholder="الاسم أو الرقم القومي أو الكود" style="min-width:200px"></label>
-          <button class="btn sec" id="r-print" disabled><i class="ti ti-printer"></i> طباعة</button>
-          <button class="btn sec office-only hidden" id="r-xlsx" disabled><i class="ti ti-file-spreadsheet"></i> إكسيل</button>
+          <div class="btns"><button class="btn sec" id="r-print" disabled><i class="ti ti-printer"></i> طباعة</button>
+          <button class="btn sec office-only hidden" id="r-xlsx" disabled><i class="ti ti-file-spreadsheet"></i> إكسيل</button></div>
         </div>
         <details class="why"><summary>الشرح</summary><p class="muted">1 = حاضر، غ = غايب، فاضي = مفيش حضور متأكد لليوم ده. في المواقع المرفوعة إكسيل الرمز بيظهر زي ما هو: ج إجازة، م/ض مرضي، ر راحة، ق توقف، ن نص يوم، ورقم = ساعات (إضافي). في الشرقية: الإجازات والمرضي المعتمدين من الـ HR بيظهروا ج / م، والمستقيل «س» من يوم تسجيل الاستقالة، والخانة اللي عليها إطار برتقالي = تعارض (حالة معتمدة والشيت بيقول حاضر). الجمعة والعطلات متلوّنة، واللي اشتغل فيها بيتحسب إضافي. الخانات الصفرا = متأكدة من المشرف ولسه ماتمش اعتمادها.</p></details>
         <div class="msg" id="r-msg"></div>
@@ -221,6 +224,6 @@ th{background:#1d2024;}
   </div>
 </div>
 
-<script type="module" src="page-report.js?v=20261125b"></script>
+<script type="module" src="page-report.js?v=20261125e"></script>
 </body>
 </html>

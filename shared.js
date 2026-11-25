@@ -168,7 +168,7 @@ export const actorEmail = u => (ACTOR_ROLE ?? tokenRole(u)) === "admin" ? "اد�
 const UNITS = {
   "عامل": ["عامل واحد", "عاملين", "عمال"], "يوم": ["يوم واحد", "يومين", "أيام"], "حالة": ["حالة واحدة", "حالتين", "حالات"],
   "بديل": ["بديل واحد", "بديلين", "بدايل"], "سطر": ["سطر واحد", "سطرين", "سطور"], "اسم": ["اسم واحد", "اسمين", "أسماء"],
-  "مرة": ["مرة واحدة", "مرتين", "مرات"], "صورة": ["صورة واحدة", "صورتين", "صور"],
+  "مرة": ["مرة واحدة", "مرتين", "مرات"], "صورة": ["صورة واحدة", "صورتين", "صور"], "ملف": ["ملف واحد", "ملفين", "ملفات"],
 };
 export function cnt(n, unit, f = String) {
   const k = Math.abs(Math.trunc(+n || 0)), u = UNITS[unit];
@@ -569,9 +569,54 @@ export function codeFor(map, site, job, sec) {
 .btn.danger{background:#fff;color:#a61b12;border:1px solid #e0a09a;}
 .btn.danger:hover{background:#fdecea;}
 .btn:disabled{opacity:.5;cursor:not-allowed;}
-.btn:focus-visible{outline:3px solid #9cc2ee;outline-offset:2px;}
-@media (pointer:coarse){.btn{min-height:44px;}.btn.small{min-height:40px;}}`;
+.btn:focus-visible,.tbl:focus-visible{outline:3px solid #9cc2ee;outline-offset:2px;}
+@media (pointer:coarse){.btn{min-height:44px;}.btn.small{min-height:40px;}
+  details.why>summary{padding:12px 2px;}
+  .tab{min-height:44px;}
+  .sv-out{min-height:44px;padding:0 16px;}
+  button[data-ext]{min-height:44px!important;}
+  #fp-card>summary{padding:12px 0;}
+  #pay-days{min-height:44px;}
+  details.fold>summary:has(>h2){min-height:44px;}}
+/* و6: التابات وشريط الصفحات لما يتسحبوا بالعرض، الطرف اللي وراه باقى بيبهت */
+.sfade-s{-webkit-mask-image:linear-gradient(to left,transparent 0,#000 32px);mask-image:linear-gradient(to left,transparent 0,#000 32px);}
+.sfade-e{-webkit-mask-image:linear-gradient(to right,transparent 0,#000 32px);mask-image:linear-gradient(to right,transparent 0,#000 32px);}
+.sfade-s.sfade-e{-webkit-mask-image:linear-gradient(to right,transparent 0,#000 32px,#000 calc(100% - 32px),transparent 100%);mask-image:linear-gradient(to right,transparent 0,#000 32px,#000 calc(100% - 32px),transparent 100%);}`;
   document.head.appendChild(s);
+}
+
+// ===== و6: شريط بيتسحب بالعرض (.pnav و .tabs) — علامة إن فيه باقى، والتاب المختار يبان =====
+// الصفحة من اليمين: أول الشريط يمين (sfade-s = فيه حاجات قبل، يمين)، وآخره شمال (sfade-e = فيه باقى، شمال).
+function edgeFade(el) {
+  const max = el.scrollWidth - el.clientWidth;
+  const pos = Math.abs(el.scrollLeft);
+  el.classList.toggle("sfade-s", max > 2 && pos > 2);
+  el.classList.toggle("sfade-e", max > 2 && pos < max - 2);
+}
+// يسحب الشريط بالعرض بس (من غير ما الصفحة تتحرك لفوق أو تحت) لحد ما الزرار يبان كله
+function showInStrip(el, t) {
+  if (!t || el.scrollWidth <= el.clientWidth) return;
+  const r = t.getBoundingClientRect(), c = el.getBoundingClientRect();
+  if (r.left < c.left) el.scrollLeft -= c.left - r.left + 24;
+  else if (r.right > c.right) el.scrollLeft += r.right - c.right + 24;
+}
+if (typeof document !== "undefined" && typeof ResizeObserver !== "undefined") {
+  const seen = new WeakSet();
+  const ro = new ResizeObserver(es => es.forEach(e => edgeFade(e.target)));
+  const hook = () => document.querySelectorAll(".pnav,.tabs").forEach(el => {
+    if (seen.has(el)) return;
+    if (!el.children.length) return;   // الشريط لسه ماترسمش
+    seen.add(el);
+    el.addEventListener("scroll", () => edgeFade(el), { passive: true });
+    el.addEventListener("click", e => { const t = e.target.closest(".tab,a"); if (t && el.contains(t)) showInStrip(el, t); });
+    ro.observe(el);
+    showInStrip(el, el.querySelector("a.on,[aria-selected=true]"));   // الصفحة أو التاب المفتوح يبان من الأول
+    edgeFade(el);
+  });
+  let pend = false;
+  const go = () => { if (!pend) { pend = true; (window.requestAnimationFrame || setTimeout)(() => { pend = false; try { hook(); } catch (x) {} }); } };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", go); else go();
+  new MutationObserver(go).observe(document.documentElement, { childList: true, subtree: true });
 }
 
 // ===== رسايل التأكيد والتنبيه (بدل confirm / alert / prompt بتوع المتصفح) =====
@@ -734,6 +779,100 @@ if (typeof document !== "undefined" && typeof MutationObserver !== "undefined") 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", later); else later();
   new MutationObserver(later).observe(document.documentElement, { childList: true, subtree: true });
 }
+
+// ===== و1: خانات التاريخ واختيار الملف بشكل البوابة، مش بلغة الجهاز =====
+// المتصفح بيعرض <input type=date> بلغة الجهاز («11/24/2026») واختيار الملف «Choose File / No file chosen».
+// الخانة نفسها مابتتغيرش (نفس الـ id ونفس التقويم بتاع الموبايل ونفس القيمة 2026-11-24 اللي الكود بيقراها):
+// النص الأصلي بيتخفى، ومكانه صورة صغيرة (SVG) جوه الخانة فيها «24-11-2026» أو «11-2026» أو اسم الملف بالعربي.
+// على الكمبيوتر: الضغط على الخانة بيفتح التقويم، ولو حد بدأ يكتب التاريخ بالكيبورد بيظهر النص الأصلي لحد ما يخرج من الخانة.
+const TV_TYPES = new Set(["date", "month", "file"]);
+const tvOn = el => el instanceof HTMLInputElement && TV_TYPES.has(el.type);   // el.type مش الـ attribute: month على فايرفوكس = text
+const xmlEsc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function tvText(el) {
+  if (el.type === "file") {
+    const fs = el.files ? [...el.files] : [];
+    if (!fs.length) return { t: el.webkitdirectory ? "اضغط هنا واختار الفولدر" : el.multiple ? "اضغط هنا واختار الملفات" : "اضغط هنا واختار الملف", muted: true, rtl: true };
+    if (fs.length > 1) return { t: "اتختار " + cnt(fs.length, "ملف"), rtl: true };
+    let n = fs[0].name;
+    if (n.length > 44) n = n.slice(0, 20) + "…" + n.slice(-20);
+    // اسم عربي فيه أرقام وامتداد: الجزء الإنجليزي (2026.xlsx) معزول، وإلا بيتقلب «xlsx.2026»
+    if (/[\u0600-\u06FF]/.test(n)) return { t: n.replace(/[A-Za-z0-9][\w.()\- ]*[\w)]|[A-Za-z0-9]/g, m => "\u2066" + m + "\u2069"), rtl: true };
+    return { t: n };
+  }
+  const v = el.value;
+  if (!v) return { t: el.type === "month" ? "اختار الشهر" : "اختار اليوم", muted: true, rtl: true };
+  const m = el.type === "month" ? /^(\d{4})-(\d{2})$/.exec(v) : /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (!m) return null;
+  return { t: el.type === "month" ? m[2] + "-" + m[1] : m[3] + "-" + m[2] + "-" + m[1] };
+}
+function tvPaint(el) {
+  if (!tvOn(el)) return;
+  const r = tvText(el), key = r ? r.t + "|" + (r.muted ? 1 : 0) : "";
+  if (el.__tv === key) return;
+  el.__tv = key;
+  if (!r) { el.classList.remove("tv"); return; }   // قيمة غريبة: النص الأصلي زي ما هو
+  const cs = getComputedStyle(el), fs = parseFloat(cs.fontSize) || 14, h = Math.ceil(fs * 1.7), w = 900;
+  // كروم بيرسم خانة التاريخ من الشمال لليمين حتى في صفحة عربي (التاريخ شمال وأيقونة التقويم يمين)، فالنص بيتحط شمال.
+  // خانة الملف بتمشي مع الصفحة (يمين).
+  const left = el.type !== "file", side = left ? "left" : "right";
+  const x = left ? 1 : w - 1, anchor = left === !r.rtl ? "start" : "end";
+  const txt = `<text x="${x}" y="${h / 2}" direction="${r.rtl ? "rtl" : "ltr"}" text-anchor="${anchor}"`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">${txt} dominant-baseline="central" font-family="IBM Plex Sans Arabic,Segoe UI,Tahoma,Arial,sans-serif" font-size="${fs}" fill="${r.muted ? "#8a8f98" : "#1d2024"}">${xmlEsc(r.t)}</text></svg>`;
+  el.style.setProperty("--tv-img", `url("data:image/svg+xml,${encodeURIComponent(svg)}")`);
+  el.style.setProperty("--tv-pos", side + " " + (parseFloat(left ? cs.paddingLeft : cs.paddingRight) || 10) + "px center");
+  el.classList.add("tv");
+}
+function tvScan() {
+  document.querySelectorAll("input[type=date],input[type=month],input[type=file]").forEach(tvPaint);
+  // و11: جدول بيتسحب (.tbl) يتوصله بالكيبورد (Tab وبعدين الأسهم)، وقارئ الشاشة يقول اسمه
+  document.querySelectorAll(".tbl:not([tabindex])").forEach(el => {
+    if (el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1) return;
+    el.tabIndex = 0;
+    el.setAttribute("role", "region");
+    if (!el.hasAttribute("aria-label")) {
+      const h = el.closest(".card,section,details")?.querySelector("h2,h3,summary");
+      el.setAttribute("aria-label", ((h && h.textContent.trim()) || "جدول").slice(0, 60));
+    }
+  });
+}
+if (typeof document !== "undefined" && typeof MutationObserver !== "undefined" && typeof HTMLInputElement !== "undefined") {
+  const s = document.createElement("style");
+  s.textContent = `
+input.tv{background-image:var(--tv-img)!important;background-repeat:no-repeat!important;background-position:var(--tv-pos)!important;color:transparent!important;}
+input.tv.tv-edit{background-image:none!important;color:inherit!important;}
+input.tv[type=file]::file-selector-button{display:none;}
+input.tv[type=file]{cursor:pointer;min-height:44px;}`;
+  document.head.appendChild(s);
+  // سطر لوحده: المتصفح اللي مايعرفش ::-webkit-datetime-edit بيتجاهل القاعدة كلها
+  const s2 = document.createElement("style");
+  s2.textContent = `input.tv:not(.tv-edit)::-webkit-datetime-edit{opacity:0;}`;
+  document.head.appendChild(s2);
+  // القيمة اللي الكود بيحطها (el.value = "2026-11-24" أو el.value = "" بعد الرفع) مابتطلعش event، فبنلقطها هنا
+  const pv = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+  if (pv && pv.set && pv.configurable) {
+    Object.defineProperty(HTMLInputElement.prototype, "value", {
+      ...pv,
+      set(v) { pv.set.call(this, v); if (this.__tv !== undefined || tvOn(this)) tvPaint(this); }
+    });
+  }
+  document.addEventListener("input", e => tvPaint(e.target), true);
+  document.addEventListener("change", e => tvPaint(e.target), true);
+  document.addEventListener("keydown", e => {
+    const el = e.target;
+    if (tvOn(el) && el.type !== "file" && e.key.length === 1) el.classList.add("tv-edit");   // بيكتب التاريخ بإيده
+  }, true);
+  document.addEventListener("focusout", e => { const el = e.target; if (tvOn(el)) { el.classList.remove("tv-edit"); el.__tv = null; tvPaint(el); } }, true);
+  const fine = window.matchMedia && window.matchMedia("(pointer:fine)").matches;
+  document.addEventListener("click", e => {
+    const el = e.target;
+    if (fine && tvOn(el) && el.type !== "file" && !el.disabled && !el.readOnly && typeof el.showPicker === "function") { try { el.showPicker(); } catch (x) {} }
+  }, true);
+  let pend = false;
+  const later = () => { if (!pend) { pend = true; (window.requestAnimationFrame || setTimeout)(() => { pend = false; try { tvScan(); } catch (x) {} }); } };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", later); else later();
+  // class / hidden / open كمان: جدول كان مستخبى وبان (تاب أو كارت اتفتح)
+  new MutationObserver(later).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "hidden", "open"] });
+}
 export const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 // ===== الدخول والخروج لصفحات الإدارة (ت4) =====
@@ -784,4 +923,4 @@ window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-if (FIRST_COPY) import('./notify.js?v=20261124e').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+if (FIRST_COPY) import('./notify.js?v=20261125e').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));

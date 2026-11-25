@@ -107,7 +107,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
 .ev .ft input{flex:1 1 100%;}
 /* صناديق التعديل (عمودي): من غير التفاف — وإلا خانة «سبب التعديل» بتاخد عمود لوحدها والأزرار بتطلع برّه الشاشة */
 .ev .ft.edit{flex-wrap:nowrap;} .ev .ft.edit input{flex:none;}
-@media(max-width:600px){.grid{grid-template-columns:1fr;}}
+@media(max-width:600px){.grid{grid-template-columns:1fr;}
+ /* و10: الملاحظة سطر لوحدها والأزرار تحتها مع بعض (كان «رفض» بينزل لوحده) */
+ .ev .ft:not(.edit)>input,.ev .ft:not(.edit)>select[data-wqr]{flex:1 1 100%!important;}
+ .ev .ft:not(.edit)>.btn{flex:1 1 auto;}
+}
 }
 </style>
 <link rel="manifest" href="manifest.json">
@@ -232,6 +236,6 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
 </div>
 <div id="zoom" class="hidden"><img id="zoom-img" alt=""></div>
 
-<script type="module" src="page-hr.js?v=20261125a"></script>
+<script type="module" src="page-hr.js?v=20261125e"></script>
 </body>
 </html>

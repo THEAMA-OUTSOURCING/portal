@@ -1,5 +1,5 @@
 // page-upload.js — سكريبت صفحة upload.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { dTxt, cnt, db, auth, actorEmail, fetchPlanBase, planBySite, alignPlan, nearWorkers, sameName, ask, wireStaffLogin, esc, serverNow, serverClock, doc, getDoc, getDocs, addDoc, collection, query, where, writeBatch, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261124e';
+import { dTxt, cnt, db, auth, actorEmail, fetchPlanBase, planBySite, alignPlan, nearWorkers, sameName, ask, wireStaffLogin, esc, serverNow, serverClock, doc, getDoc, getDocs, addDoc, collection, query, where, writeBatch, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261125e';
 import { detect, parseChipsy, parseEmdad, parseSharqia, emdadMonths, counts, COMPANY_LABEL, CHIPSY_PLAN, countsForPlan, chipsySections, trimOverPlan } from './xl-attendance.js?v=20261124e';
 
 const $ = id => document.getElementById(id);

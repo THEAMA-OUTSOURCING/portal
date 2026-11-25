@@ -251,8 +251,8 @@ details.plan #plan-box{background:#fff;border-radius:12px;padding:4px 6px;}
           <span class="muted">ممكن كذا صورة مرة واحدة</span>
         </label>
       </div>
-      <p class="muted" style="margin-top:8px;">كل صفحة صورة لوحدها، وبأي ترتيب. صوّر الورقة كلها من فوق، في نور كويس.</p>
-      <p class="muted">صورة طلعت مش واضحة أو اتصورت غلط؟ ماترفعهاش تاني — دوس «استبدال» تحتها.</p>
+      <details class="why" style="margin-top:8px;"><summary>الشرح</summary><p class="muted">كل صفحة صورة لوحدها، وبأي ترتيب. صوّر الورقة كلها من فوق، في نور كويس.</p>
+      <p class="muted">صورة طلعت مش واضحة أو اتصورت غلط؟ ماترفعهاش تاني — دوس «استبدال» تحتها.</p></details>
       <input type="file" id="cam" accept="image/*" capture="environment" class="hidden">
       <input type="file" id="file" accept="image/*" multiple class="hidden">
       <input type="file" id="rep-file" aria-label="صورة" accept="image/*" class="hidden">
@@ -262,7 +262,7 @@ details.plan #plan-box{background:#fff;border-radius:12px;padding:4px 6px;}
 
     <div class="card hidden" id="force-card">
       <h2>قوة الفرع</h2>
-      <p class="muted" style="margin-bottom:8px;">الأسماء في «طباعة الكشف». اللي مشي شيله من «إدارة الكشف»، واللي جديد ضيفه بالبطاقة.</p>
+      <details class="why"><summary>الشرح</summary><p class="muted">الأسماء في «طباعة الكشف». اللي مشي شيله من «إدارة الكشف»، واللي جديد ضيفه بالبطاقة.</p></details>
       <div id="force-plan"></div>
     </div>
 
@@ -277,7 +277,7 @@ details.plan #plan-box{background:#fff;border-radius:12px;padding:4px 6px;}
 
     <div class="card hidden" id="fiche-card">
       <h2>عمال جداد: الفيش والبطاقة</h2>
-      <p class="muted" style="margin-bottom:8px;">الفيش (صحيفة الحالة الجنائية) لازم يترفع خلال 5 أيام عمل من أول يوم حضور. بعد المهلة، حضور العامل بيتقفل لحد ما يترفع.</p>
+      <details class="why"><summary>الشرح</summary><p class="muted">الفيش (صحيفة الحالة الجنائية) لازم يترفع خلال 5 أيام عمل من أول يوم حضور. بعد المهلة، حضور العامل بيتقفل لحد ما يترفع.</p></details>
       <div id="fiche-list"></div>
       <div class="msg" id="f-msg"></div>
     </div>
@@ -464,7 +464,7 @@ details.plan #plan-box{background:#fff;border-radius:12px;padding:4px 6px;}
   </div>
 </div>
 
-<script type="module" src="page-attendance.js?v=20261125d"></script>
+<script type="module" src="page-attendance.js?v=20261125e"></script>
 <script src="attendance-ui.js?v=20261124e"></script>
 </body>
 </html>
