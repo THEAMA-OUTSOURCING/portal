@@ -682,8 +682,29 @@ const canEd = d => S.canApprove && (d.status === "reviewed" || (S.role === "admi
 const repBad = e => e.s === "A" && e.rep && (e.rep.t_issue || e.rep.min == null);
 const tIssues = d => TIME_SITES.includes(d.site) ? Object.values(d.entries || {}).filter(e => (e.s === "P" && (e.t_issue || e.min == null)) || repBad(e)).length : 0;
 const canAp = d => canEd(d) && !tIssues(d);
-// الاحتياج بتاع يوم (للتنبيه بس): الخطة محفوظة دقيقتين لكل شهر في shared.js
-async function planOf(d) { try { return planBySite(await fetchPlanBase(d.date.slice(0, 7)), d.date)[d.site] || {}; } catch (e) { return {}; } }
+// الاحتياج بتاع يوم: الخطة محفوظة دقيقتين لكل شهر في shared.js. شهر من غير خطة = {} (مفيش حد)،
+// لكن لو القراية نفسها فشلت بيطلع خطأ — الاعتماد بيقف بدل ما يعدّى من غير فحص العدد (ب1)
+async function planOf(d) { return planBySite(await fetchPlanBase(d.date.slice(0, 7)), d.date)[d.site] || {}; }
+// «نسخة» اليوم: أى حفظ من المشرف أو الإقليمى أو الأدمن أو تحديث الساعات بيغيّر واحد من الأوقات دى
+const tsKey = t => t && t.seconds != null ? t.seconds + "." + (t.nanoseconds || 0) : "";
+const verOf = x => [x.status, ...["confirmed_at", "reviewed_at", "admin_edited_at", "times_refreshed_at", "approved_at"].map(k => tsKey(x[k]))].join("|");
+const overTxt = o => o.map(x => `${x.job}: ${x.n} والمطلوب ${x.plan}`).join("، ");
+// قبل أى اعتماد: اليوم من Firestore دلوقتى (مش النسخة اللى اتحمّلت مع القايمة)، والعدد المطلوب لازم يتقرى.
+// بيرجّع null لو ينفع يتعتمد، أو سبب الوقف
+async function approveBlock(d) {
+  let x;
+  try {
+    const s = await getDoc(doc(db, "att_days", d.id));
+    if (!s.exists()) return "اليوم مش موجود — دوس «اعرض» تاني.";
+    x = { id: s.id, ...s.data() };
+  } catch (e) { return "مقدرتش أقرا اليوم — اتأكد من النت وجرّب تاني."; }
+  if (verOf(x) !== verOf(d)) return "اليوم اتعدّل بعد ما القايمة اتعرضت — دوس «اعرض» تاني وراجعه قبل الاعتماد.";
+  let plan;
+  try { plan = await planOf(x); } catch (e) { return "مقدرتش أقرا العدد المطلوب، فالاعتماد اتوقف — اتأكد من النت وجرّب تاني."; }
+  const o = overPlan(x.entries, plan);
+  if (o.length) return "الحاضرين أكتر من العدد المطلوب — " + overTxt(o) + ". افتح التفاصيل وعدّل اليوم الأول.";
+  return null;
+}
 async function setStatus(d, approve) {
   const u = auth.currentUser;
   await updateDoc(doc(db, "att_days", d.id), approve
@@ -728,7 +749,8 @@ $("a-list").onclick = async e => {
       try { const pl = await getDoc(doc(db, "pools", d.site)); A.pool = pl.exists() ? pl.data().workers || [] : []; } catch (er) {}
       A.roster = [];
       try { const ro = await getDoc(doc(db, "rosters", d.site)); A.roster = ro.exists() ? ro.data().workers || [] : []; } catch (er) {}
-      try { A.plan = planBySite(await fetchPlanBase(d.date.slice(0, 7)), d.date)[d.site] || {}; } catch (er) {}
+      A.planErr = false;
+      try { A.plan = planBySite(await fetchPlanBase(d.date.slice(0, 7)), d.date)[d.site] || {}; } catch (er) { A.planErr = true; }
       if (A.cur !== d) return;
     }
     $("a-dhead").innerHTML = `<th>الاسم</th><th>الوظيفة</th><th>الحالة</th>${timedDay ? "<th>الساعات</th>" : ""}<th>قراءة الصورة</th><th>البديل</th><th>ملاحظة</th>`;
@@ -741,9 +763,9 @@ $("a-list").onclick = async e => {
   }
   const i = t.dataset.ap ?? t.dataset.un; if (i === undefined || !S.canApprove) return;
   if (t.dataset.un && !await ask("تلغي الاعتماد؟ الإقليمي هيقدر يعدّل اليوم تاني.", { ok: "الغي الاعتماد", danger: true })) return;
-  if (t.dataset.ap) {   // الحاضرين أكتر من المطلوب: الاعتماد ممنوع (ب8)
-    const d = A[+i], ovr = overPlan(d.entries, await planOf(d));
-    if (ovr.length) return show($("a-msg"), "err", `مينفعش تعتمد ${d.site} يوم ${dTxt(d.date)}: الحاضرين أكتر من العدد المطلوب — ` + ovr.map(o => `${o.job}: ${o.n} والمطلوب ${o.plan}`).join("، ") + ". افتح التفاصيل وعدّل اليوم الأول.");
+  if (t.dataset.ap) {   // الحاضرين أكتر من المطلوب: الاعتماد ممنوع (ب8) — ولو العدد المطلوب ماتقراش برضه ممنوع (ب1)
+    const d = A[+i], why = await approveBlock(d);
+    if (why) return show($("a-msg"), "err", `مينفعش تعتمد ${d.site} يوم ${dTxt(d.date)}: ` + why);
   }
   try { await setStatus(A[+i], !!t.dataset.ap); $("a-detail").classList.add("hidden"); $("a-go").click(); } catch (er) { show($("a-msg"), "err", "مااتحفظش: " + er.message); }
 };
@@ -1023,10 +1045,17 @@ $("a-esave").onclick = async () => {
   }
   if (fixed && !await ask(`فيه ${fixed} وقت كان متعلّم للمراجعة (الأصفر). اتأكدت منهم؟`)) return;
   if (!n && d.status === "approved") return show($("a-msg"), "info", "مفيش تغيير.");
+  // العدد المطلوب ماتقراش: مفيش اعتماد من غير فحص العدد (ب1)
+  if (A.planErr) return show($("a-msg"), "err", "مقدرتش أقرا العدد المطلوب لليوم ده، فالاعتماد اتوقف — اقفل التفاصيل وافتحها تاني (اتأكد من النت).");
   // الحاضرين أكتر من المطلوب: الاعتماد ممنوع، زى تأكيد المشرف (ب8)
   const ovr = overPlan(entries, A.plan);
   if (ovr.length) return show($("a-msg"), "err", "مينفعش تعتمد: الحاضرين أكتر من العدد المطلوب — " + ovr.map(o => `${o.job}: ${o.n} والمطلوب ${o.plan}`).join("، ") + ". عدّل اليوم الأول (الزيادة غايب أو شيل البديل).");
   if (!await ask(`${n ? `تعديل ${cnt(n, "عامل")} و` : ""}اعتماد ${d.site} يوم ${dTxt(d.date)}؟`, { ok: "اعتمد" })) return;
+  // اليوم اتعدّل (الإقليمى أو الأدمن) بعد ما التفاصيل اتفتحت: الحفظ كان هيكتب فوق تعديله من غير ما يتشاف
+  try {
+    const s = await getDoc(doc(db, "att_days", d.id));
+    if (!s.exists() || verOf(s.data()) !== verOf(d)) return show($("a-msg"), "err", "اليوم اتعدّل بعد ما فتحت التفاصيل — اقفلها ودوس «اعرض» تاني، وراجع التعديل الجديد قبل الاعتماد.");
+  } catch (er) { return show($("a-msg"), "err", "مقدرتش أتأكد من اليوم قبل الحفظ — اتأكد من النت وجرّب تاني."); }
   const v = Object.values(entries), u = auth.currentUser;
   try {
     const counts = { ...(d.counts || {}), present: v.filter(e => e.s === "P").length, absent: v.filter(e => e.s === "A").length };
@@ -1037,12 +1066,21 @@ $("a-esave").onclick = async () => {
   } catch (er) { show($("a-msg"), "err", "ماتحفظش: " + (er.code === "permission-denied" ? "محتاج تحديث الـ Rules." : er.message)); }
 };
 $("a-all").onclick = async () => {
-  // الأيام اللى الحاضرين فيها أكتر من المطلوب مابتتعتمدش (ب8): الباقى يتعتمد، وهى بتفضل في الجدول لحد ما تتعدّل
-  const all = A.filter(canAp), pend = [], over = [];
-  for (const d of all) { const o = overPlan(d.entries, await planOf(d)); if (o.length) over.push(`${d.site} ${d.date.slice(5)}: ` + o.map(x => `${x.job} ${x.n} والمطلوب ${x.plan}`).join("، ")); else pend.push(d); }
-  const overTxt = over.length ? `${cnt(over.length, "يوم")} مش ${over.length === 1 ? "هيتعتمد" : "هيتعتمدوا"} — الحاضرين أكتر من العدد المطلوب:\n` + over.slice(0, 12).join("\n") + (over.length > 12 ? "\n…" : "") : "";
-  if (!pend.length) return show($("a-msg"), "err", "مفيش يوم يتعتمد. " + overTxt);
-  if (!await ask(`اعتماد ${cnt(pend.length, "يوم")}؟` + (overTxt ? "\n\n" + overTxt : ""), { ok: "اعتمد" })) return;
-  try { for (const d of pend) await setStatus(d, true); show($("a-msg"), over.length ? "warn" : "ok", `تم اعتماد ${cnt(pend.length, "يوم")}.` + (overTxt ? " " + overTxt : "")); $("a-go").click(); }
-  catch (er) { show($("a-msg"), "err", er.message); }
+  // كل يوم بيتقرى من جديد ويتفحص قبل اعتماده (ب1): اللى الحاضرين فيه أكتر من المطلوب، أو اتعدّل بعد العرض،
+  // أو العدد المطلوب بتاعه ماتقراش — مابيتعتمدش وبيتقال ليه. الباقى يتعتمد، ويوم بيفشل مابيوقّفش اللى بعده
+  const all = A.filter(canAp);
+  if (!all.length) return show($("a-msg"), "err", "مفيش يوم جاهز للاعتماد.");
+  if (!await ask(`اعتماد ${cnt(all.length, "يوم")}؟\nكل يوم هيتفحص الأول: اللى الحاضرين فيه أكتر من المطلوب أو اتعدّل بعد ما القايمة اتعرضت مش هيتعتمد.`, { ok: "اعتمد" })) return;
+  $("a-all").disabled = true;
+  const done = [], skip = [];
+  for (const d of all) {
+    show($("a-msg"), "info", `بيعتمد… ${done.length + skip.length + 1} من ${all.length}`);
+    const why = await approveBlock(d);
+    if (why) { skip.push(`${d.site} ${dTxt(d.date)}: ${why}`); continue; }
+    try { await setStatus(d, true); done.push(d); }
+    catch (er) { skip.push(`${d.site} ${dTxt(d.date)}: مااتحفظش (${er.code === "permission-denied" ? "مش مسموح — يمكن اتعدّل" : er.message})`); }
+  }
+  const tail = skip.length ? `\n${cnt(skip.length, "يوم")} ماتعتمدش:\n` + skip.slice(0, 15).join("\n") + (skip.length > 15 ? "\n…" : "") : "";
+  await $("a-go").onclick();
+  show($("a-msg"), skip.length ? (done.length ? "warn" : "err") : "ok", (done.length ? `تم اعتماد ${cnt(done.length, "يوم")}.` : "ماتعتمدش أى يوم.") + tail);
 };

@@ -91,10 +91,16 @@ async function checkAdminPass(){
     await signInWithEmailAndPassword(auth, email, p);
     // إظهار لوحة الرفع بيتم تلقائياً من onAuthStateChanged
   }catch(e){
-    document.getElementById('admin-error-msg').textContent='الإيميل أو الباسورد غلط';
+    // نفس رسايل الدخول في باقى الصفحات (LOGIN_ERR في shared.js) — كانت «غلط» لأى سبب حتى لو النت واقع (ب4)
+    document.getElementById('admin-error-msg').textContent = ADMIN_LOGIN_ERR[e && e.code] || 'الإيميل أو الباسورد غلط';
     errEl.style.display='block';
   }finally{ ADMIN_BUSY = false; }
 }
+const ADMIN_LOGIN_ERR = {
+  'auth/network-request-failed': 'مفيش اتصال بالنت — اتأكد من النت وجرّب تاني',
+  'auth/too-many-requests': 'محاولات كتير غلط — استنى شوية وجرّب تاني',
+  'auth/user-disabled': 'الحساب ده متوقف — كلّم الإدارة',
+};
 let ADMIN_BUSY = false;
 window.checkAdminPass = checkAdminPass;
 
@@ -614,13 +620,17 @@ async function resetEmployeePass(){
   btn.innerHTML='<span class="spinner" style="border-color:rgba(186,117,23,0.3);border-top-color:#ba7517;"></span> جاري...'; btn.disabled=true;
   try{
     // الـ Rules بترفض الطلب لو الكود مش تبع المشرف — نجرب الكود التاني (بـ T) قبل ما نقول مرفوض
-    let ref = null, denied = null;
-    for(const c of codes){
-      try{ ref = await createTask('reset', c); break; }
+    // والأدمن (مسموحله بأى كود): لو السيرفر مالقاش الكود في الرواتب وفيه كود تانى (1234 ← T1234) بيجربه (ب3)
+    let r = null, denied = null;
+    for(let i = 0; i < codes.length; i++){
+      let ref;
+      try{ ref = await createTask('reset', codes[i]); }
       catch(e){ if(e && e.code==='permission-denied'){ denied = e; continue; } throw e; }
+      r = await waitTask(ref, null, 30000);
+      if(r.status==='error' && i < codes.length-1 && /مش موجود في شيت الرواتب/.test(r.message || '')) continue;
+      break;
     }
-    if(!ref) throw denied;
-    const r = await waitTask(ref, null, 30000);
+    if(!r) throw denied;
     if(r.status==='done'){
       document.getElementById('reset-success-msg').textContent = r.message;
       successEl.style.display='block';
@@ -1027,8 +1037,13 @@ async function lookupSalary(){
       document.getElementById('search-sal-ok-msg').textContent = r.message || '';
       okEl.style.display = r.message ? 'block' : 'none';
     } else {
-      const snap = await freshRead('payroll', ()=>getDocs(query(collection(db,'payroll'), where('employee_code','==',code))));
-      if(snap.empty){ fail('مفيش كشف راتب متسجّل على الكود ده حالياً'); return; }
+      // أرقام بس (2001): الكود زى ما هو الأول (الشرقية أكوادها أرقام)، ولو مفيش نجرب T2001 (ب3)
+      let snap = null;
+      for(const c of staffCodes(code)){
+        snap = await freshRead('payroll', ()=>getDocs(query(collection(db,'payroll'), where('employee_code','==',c))));
+        if(!snap.empty){ shownCode = c; break; }
+      }
+      if(!snap || snap.empty){ fail('مفيش كشف راتب متسجّل على الكود ده حالياً'); return; }
       // زي شاشة الموظف: أحدث رفعة لكل شركة، وبترتيبها في الشيت
       rows = latestPerTab(snap.docs).map(d=>d.data().data);
     }
@@ -1465,15 +1480,15 @@ async function searchMedicalCard(){
   if(adminCardUrl){ URL.revokeObjectURL(adminCardUrl); adminCardUrl = null; }
   adminCardCode = '';
   try{
-    // نجرب الكود زي ما اتكتب الأول. لو مسموح بيه بنقف عنده (موجود أو لأ) — الـ T بنجربها بس لو الأول اترفض
+    // نجرب الكود زي ما اتكتب الأول، ولو مرفوض أو مش موجود نجرب بـ T (ب3: الأدمن والـ HR كانوا بيقفوا عند الأول)
     // الأدمن والمشاهد والـ HR والمشرف: الباسورد لازم يكون مكتوب من أقل من 12 ساعة (freshRead بتطلبه وتكمل)
     const snap = await freshRead('cards', async ()=>{
-      let found = null, denied = null;
+      let found = null, denied = null, allowed = false;
       for(const c of codes){
-        try{ const s = await getDoc(doc(db,'medical_cards',c)); denied = null; if(s.exists()){ found = s; adminCardCode = c; } break; }
+        try{ const s = await getDoc(doc(db,'medical_cards',c)); allowed = true; if(s.exists()){ found = s; adminCardCode = c; break; } }
         catch(e){ if(e && e.code==='permission-denied'){ denied = e; continue; } throw e; }
       }
-      if(!found && denied) throw denied;
+      if(!found && !allowed && denied) throw denied;
       return found;
     });
     loading.style.display = 'none';

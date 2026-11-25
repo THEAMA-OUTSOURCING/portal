@@ -203,10 +203,18 @@ let LAST_OLD = null;
 async function tabInbox() {
   const b = body();
   const cut = Timestamp.fromDate(new Date(Date.now() - DAYS_SHOWN * 864e5));
-  const snap = await getDocs(query(collection(DB, "notif_inbox"), where("uid", "==", ME.uid), where("sent_at", ">=", cut), orderBy("sent_at", "desc"), limit(50)));
+  // آخر 14 يوم (أقصى 50) + أى إشعار لسه مااتقراش مهما كان قديم أو بعد الـ 50 (ب2): نفس اللى الرقم على الجرس بيعدّه،
+  // فكل اللى اتعدّ بيظهر ويتعلّم «اتقرا» والرقم بيتصفّر. (نفس فلاتر العدّاد — مش محتاج Index جديد)
+  const [snap, unread] = await Promise.all([
+    getDocs(query(collection(DB, "notif_inbox"), where("uid", "==", ME.uid), where("sent_at", ">=", cut), orderBy("sent_at", "desc"), limit(50))),
+    getDocs(query(collection(DB, "notif_inbox"), where("uid", "==", ME.uid), where("read_at", "==", null), limit(200)))
+  ]);
   if (!b) return;
-  b.innerHTML = snap.empty ? `<div class="nb-muted">مفيش إشعارات في آخر ${DAYS_SHOWN} يوم.</div>` : "";
-  snap.docs.forEach(d => b.appendChild(inboxItem(d)));
+  const seen = new Map(snap.docs.map(d => [d.id, d]));
+  unread.docs.forEach(d => { if (!seen.has(d.id)) seen.set(d.id, d); });
+  const docs = [...seen.values()].sort((x, y) => (y.data().sent_at?.toMillis?.() || 0) - (x.data().sent_at?.toMillis?.() || 0));
+  b.innerHTML = docs.length ? "" : `<div class="nb-muted">مفيش إشعارات في آخر ${DAYS_SHOWN} يوم.</div>`;
+  docs.forEach(d => b.appendChild(inboxItem(d)));
   LAST_OLD = null;
   const more = document.createElement("button");
   more.type = "button"; more.className = "nb-a"; more.textContent = "عرض الأقدم";
@@ -217,7 +225,7 @@ async function tabInbox() {
       if (LAST_OLD) qs.push(startAfter(LAST_OLD));
       qs.push(limit(PAGE));
       const s = await getDocs(query(...qs));
-      s.docs.forEach(d => b.insertBefore(inboxItem(d), more));
+      s.docs.forEach(d => { if (!seen.has(d.id)) b.insertBefore(inboxItem(d), more); });
       if (s.size) LAST_OLD = s.docs[s.size - 1];
       if (s.size < PAGE) { more.remove(); const m = document.createElement("div"); m.className = "nb-muted"; m.textContent = s.size || LAST_OLD ? "مفيش أقدم من كده." : "مفيش إشعارات أقدم."; b.appendChild(m); }
       else more.disabled = false;
@@ -225,7 +233,7 @@ async function tabInbox() {
     } catch (e) { more.disabled = false; tell(errText(e)); }
   };
   b.appendChild(more);
-  if (b.isConnected) markRead(snap.docs);   // ماتتعلّمش «اتقرت» لو المستخدم راح لتاب تاني قبل ما تظهر
+  if (b.isConnected) markRead(docs);   // ماتتعلّمش «اتقرت» لو المستخدم راح لتاب تاني قبل ما تظهر
 }
 function inboxItem(d) {
   const x = d.data();
