@@ -1,5 +1,5 @@
 // page-attendance.js — سكريبت صفحة attendance.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { dTxt, cnt, db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, hasRestSubs, typeOk, typeErr, typeSelect, jobOk, jobOptions, isBasic, nearWorkers, nameParts, ask, tell, compressPage, replacePage, replacedBy, wireStaffLogin, esc, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, updateDoc, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261124e';
+import { dTxt, cnt, db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, hasRestSubs, typeOk, typeErr, typeSelect, jobOk, jobOptions, isBasic, nearWorkers, nameParts, ask, tell, compressPage, replacePage, replacedBy, wireStaffLogin, esc, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, Timestamp, serverTimestamp, updateDoc, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261124e';
 import { openPrintView, openOrderEditor, printOrder, secsForJob, secOptions } from './sheet.js?v=20261124e';
 import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261124e';
 
@@ -1950,13 +1950,40 @@ function lvWatch() {
   if (site === LV.site && LV.unsub) return;
   LV.unsub?.(); LV.unsub = null; LV.evUnsub?.(); LV.evUnsub = null; LV.site = site; LV.list = []; LV.evs = []; renderLvList();
   if (!site) return;
-  LV.evUnsub = onSnapshot(query(collection(db, "worker_events"), where("branch", "==", site)), snap => {
-    LV.evs = snap.docs.map(d => weItem({ id: d.id, ...d.data() })).filter(Boolean); renderLvList();
-    RT.list = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(e => e.kind === "hire" && e.status === "returned"); renderRet();
+  // ت5: المفتوح كله + اللى اتقفل في آخر 3 شهور بس (كان بيحمّل كل الطلبات من أول يوم، والعدد بيزيد كل شهر).
+  // لو الـ Index بتاع الاستعلام بالتاريخ لسه مااتعملش، بيرجع للتحميل القديم (كله) لحد ما يتعمل
+  const cutDay = ymd(new Date(Date.now() - LV_KEEP_DAYS * 864e5)), cutTs = Timestamp.fromMillis(Date.now() - LV_KEEP_DAYS * 864e5);
+  const we = collection(db, "worker_events"), hr = collection(db, "hr_events");
+  LV.evUnsub = watchMerged([
+    query(we, where("branch", "==", site), where("status", "in", ["pending", "error", "approved", "returned"])),
+    query(we, where("branch", "==", site), where("decided_at", ">=", cutTs))
+  ], query(we, where("branch", "==", site)), docs => {
+    LV.evs = docs.map(d => weItem({ id: d.id, ...d.data() })).filter(Boolean); renderLvList();
+    RT.list = docs.map(d => ({ id: d.id, ...d.data() })).filter(e => e.kind === "hire" && e.status === "returned"); renderRet();
   }, () => {});
-  LV.unsub = onSnapshot(query(collection(db, "hr_events"), where("source", "==", "supervisor"), where("site", "==", site)), snap => {
-    LV.list = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderLvList();
+  LV.unsub = watchMerged([
+    query(hr, where("source", "==", "supervisor"), where("site", "==", site), where("status", "in", ["pending", "client_wait"])),
+    query(hr, where("source", "==", "supervisor"), where("site", "==", site), where("to", ">=", cutDay))
+  ], query(hr, where("source", "==", "supervisor"), where("site", "==", site)), docs => {
+    LV.list = docs.map(d => ({ id: d.id, ...d.data() })); renderLvList();
   }, err => show($("lv-msg"), "err", "مش قادر أقرا الطلبات: " + (err.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : err.message)));
+}
+const LV_KEEP_DAYS = 92;
+// كذا استعلام مع بعض (المستند بيظهر مرة واحدة)، ولو واحد منهم محتاج Index مش معمول (failed-precondition)
+// بيوقفهم ويشغّل الاستعلام القديم بداله. بيرجّع دالة الإيقاف
+function watchMerged(qs, fallback, onDocs, onErr) {
+  const parts = qs.map(() => null); let unsubs = [], dead = false;
+  const emit = () => { if (parts.every(Boolean)) { const m = new Map(); parts.forEach(p => p.forEach(d => m.set(d.id, d))); onDocs([...m.values()]); } };
+  const stop = () => { dead = true; unsubs.forEach(u => u()); unsubs = []; };
+  unsubs = qs.map((q, i) => onSnapshot(q, snap => { parts[i] = snap.docs; emit(); }, err => {
+    if (dead) return;
+    if (err.code === "failed-precondition") {   // Index ناقص: اللينك بتاع عمله في رسالة الخطأ
+      console.warn("Index ناقص — شغّال بالتحميل الكامل لحد ما يتعمل:", err.message);
+      stop(); dead = false;
+      unsubs = [onSnapshot(fallback, snap => onDocs(snap.docs), onErr)];
+    } else onErr(err);
+  }));
+  return () => { dead = true; unsubs.forEach(u => u()); };
 }
 $("site").addEventListener("change", lvWatch);
 $("lv-list").addEventListener("toggle", e => { const g = e.target.closest?.("[data-lvg]"); if (g) g.open ? LV_OPEN.add(g.dataset.lvg) : LV_OPEN.delete(g.dataset.lvg); }, true);

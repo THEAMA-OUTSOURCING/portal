@@ -1,5 +1,5 @@
 // page-plan.js — سكريبت صفحة plan.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { dTxt, db, auth, actorEmail, ATT_SITES, SUP_SITES, isBasic, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions, wireStaffLogin, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, canOpen } from './shared.js?v=20261124e';
+import { dTxt, db, auth, actorEmail, ATT_SITES, SUP_SITES, isBasic, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions, wireStaffLogin, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot, Timestamp, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, canOpen } from './shared.js?v=20261124e';
 import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261124e';
 import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261124e';
 import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261124e';
@@ -778,16 +778,29 @@ document.querySelectorAll("[data-n]").forEach(n => {
 // ===== أكواد جديدة (worker_events: إضافة اتنفذت) — الأدمن، والـ HR والمحاسب لفروعهم =====
 const CD = { rows: [], unsub: null };
 const cdDay = t => { const d = t?.toDate?.(); return d ? d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") : ""; };
-function initCoded() {
+// ت5: آخر 3 شهور بس (كان بيحمّل كل الأكواد من أول يوم في كل الفروع)، و«عرض الأقدم» بيجيب الكل مرة واحدة.
+// لو الـ Index بتاع التاريخ لسه مااتعملش بيرجع للتحميل القديم (الكل) لحد ما يتعمل
+const CD_KEEP_DAYS = 92;
+function initCoded(all = false) {
   const c = collection(db, "worker_events");
-  const q = S.scoped ? query(c, where("status", "==", "done"), where("branch", "in", S.scoped)) : query(c, where("status", "==", "done"));
+  const base = S.scoped ? [where("status", "==", "done"), where("branch", "in", S.scoped)] : [where("status", "==", "done")];
+  const full = query(c, ...base);
+  const q = all ? full : query(c, ...base, where("applied_at", ">=", Timestamp.fromMillis(Date.now() - CD_KEEP_DAYS * 864e5)));
+  CD.all = all;
   CD.unsub?.();
-  CD.unsub = onSnapshot(q, snap => {
+  const take = snap => {
     CD.rows = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(e => e.kind === "hire")
       .sort((a, b) => (b.applied_at?.seconds || 0) - (a.applied_at?.seconds || 0));
     renderCoded();
-  }, err => show($("cd-msg"), "err", "مش قادر أقرا «أكواد جديدة»: " + (err.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : err.message)));
+  };
+  const fail = err => show($("cd-msg"), "err", "مش قادر أقرا «أكواد جديدة»: " + (err.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : err.message));
+  CD.unsub = onSnapshot(q, take, err => {
+    if (err.code !== "failed-precondition" || all) return fail(err);
+    console.warn("Index ناقص — «أكواد جديدة» شغّالة بالتحميل الكامل لحد ما يتعمل:", err.message);
+    CD.all = true; CD.unsub = onSnapshot(full, take, fail);
+  });
 }
+$("cd-old")?.addEventListener("click", () => { $("cd-old").classList.add("hidden"); initCoded(true); });
 function codedShown() {
   const f = $("cd-from").value, t = $("cd-to").value, onlyNew = $("cd-new").checked;
   return CD.rows.filter(e => { const d = cdDay(e.applied_at); return (!f || d >= f) && (!t || d <= t) && (!onlyNew || !e.exported); });
@@ -795,6 +808,7 @@ function codedShown() {
 function renderCoded() {
   const rows = codedShown(), nNew = CD.rows.filter(e => !e.exported).length;
   $("cd-n").textContent = nNew ? nNew + " ما اتصدروش" : "";
+  $("cd-old")?.classList.toggle("hidden", !!CD.all);
   $("cd-list").innerHTML = rows.length ? rows.slice(0, 300).map(e => `<tr><td><b>${esc(e.code)}</b>${e.rehire ? `<div class="c-s" style="font-size:12px;">رجع بكوده</div>` : ""}</td>
     <td>${esc(e.name)}</td><td style="direction:ltr;text-align:right">${esc(e.nid)}</td><td style="direction:ltr;text-align:right">${esc(e.phone || "")}</td>
     <td>${esc(e.site)}</td><td>${esc(e.job)}</td><td>${esc(typeLabel(e.type))}</td><td style="direction:ltr;text-align:right">${esc(e.first_day || "")}</td>
