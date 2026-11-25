@@ -1,5 +1,5 @@
 // page-sijil.js — سكريبت صفحة sijil.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { dTxt, db, auth, enDigits, actorEmail, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, Timestamp, writeBatch, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261124e';
+import { dTxt, db, auth, enDigits, actorEmail, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, Timestamp, writeBatch, serverTimestamp, onAuthStateChanged, canOpen, SUP_SITES } from './shared.js?v=20261124e';
 const $ = id => document.getElementById(id);
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
 const fmt = n => Number(n).toLocaleString("en-US");   // أرقام إنجليزي في كل البوابة
@@ -185,6 +185,8 @@ $("exp").onclick = () => {
 const INS = { kind: null, rows: [] };
 const INS_TXT = { social: { in: "دخول", out: "خروج", num: "الرقم التأميني" }, health: { in: "إضافة", out: "حذف", num: "CRT" } };
 const branchOf = r => r.company === "الشرقية" ? SHARQIA : r.site;
+// الفروع اللي حركة التأمين تتسجل عليها (نفس supSites() + sharedSites() في الـ Rules) — الإدارة وسويفل مالهمش فرع لسه
+const insBranchOk = r => SUP_SITES.includes(branchOf(r)) || branchOf(r) === SHARQIA;
 const canDecide = r => S.role === "admin" || (S.role === "hr" && (!S.scoped || S.scoped.includes(branchOf(r))));
 const todayISO = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
 // تاريخ من الإكسيل: Date، أو رقم (سيريال)، أو نص يوم/شهر/سنة أو سنة-شهر-يوم ← YYYY-MM-DD
@@ -249,6 +251,7 @@ document.querySelectorAll("[data-up]").forEach(inp => inp.onchange = async () =>
       else if (!validDay(date)) x.err = "التاريخ ناقص أو غلط";
       else if (move === "in" && !num && !(k === "social" ? w.s.no : w.h.crt)) x.err = T.num + " ناقص";
       else if (!canDecide(w)) x.err = "مش من فروعك";
+      else if (!insBranchOk(w)) x.err = w.site ? `موقعه «${w.site}» مالوش حركات تأمين على البوابة لسه` : "مالوش موقع في السجل (الإدارة) — مش هيتحفظ لحد ما موقعه يتسجل";
       if (w && !x.err) {
         const st = k === "social" ? w.s : w.h;
         if (move === "in" && st.state === "مؤمن" && (!num || num === (k === "social" ? st.no : st.crt)) && st.since === date) x.same = true;
@@ -292,7 +295,7 @@ $("ins-save").onclick = async () => {
       const b = writeBatch(db);
       ok.slice(i, i + 400).forEach(x => {
         const w = x.w;
-        b.set(doc(collection(db, "worker_events")), { kind: "insurance", status: "approved", source: "page", branch: branchOf(w), site: w.site, code: w.id,
+        b.set(doc(collection(db, "worker_events")), { kind: "insurance", status: "approved", source: "page", branch: branchOf(w), site: w.site || "", code: w.id,
           name: w.name || "", nid: x.nid, ins: k, move: x.move, date: x.date, ...(x.num ? (k === "social" ? { no: x.num } : { crt: x.num }) : {}),
           ...(x.wage ? { wage: x.wage } : {}), ...(x.note ? { note: x.note } : {}),
           by: u.uid, by_email: actorEmail(u), created_at: serverTimestamp(), decided_by: u.uid, decided_email: actorEmail(u), decided_at: serverTimestamp() });
