@@ -308,11 +308,11 @@ $("save").onclick = async () => {
         branch: w.site, site: w.site, name: w.name, nid: w.nid, phone: "", job: w.job, type: "اساسي", first_day: w.first < a ? a : w.first,
         by: u.uid, by_email: actorEmail(u), created_at: serverTimestamp() });
       sent++;
-    } } catch (er) { hrErr = er.code === "permission-denied" ? "مش مسموح — محتاج تحديث الـ Rules (worker_events)" : er.message; }
+    } } catch (er) { hrErr = er.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : er.message; }
     show($("s-msg"), hrErr ? "warn" : "ok", `اتحفظ ${cnt(list.length, "يوم")} ✓ — تقدر تشوفهم في تقارير الحضور.` + (sent ? ` واتبعت ${cnt(sent, "عامل")} ${sent === 1 ? "جديد" : "جداد"} لـ HR.` : "")
       + (hrErr ? ` بس طلبات العمال الجداد لـ HR ماتبعتتش: ${hrErr}.` : ""));
   } catch (e) {
-    show($("s-msg"), "err", "ماتحفظش: " + (e.code === "permission-denied" ? "مش مسموح — محتاج تحديث الـ Rules (att_days للأدمن والـ HR)." : e.message));
+    show($("s-msg"), "err", "ماتحفظش: " + (e.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : e.message));
   }
   $("save").disabled = false;
 };

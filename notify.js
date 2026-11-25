@@ -193,7 +193,7 @@ function showTab() {
   ({ inbox: tabInbox, send: tabSend, mine: tabMine, pending: tabPending })[TAB]().catch(e => { b.innerHTML = `<div class="nb-err">${esc(errText(e))}</div>`; });
 }
 function errText(e) {
-  if (e?.code === "permission-denied") return "مش مسموح (الـ Rules). لو لسه متعملهاش Publish، اعملها الأول.";
+  if (e?.code === "permission-denied") return "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة.";
   if (e?.code === "failed-precondition") return "محتاج Index في Firestore — افتح الـ Console من اللينك اللي في رسالة الخطأ: " + (e.message || "");
   return e?.message || String(e);
 }

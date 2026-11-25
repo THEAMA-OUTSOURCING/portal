@@ -60,7 +60,9 @@ onAuthStateChanged(auth, async user => {
   $("r-month").value = m;   // الشهر الحالي لحد ما الشهر يخلص (27 أكتوبر = أكتوبر)
   $("h-month").value = m;
   $("a-to").value = ymd(now); $("a-from").value = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 14));
-  $("fp-from").value = ymd(new Date(now.getFullYear(), now.getMonth(), 1)); $("fp-to").value = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
+  // من أول شهر امبارح لحد امبارح (ب7: يوم 1 في الشهر كانت «من» بتبقى بعد «لحد»)
+  const yday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  $("fp-from").value = ymd(new Date(yday.getFullYear(), yday.getMonth(), 1)); $("fp-to").value = ymd(yday);
   $("app").classList.remove("hidden");
   loadHolidays();
 });
@@ -583,6 +585,13 @@ function xlsxPlain() {   // الطريقة القديمة (من غير تنسي�
 };
 
 
+// ت3: مين أكد / راجع بالاسم زى صفحة الـ HR والإيميل اليومى («مشرف <الموقع>»، «الإقليمى»، «ادمن») — والإيميل في التلميح
+function whoTag(email, label) {
+  const e = String(email || "");
+  if (!e) return "";
+  if (!e.includes("@")) return esc(e);   // «ادمن»
+  return `<span title="${esc(e)}">${esc(label)}</span>`;
+}
 // آخر ميعاد لاعتماد المحاسب: 9 الصبح بعد يوم من أول إيميل (9 الصبح) بعد تأكيد المشرف
 function apDeadline(d) {
   const c = d.reviewed_at?.toDate ? d.reviewed_at.toDate() : null; // الميعاد بيبدأ من مراجعة الإقليمي
@@ -612,7 +621,7 @@ $("a-go").onclick = async () => {
     $("a-list").innerHTML = A.length ? A.map((d, i) => {
       const e = Object.values(d.entries || {}), reps = e.filter(x => x.rep).length, sup = e.filter(x => x.by === "sup").length;
       return `<tr><td>${esc(d.site)}</td><td>${esc(dTxt(d.date, { day: true }))}</td><td>${esc(d.counts?.present ?? "")}</td><td>${esc(d.counts?.absent ?? "")}</td><td>${reps}</td><td>${sup}</td>
-        <td class="muted">${esc(d.confirmed_email || "")}${d.late ? ` <span class="pill p-late">متأخر</span>` : ""}${d.reviewed_email ? `<br>راجعه: ${esc(d.reviewed_email)}${d.review_late ? ` <span class="pill p-late">متأخر</span>` : ""}` : ""}</td>
+        <td class="muted">${whoTag(d.confirmed_email, d.confirmed_by && d.confirmed_by === d.reviewed_by ? "الإقليمى" : "مشرف " + d.site)}${d.late ? ` <span class="pill p-late">متأخر</span>` : ""}${d.reviewed_email ? `<br>راجعه: ${whoTag(d.reviewed_email, "الإقليمى")}${d.review_late ? ` <span class="pill p-late">متأخر</span>` : ""}` : ""}</td>
         <td>${apState(d)}</td>
         <td><button class="btn sec small" data-view="${i}">تفاصيل</button> ${!S.canApprove ? "" : d.status === "approved" ? `<button class="btn danger small" data-un="${i}">إلغاء الاعتماد</button>` : (d.status === "reviewed" || S.role === "admin") ? (tIssues(d) ? `<button class="btn small" data-view="${i}">راجع الأوقات (${tIssues(d)})</button>` : `<button class="btn ok small" data-ap="${i}">اعتماد</button>`) : ""}</td></tr>`;
     }).join("") : `<tr><td colspan="9" class="muted">مفيش.</td></tr>`;
@@ -1063,7 +1072,7 @@ $("a-esave").onclick = async () => {
     await updateDoc(doc(db, "att_days", d.id), { entries, counts,
       status: "approved", approved_by: u.uid, approved_email: actorEmail(u), approved_at: serverTimestamp(), edited_by: actorEmail(u), edited_n: n });
     show($("a-msg"), "ok", "تم التعديل والاعتماد."); $("a-detail").classList.add("hidden"); $("a-go").click();
-  } catch (er) { show($("a-msg"), "err", "ماتحفظش: " + (er.code === "permission-denied" ? "محتاج تحديث الـ Rules." : er.message)); }
+  } catch (er) { show($("a-msg"), "err", "ماتحفظش: " + (er.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : er.message)); }
 };
 $("a-all").onclick = async () => {
   // كل يوم بيتقرى من جديد ويتفحص قبل اعتماده (ب1): اللى الحاضرين فيه أكتر من المطلوب، أو اتعدّل بعد العرض،

@@ -321,7 +321,7 @@ function renderDetail() {
     .sort((a, b) => (a.actual - a.plan) - (b.actual - b.plan));
   $("detail").innerHTML = rows.length ? rows.map(r => { const d = r.actual - r.plan;
     const need = r.secs ? r.secs.reduce((a, x) => a + x.need, 0) : null;
-    const main = `<tr${r.secs ? ` class="has-sec"` : ""}><td class="site-col">${esc(r.site)}</td><td>${esc(r.job)}${r.amended ? `<span class="amd">معدّل</span>` : ""}${r.fixed ? `<span class="amd">مخطط ثابت</span>` : ""}${site ? "" : `<span class="site-m">${esc(r.site)}</span>`}</td>
+    const main = `<tr${r.secs ? ` class="has-sec"` : ""}><td class="site-col">${esc(r.site)}</td><td>${esc(r.job)}${r.amended ? ` <span class="amd">معدّل</span>` : ""}${r.fixed ? ` <span class="amd">مخطط ثابت</span>` : ""}${site ? "" : `<span class="site-m">${esc(r.site)}</span>`}</td>
       <td class="n">${fmt(r.plan)}${r.plan !== r.base ? `<span class="was">${fmt(r.base)}</span>` : ""}</td><td class="n">${fmt(r.actual)}${r.cover ? `<span class="cov-m">+${fmt(r.cover)} جداد وبدايل</span>` : ""}</td>
       <td class="n"><span class="pill ${cls(d)}">${d === 0 ? "مطابق" : sign(d)}</span></td><td class="n cov-col">${r.cover ? fmt(r.cover) : "—"}</td></tr>`;
     if (!r.secs) return main;
@@ -786,7 +786,7 @@ function initCoded() {
     CD.rows = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(e => e.kind === "hire")
       .sort((a, b) => (b.applied_at?.seconds || 0) - (a.applied_at?.seconds || 0));
     renderCoded();
-  }, err => show($("cd-msg"), "err", "مش قادر أقرا «أكواد جديدة»: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (worker_events)." : err.message)));
+  }, err => show($("cd-msg"), "err", "مش قادر أقرا «أكواد جديدة»: " + (err.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : err.message)));
 }
 function codedShown() {
   const f = $("cd-from").value, t = $("cd-to").value, onlyNew = $("cd-new").checked;
@@ -992,7 +992,7 @@ $("jc-save")?.addEventListener("click", async () => {
   const bad = rows.filter(r => !r.ar || !r.hc || r.ar.split("/").length < 2);
   if (bad.length) return show($("jc-msg"), "err", `فيه ${bad.length} سطر ناقص (لازم الكود العربي فيه الموقع/الوظيفة، والكود الإنجليزي).`);
   try { await setDoc(doc(db, ...JC_DOC), { rows, updated_at: serverTimestamp() }); JC.rows = rows; renderJC(); show($("jc-msg"), "ok", `اتحفظ ${rows.length} كود.`); }
-  catch (er) { show($("jc-msg"), "err", "ماتحفظش: " + (er.code === "permission-denied" ? "محتاج تحديث الـ Rules (job_codes)." : er.message)); }
+  catch (er) { show($("jc-msg"), "err", "ماتحفظش: " + (er.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : er.message)); }
 });
 
 // ===== البلاك ليست =====
@@ -1100,7 +1100,7 @@ async function mcUpload() {
   // سجل الرفعة — السيرفر بيبعت منه إشعارات المشرفين
   if (done.length) {
     try { await addDoc(collection(db, "card_uploads"), { items: done, by_uid: u.uid, by_label: S.role === "admin" ? "ادمن" : "HR", at: serverTimestamp(), notified: false }); }
-    catch (e) { fail.push("الكارنيهات اترفعت بس إشعار المشرفين ماتسجلش: " + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules (card_uploads)" : e.message)); }
+    catch (e) { fail.push("الكارنيهات اترفعت بس إشعار المشرفين ماتسجلش: " + (e.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : e.message)); }
   }
   show($("mc-msg"), fail.length ? "warn" : "ok", `اترفع ${done.length} من ${list.length}.` + (done.length ? " إشعارات المشرفين هتتبعت من السيرفر خلال دقايق." : "") + (fail.length ? "\n" + fail.join("\n") : ""));
   $("mc-prev").classList.add("hidden"); $("mc-pdf").value = ""; MC.files = []; $("mc-go").disabled = false;
@@ -1125,7 +1125,7 @@ function initBlacklist() {
       b.set(doc(db, "blacklist_info", nid), { nid, name, reason: $("bl-reason").value, note: $("bl-note").value.trim(), by: u.uid, by_email: actorEmail(u), at: serverTimestamp() });
       await b.commit();
       ["bl-nid", "bl-name", "bl-note"].forEach(i => $(i).value = ""); show($("bl-msg"), "ok", "اتضاف.");
-    } catch (e) { show($("bl-msg"), "err", "ماتضافش: " + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules." : e.message)); }
+    } catch (e) { show($("bl-msg"), "err", "ماتضافش: " + (e.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : e.message)); }
   };
   $("bl-list").onclick = async e => {
     const nid = e.target.dataset.blrm; if (!nid || !await ask("تشيله من البلاك ليست؟", { ok: "شيله" })) return;

@@ -1,5 +1,5 @@
 // page-hr.js — سكريبت صفحة hr.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { dTxt, db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask, typeOk, typeErr, jobsFor, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261124e';
+import { dTxt, cnt, db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask, typeOk, typeErr, jobsFor, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261124e';
 import { secsForJob, secOptions } from './sheet.js?v=20261124e';
 const $ = id => document.getElementById(id);
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
@@ -283,7 +283,7 @@ $("xsave").onclick = async () => {
     show($("xmsg"), "ok", `اترفع ${n} سطر جديد` + (nDirect ? ` — منهم ${nDirect} مرضي راحوا «مستني رد العميل» على طول، والباقي تحت «مستني HR تيما».` : ` — هتلاقيهم تحت «مستني HR تيما».`)
       + (upd ? ` و${upd} سطر اتغيّر عن المترفع قبل كده (اللي اتاخد فيه قرار متعلّم «راجعه»).` : "")
       + (same ? ` و${same} سطر زي ما هو.` : "")); $("xf").value = ""; XROWS = [];
-  } catch (e) { show($("xmsg"), "err", `اترفع ${n} جديد و${upd} تعديل، ووقف عند خطأ: ` + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules." : e.message)); }
+  } catch (e) { show($("xmsg"), "err", `اترفع ${n} جديد و${upd} تعديل، ووقف عند خطأ: ` + (e.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : e.message)); }
 };
 
 // ===== إجازات قديمة كانت «مستني رد العميل» قبل ما الإجازة تبطّل تستنى العميل: اعتماد مرة واحدة =====
@@ -299,7 +299,7 @@ $("old-lv-ok").onclick = async () => {
       await b.commit(); n += Math.min(400, list.length - i);
     }
     show($("msg"), "ok", `تم اعتماد ${n} إجازة.`);
-  } catch (e) { show($("cl-msg"), "err", `تم اعتماد ${n} ووقف عند خطأ: ` + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : e.message)); }
+  } catch (e) { show($("cl-msg"), "err", `تم اعتماد ${n} ووقف عند خطأ: ` + (e.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : e.message)); }
   $("old-lv-ok").disabled = false;
 };
 function clientUpd(ev, dec, from, to, note) {
@@ -347,7 +347,7 @@ async function exportSick(g) {
       notSent.slice(i, i + 400).forEach(e => b.update(doc(db, "hr_events", e.id), { sent_at: serverTimestamp(), sent_email: actorEmail(auth.currentUser) }));
       await b.commit();
     }
-    show($("sk-msg"), miss.length ? "err" : "ok", `اتصدّر ${list.length} حالة مرضي لـ ${GROUP_AR[g]}${skPeriodTxt()} — ${total} يوم.`
+    show($("sk-msg"), miss.length ? "err" : "ok", `اتصدّر ${list.length} حالة مرضي لـ ${GROUP_AR[g]}${skPeriodTxt()} — ${cnt(total, "يوم")}.`
       + (miss.length ? `\nخلي بالك: ${miss.length} حالة ناقصها السبب أو المستشفى: ` + miss.slice(0, 10).map(e => e.name).join("، ") : ""));
   } catch (e) { show($("sk-msg"), "err", "الملف اتصدّر، بس ماتعلّمتش إنها اتبعتت: " + e.message); }
 }
@@ -427,7 +427,7 @@ $("sk-file").onchange = async () => {
     if (bad.length) { SKROWS = []; return show($("sk-msg"), "err", `الشيت فيه ${bad.length} مشكلة — صلّحها وارفعه تاني (مفيش حاجة اتحفظت):\n` + bad.slice(0, 25).join("\n")); }
     const full = SKROWS.filter(x => x.a === +x.ev.days).length, zero = SKROWS.filter(x => x.a === 0).length, part = SKROWS.length - full - zero;
     const req = SKROWS.reduce((t, x) => t + (+x.ev.days || 0), 0), sum = SKROWS.reduce((t, x) => t + x.a, 0);
-    SKSUM = `${SKROWS.length} حالة: ${full} معتمدة كاملة — ${part} جزئي — ${zero} مرفوضة. المطلوب ${req} يوم، والمعتمد ${sum} يوم (خ ${req - sum} يوم).`;
+    SKSUM = `${SKROWS.length} حالة: ${full} معتمدة كاملة — ${part} جزئي — ${zero} مرفوضة. المطلوب ${cnt(req, "يوم")}، والمعتمد ${cnt(sum, "يوم")} (خ ${cnt(req - sum, "يوم")}).`;
     const { t } = skCheck();
     show($("sk-msg"), t != null && t === sum ? "ok" : "info", SKSUM + (t == null ? "\nاكتب الإجمالي اللي في إيميل العميل عشان تقدر تحفظ." : t !== sum ? `\nالإجمالي مش مطابق: الشيت ${sum} وإيميل العميل ${t}.` : "\nالإجمالي مطابق ✓"));
   } catch (e) { show($("sk-msg"), "err", "الملف ماتقراش: " + e.message); }
@@ -449,8 +449,8 @@ $("sk-save").onclick = async () => {
       SKROWS.slice(i, i + 400).forEach(x => b.update(doc(db, "hr_events", x.ev.id), sickClientUpd(x.ev, x.a, x.lim, "")));
       await b.commit(); n += Math.min(400, SKROWS.length - i);
     }
-    show($("sk-msg"), "ok", `اتسجل رد العميل على ${n} حالة مرضي — ${sum} يوم معتمد.`); SKROWS = []; $("sk-file").value = ""; $("sk-total").value = "";
-  } catch (e) { show($("sk-msg"), "err", `اتسجل ${n} ووقف عند خطأ: ` + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : e.message)); }
+    show($("sk-msg"), "ok", `اتسجل رد العميل على ${n} حالة مرضي — ${cnt(sum, "يوم")} معتمد.`); SKROWS = []; $("sk-file").value = ""; $("sk-total").value = "";
+  } catch (e) { show($("sk-msg"), "err", `اتسجل ${n} ووقف عند خطأ: ` + (e.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : e.message)); }
 };
 
 // ===== تصحيح نوع الإجازة: ج (ليه رصيد) / خ (ملوش رصيد) =====
@@ -518,7 +518,7 @@ $("lk-save").onclick = async () => {
       await b.commit(); n += Math.min(400, LKROWS.length - i);
     }
     show($("lk-msg"), "ok", `اتعدّل نوع ${n} إجازة.`); LKROWS = []; $("lk-file").value = "";
-  } catch (e) { show($("lk-msg"), "err", `اتعدّل ${n} ووقف عند خطأ: ` + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : e.message)); }
+  } catch (e) { show($("lk-msg"), "err", `اتعدّل ${n} ووقف عند خطأ: ` + (e.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : e.message)); }
 };
 
 // ===== تصدير المرفوض: مرضي / إجازة / استقالة في شيت واحد بالسبب =====
@@ -550,7 +550,7 @@ $("rj-exp").onclick = async () => {
     sheetOut([RJ_HEAD, ...rows], [30, 17, 10, 14, 22, 16, 16, 11, 11, 9, 12, 22, 34, 12], "المرفوض", `المرفوض ${f} الى ${t}.xlsx`);
     const noWhy = rows.filter(r => r[12] === "بدون سبب").length;
     show($("rj-msg"), "ok", `نزل ${rows.length} حالة مرفوضة` + (noWhy ? ` — منهم ${noWhy} اترفضوا من غير سبب.` : "."));
-  } catch (e) { show($("rj-msg"), "err", "مش قادر أحمّل المرفوض: " + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : e.message)); }
+  } catch (e) { show($("rj-msg"), "err", "مش قادر أحمّل المرفوض: " + (e.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : e.message)); }
 };
 
 let VIEW = false;   // المشاهد: عرض بس
@@ -576,7 +576,7 @@ onAuthStateChanged(auth, async user => {
   wqStart(role, user.uid);
   let last = "cases:sick"; try { last = localStorage.getItem(TAB_KEY) || "cases:sick"; } catch (e) {}
   showTab(last);
-  const onErr = err => show($("msg"), "err", "مش قادر أقرا الحالات: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : err.message));
+  const onErr = err => show($("msg"), "err", "مش قادر أقرا الحالات: " + (err.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : err.message));
   const fill = (map, snap) => { map.clear(); snap.forEach(d => map.set(d.id, { id: d.id, ...d.data() })); };
   onSnapshot(evQ(where("status", "==", "pending")), snap => { fill(LIVE_P, snap); ALL_LOADED = true; rebuild(); }, onErr);
   onSnapshot(evQ(where("changed", "==", true)), snap => { fill(LIVE_C, snap); rebuild(); }, onErr);
@@ -625,7 +625,7 @@ function render() {
           <dt>الكود</dt><dd>${esc(e.code)}${e.nid ? ` — <span dir="ltr">${esc(e.nid)}</span>` : ""}</dd>
           <dt>المكان</dt><dd>${esc([placeOf(e), e.job].filter(Boolean).join(" — "))}</dd>
           ${e.type === "resign" ? `<dt>السبب</dt><dd>${esc(e.reason)}</dd><dt>من تاريخ</dt><dd>${esc(dTxt(e.entry_date))} (يوم التسجيل)</dd>`
-            : `<dt>من</dt><dd>${esc(dTxt(e.from))} لحد ${esc(dTxt(e.to))} — ${esc(e.days)} يوم${e.approved_days != null && +e.approved_days < +e.days ? ` — <b>العميل اعتمد ${esc(e.approved_days)}</b>` : ""}</dd>`}
+            : `<dt>من</dt><dd>${esc(dTxt(e.from))} لحد ${esc(dTxt(e.to))} — ${esc(cnt(e.days, "يوم"))}${e.approved_days != null && +e.approved_days < +e.days ? ` — <b>العميل اعتمد ${esc(e.approved_days)}</b>` : ""}</dd>`}
           ${isInj(e) ? injuryHtml(e) : ""}
           ${e.type === "sick" && (e.cause || e.hospital) ? `<dt>السبب</dt><dd>${esc(e.cause || "—")}</dd><dt>المستشفى</dt><dd>${esc(e.hospital || "—")}</dd>` : ""}
           <dt>اتسجل</dt><dd${byTitle(e)}>${esc(dTxt(e.entry_date))} — ${esc(byTxt(e))}</dd>
@@ -669,7 +669,7 @@ function readSick(id, ev, root = document) {
   if (needsClient(ev) && (!cause || !hospital)) return { err: `اكتب سبب الحالة والمستشفى لـ ${ev.name} قبل الموافقة (لازمين لشيت العميل).` };
   return { v: { sick_kind: sk, type_ar: sk === "injury" ? "إصابة عمل" : TY.sick, cause, hospital } };
 }
-const errTxt = er => er.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : er.message;
+const errTxt = er => er.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : er.message;
 async function save(id, upd, okMsg) {
   try { await updateDoc(doc(db, "hr_events", id), upd); EDIT = null; CEDIT = null; if (LOADED_ST !== "pending" && LOADED_ST !== "client_wait") await loadDecided(); else render(); show($("msg"), "ok", okMsg || "اتحفظ."); }
   catch (er) { show($("msg"), "err", "ماتحفظش: " + errTxt(er)); }
@@ -698,7 +698,7 @@ function injuryChain(e) {
 function injuryHtml(e) {
   const ch = injuryChain(e); if (ch.length < 2) return "";
   const first = ch[0], prev = ch[ch.length - 2], tot = ch.reduce((a, x) => a + (+x.days || 0), 0);
-  return `<dt>امتداد إصابة</dt><dd>تجديد رقم ${ch.length - 1} — آخر إصابة قبلها ${esc(dTxt(prev.from) || "؟")} لحد ${esc(dTxt(prev.to) || "؟")}، والإصابة بدأت ${esc(dTxt(first.from || first.entry_date) || "؟")} — مجموع ${tot} يوم${e.from ? "" : ` <b style="color:#a32d2d">— التاريخ فاضي: «من» المقترح ${esc(dTxt(dayAfter(prev.to || prev.from)))}</b>`}</dd>`;
+  return `<dt>امتداد إصابة</dt><dd>تجديد رقم ${ch.length - 1} — آخر إصابة قبلها ${esc(dTxt(prev.from) || "؟")} لحد ${esc(dTxt(prev.to) || "؟")}، والإصابة بدأت ${esc(dTxt(first.from || first.entry_date) || "؟")} — مجموع ${cnt(tot, "يوم")}${e.from ? "" : ` <b style="color:#a32d2d">— التاريخ فاضي: «من» المقترح ${esc(dTxt(dayAfter(prev.to || prev.from)))}</b>`}</dd>`;
 }
 function hrOk(ev, extra) {
   const u = auth.currentUser, toClient = needsClient({ ...ev, ...extra });
@@ -761,7 +761,7 @@ $("list").onclick = async e => {
   if (ds.sok) {
     const a = numOf(document.querySelector(`[data-sa="${id}"]`)?.value);
     if (a == null || Number.isNaN(a) || a > +ev.days) return show($("msg"), "err", `الأيام المعتمدة لازم من 0 لحد ${ev.days}.`);
-    if (a < +ev.days && !(await ask(`العميل اعتمد ${a} يوم بس من ${ev.days} لـ ${ev.name}؟ ${a === 0 ? "كل الأيام" : "الباقي"} هتبقى خ.`, { ok: "سجّل", danger: true }))) return;
+    if (a < +ev.days && !(await ask(`العميل اعتمد ${cnt(a, "يوم")} بس من ${ev.days} لـ ${ev.name}؟ ${a === 0 ? "كل الأيام" : "الباقي"} هتبقى خ.`, { ok: "سجّل", danger: true }))) return;
     return save(id, sickClientUpd(ev, a, null, note), a >= +ev.days ? "اتسجل إن العميل اعتمدها كاملة." : a === 0 ? "اتسجل إن العميل رفضها — أيامها هتبقى خ." : `اتسجل إن العميل اعتمد ${a} من ${ev.days} — الباقي خ.`);
   }
   if (ds.back) {
@@ -853,7 +853,7 @@ function wqQ(...w) {
 }
 function wqStart(role, uid) {
   WQ.role = role; WQ.uid = uid;
-  const onErr = err => show($("wq-msg"), "err", "مش قادر أقرا طلبات القوة: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (worker_events)." : err.message));
+  const onErr = err => show($("wq-msg"), "err", "مش قادر أقرا طلبات القوة: " + (err.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : err.message));
   for (const st of ["pending", "error", "approved", "returned"]) {
     onSnapshot(wqQ(where("status", "==", st)), snap => {
       for (const [id, e] of WQ.open) if (e.status === st) WQ.open.delete(id);

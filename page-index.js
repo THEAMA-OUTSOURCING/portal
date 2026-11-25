@@ -445,7 +445,7 @@ async function extendPayVis(key){
   try{
     await setDoc(VIS_DOC(), key ? { tabs: { [key]: { visible_until: until, extended_at: serverTimestamp() } } } : { visible_until: until, extended_at: serverTimestamp() }, { merge: true });
   }catch(e){
-    tell('التمديد ماتسجلش: '+(e.code==='permission-denied'?'محتاج تحديث الـ Rules (payroll_meta)':e.message)); return;
+    tell('التمديد ماتسجلش: '+(e.code==='permission-denied'?'مش مسموح للحساب ده — لو اتكررت كلّم الإدارة.':e.message)); return;
   }
   showPayVis();
 }
@@ -525,7 +525,7 @@ async function uploadSheet(){
       pTabs.forEach(t=>tabs[tabKey(t.name)] = { name: t.name, upload_id: uploadId, days, visible_until: until, set_at: serverTimestamp() });
       await setDoc(VIS_DOC(), { upload_id: uploadId, tabs }, { merge: true });
     }catch(e){
-      visMsg = ' — بس مدة الظهور ماتسجلتش ('+(e.code==='permission-denied'?'محتاج تحديث الـ Rules: payroll_meta':e.message)+')، فالمرتب هيفضل ظاهر لحد ما تمدّد';
+      visMsg = ' — بس مدة الظهور ماتسجلتش ('+(e.code==='permission-denied'?'مش مسموح للحساب ده — لو اتكررت كلّم الإدارة.':e.message)+')، فالمرتب هيفضل ظاهر لحد ما تمدّد';
     }
     // تقسيم الشرقية للتقارير: اللي في تابة «الشرقية 1» = الشرقية 1، وأي حد تاني في الشرقية = الشرقية 2
     // بيتسجل بس لو الشيت فيه تابة الشرقية 1 (عشان رفعة من غيرها ماتمسحش التقسيم القديم)
@@ -534,7 +534,7 @@ async function uploadSheet(){
     if(sh1.length){
       const nids1 = [...new Set(payParsed.recs.filter(x=>sh1.includes(x.data._tab)).map(x=>String(x.nid||'').replace(/\D/g,'')).filter(n=>n.length===14))];
       try{ await setDoc(doc(db,'sharqia_map','groups'), { nids1, tabs1: sh1, upload_id: uploadId, set_at: serverTimestamp() }); visMsg += ' — تقسيم الشرقية: '+nids1.length+' في الشرقية 1'; }
-      catch(e){ visMsg += ' — بس تقسيم الشرقية 1 / 2 ماتسجلش ('+(e.code==='permission-denied'?'محتاج تحديث الـ Rules: sharqia_map':e.message)+')'; }
+      catch(e){ visMsg += ' — بس تقسيم الشرقية 1 / 2 ماتسجلش ('+(e.code==='permission-denied'?'مش مسموح للحساب ده — لو اتكررت كلّم الإدارة.':e.message)+')'; }
     }
     showPayVis();
     document.getElementById('upload-success-msg').textContent='تم رفع '+count+' موظف بنجاح ✓' + visMsg
@@ -906,7 +906,13 @@ async function doSetPass(){
       }
       await auth.currentUser.getIdToken(true);   // التوكن الجديد من غير العلامة
       const mine = await loadMyPayroll(loggedUser.code);
-      if(!mine){ await signOut(auth); loggedUser = null; showScreen('login-screen'); resetSetBtn(); return; }
+      if(!mine){
+        // ب9: كلمة المرور اتغيّرت والحساب اتفتح، بس مفيش كشف مرتب للعامل لسه — كان بيرجع لشاشة الدخول من غير ولا كلمة
+        await signOut(auth); loggedUser = null; showScreen('login-screen');
+        document.getElementById('login-error-msg').textContent = 'كلمة المرور الجديدة اتحفظت ✓ — بس مفيش كشف مرتب متسجّل ليك لسه. ادخل تاني بكلمة المرور الجديدة لما يترفع.';
+        document.getElementById('login-error').style.display = 'block';
+        resetSetBtn(); return;
+      }
       loggedUser = {code: loggedUser.code, ...mine};
     }
     await proceedAfterAuth();
@@ -1356,8 +1362,8 @@ async function saveRequest(){
     errEl.style.display = 'block';
     return;
   }
-  if(!/^0\d{10}$/.test(phone)){
-    document.getElementById('req-error-msg').textContent = 'رقم تليفون غير صحيح (لازم 11 رقم يبدأ بصفر)';
+  if(!/^01\d{9}$/.test(phone)){
+    document.getElementById('req-error-msg').textContent = 'رقم الموبايل غلط — لازم 11 رقم يبدأ بـ 01';
     errEl.style.display = 'block';
     return;
   }

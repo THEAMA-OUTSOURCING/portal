@@ -879,15 +879,17 @@ $("confirm").addEventListener("click", async () => {
         pages: livePages().map(p => p.id), admin_edited_by: u.uid, admin_edited_at: serverTimestamp() });
       show($("c-msg"), "ok", `اتحفظ التعديل ✓ — اليوم لسه «${stName}».`);
     } catch (err) {
-      show($("c-msg"), "err", "ماتحفظش: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (تعديل الأدمن على att_days)." : err.message));
+      show($("c-msg"), "err", "ماتحفظش: " + (err.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : err.message));
     }
     $("confirm").disabled = false;
     return;
   }
   const late = new Date() > deadlineOf(S.date);
   const nth = S.lateCount + 1;
-  if (late && !(S.regional ? S.day?.review_late : S.day?.late) && !await ask(`اتأخرت في رفع حضور يوم ${dTxt(S.date)}.\nدي المرة ${ordinal(nth)} الشهر ده.\nالتأخير بيتسجل وبيأثر على تقييمك وراتبك.\n\nتأكد الحضور؟`)) return;
-  if (!late && !await ask(`تأكيد حضور ${S.site} يوم ${dTxt(S.date)}:\nحاضر ${P} — ${offTxt(A, On)}${Qn ? ` — توقف ${Qn}` : ""}`, { ok: "أكّد الحضور" })) return;
+  // و3: الملخص (حاضر / غايب) بيظهر في كل تأكيد — كان بيختفي لما اليوم متأخر، ولو كان متعلّم متأخر قبل كده مكانش فيه سؤال خالص
+  const sumTxt = `تأكيد حضور ${S.site} يوم ${dTxt(S.date)}:\nحاضر ${P} — ${offTxt(A, On)}${Qn ? ` — توقف ${Qn}` : ""}`;
+  const newLate = late && !(S.regional ? S.day?.review_late : S.day?.late);
+  if (!await ask(newLate ? `اتأخرت في رفع حضور يوم ${dTxt(S.date)}.\nدي المرة ${ordinal(nth)} الشهر ده.\nالتأخير بيتسجل وبيأثر على تقييمك وراتبك.\n\n${sumTxt}` : sumTxt, { ok: "أكّد الحضور" })) return;
   $("confirm").disabled = true;
   try {
     const base = {
@@ -971,7 +973,7 @@ $("refresh-times").addEventListener("click", async () => {
     show($("refresh-msg"), "ok", `اتحدث ✓ — ساعات ${cnt(nT, "عامل")}${added.length ? `، واتضاف ${cnt(added.length, "بديل")}: ${added.join("، ")}` : ""}${dups.length ? `، واتشال ${cnt(dups.length, "اسم")} ${dups.length === 1 ? "متكرر" : "متكررين"}` : ""}.`
       + (diff.length ? `\n\nفرق في الحالة (ماتغيرش — راجعه بنفسك):\n${diff.join("\n")}` : ""));
   } catch (err) {
-    show($("refresh-msg"), "err", "ماتحدثش: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (att_days — تحديث الساعات للأدمن)." : err.message));
+    show($("refresh-msg"), "err", "ماتحدثش: " + (err.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : err.message));
   }
   $("refresh-times").disabled = false;
 });
@@ -1173,7 +1175,7 @@ async function repAllowed(key, p) {
   try {
     await addDoc(collection(db, "rep_exceptions"), { site: S.site, date: S.date, target: key, target_name: t?.name || "", who, name: p.name || "",
       reason: bad.slice(0, 300), by: u.uid, by_email: actorEmail(u), at: serverTimestamp() });
-  } catch (e) { tell("الاستثناء ماتسجلش: " + (e.code === "permission-denied" ? "محتاج تحديث الـ Rules (rep_exceptions)." : e.message)); return false; }
+  } catch (e) { tell("الاستثناء ماتسجلش: " + (e.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : e.message)); return false; }
   return true;
 }
 async function pickRep(code, who) {
@@ -1954,7 +1956,7 @@ function lvWatch() {
   }, () => {});
   LV.unsub = onSnapshot(query(collection(db, "hr_events"), where("source", "==", "supervisor"), where("site", "==", site)), snap => {
     LV.list = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderLvList();
-  }, err => show($("lv-msg"), "err", "مش قادر أقرا الطلبات: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : err.message)));
+  }, err => show($("lv-msg"), "err", "مش قادر أقرا الطلبات: " + (err.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : err.message)));
 }
 $("site").addEventListener("change", lvWatch);
 $("lv-list").addEventListener("toggle", e => { const g = e.target.closest?.("[data-lvg]"); if (g) g.open ? LV_OPEN.add(g.dataset.lvg) : LV_OPEN.delete(g.dataset.lvg); }, true);
@@ -2121,6 +2123,6 @@ $("lv-send").addEventListener("click", async () => {
     show($("lv-msg"), "ok", `الطلب اتبعت للـ HR — ${inj ? (ext ? "امتداد إصابة عمل" : "إصابة عمل") : LV_TY[type]} ${w.name} من ${f} لحد ${t}.`);
   } catch (err) {
     $("lv-send").disabled = false;
-    show($("lv-m"), "err", "ماترفعش: " + (err.code === "permission-denied" ? "محتاج تحديث الـ Rules (hr_events)." : err.message));
+    show($("lv-m"), "err", "ماترفعش: " + (err.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : err.message));
   }
 });
