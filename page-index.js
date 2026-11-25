@@ -75,6 +75,7 @@ function passErrorMsg(e){
   if(c==='auth/requires-recent-login') return 'اخرج وادخل تاني، وبعدين غيّر كلمة المرور';
   if(c==='auth/weak-password') return 'كلمة المرور ضعيفة — لازم 6 أحرف على الأقل';
   if(c==='auth/network-request-failed') return 'خطأ في الاتصال، حاول تاني';
+  if(c==='pw/tries') return 'كلمة المرور اتحفظت، بس محاولات فتح الحساب خلصت — كلّم المشرف يعمل لك ريسيت جديد';
   return 'خطأ في الحفظ، حاول تاني';
 }
 
@@ -583,6 +584,24 @@ async function createTask(type, code){
   });
 }
 
+// طلب «غيّرت الباسورد المؤقت»: برقم ثابت (pw_<الحساب>_<علامة الريسيت>_<1..5>) بدل رقم عشوائى — الـ Rules بتقبل
+// 5 محاولات بس لكل ريسيت، فحساب عامل مايقدرش يملا طابور السيرفر بآلاف الطلبات (أ9). ريسيت جديد = 5 محاولات جديدة
+async function createPwChangedTask(code){
+  const u = auth.currentUser;
+  if(!u) throw new Error('انتهت الجلسة — ادخل تاني');
+  const pt = (await u.getIdTokenResult()).claims.pw_temp;
+  let denied = null;
+  for(let i = 1; i <= 5; i++){
+    const ref = doc(db, 'admin_tasks', `pw_${u.uid}_${pt}_${i}`);
+    try{
+      await setDoc(ref, { type: 'pw_changed', code: code || '', requested_by: u.uid, requested_email: actorEmail(u),
+        status: 'pending', created_at: serverTimestamp() });
+      return ref;
+    }catch(e){ if(e && e.code==='permission-denied'){ denied = e; continue; } throw e; }   // المحاولة دى اتعملت قبل كده
+  }
+  const e = new Error('pw tries'); e.code = 'pw/tries'; console.warn('pw_changed slots used', denied); throw e;
+}
+
 function waitTask(ref, onWorking, timeoutMs){
   return new Promise(resolve=>{
     let finished = false, unsub = null;
@@ -876,7 +895,7 @@ async function doSetPass(){
     if(loggedUser?.pwTemp){
       // السيرفر بيتأكد إن الرقم القومي بطّل يفتح الحساب ويشيل العلامة، وبعدها المرتب يتفتح
       btn.innerHTML='<span class="spinner"></span> بنفتح حسابك...';
-      const r = await waitTask(await createTask('pw_changed', loggedUser.code), null, 90000);
+      const r = await waitTask(await createPwChangedTask(loggedUser.code), null, 90000);
       if(r.status!=='done'){
         await signOut(auth); loggedUser = null; showScreen('login-screen');
         const le = document.getElementById('login-error');

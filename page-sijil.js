@@ -12,7 +12,9 @@ const S = { all: new Map(), scoped: null, role: null };
 // نسخة السجل في المتصفح (عشان مانقراش آلاف العمال من Firestore كل مرة): لكل حساب لوحده، وبتتمسح مع الخروج
 // أو لما الصفحة تتفتح من غير دخول، وبتتجاهل لو أقدم من 7 أيام — عشان الأرقام القومية والتليفونات ماتفضلش على جهاز حد خرج
 const CACHE_PREFIX = "sijil_v1";
-const CACHE_MAX_MS = 7 * 864e5;
+// أ13 و ب5: النسخة بتتحمّل كاملة من جديد كل يوم (التحديث الجزئى بيجيب اللى اتغيّر بس، فاللى اتمسح أو اتعدّل
+// من غير updated_at كان بيفضل بالقديم)، وزرار «تحديث» = تحميل كامل. كانت 7 أيام والوقت بيتجدد مع كل فتح
+const CACHE_MAX_MS = 864e5;
 const cacheKey = () => CACHE_PREFIX + "_" + (auth.currentUser?.uid || "");
 function purgeCache() {
   try { Object.keys(localStorage).filter(k => k.startsWith(CACHE_PREFIX)).forEach(k => localStorage.removeItem(k)); } catch (e) {}
@@ -28,11 +30,11 @@ function slim(d) {
   return o;
 }
 function loadCache() {
-  try { const c = JSON.parse(localStorage.getItem(cacheKey()) || "null"); if (c && c.v === 1 && Date.now() - (c.at || 0) < CACHE_MAX_MS) return c; } catch (e) {}
+  try { const c = JSON.parse(localStorage.getItem(cacheKey()) || "null"); if (c && c.v === 1 && Date.now() - (c.full_at || 0) < CACHE_MAX_MS) return c; } catch (e) {}
   return null;
 }
-function saveCache(maxU) {
-  try { localStorage.setItem(cacheKey(), JSON.stringify({ v: 1, at: Date.now(), maxU, rows: [...S.all.values()] })); } catch (e) {}   // لو المساحة مش كفاية: من غير حفظ
+function saveCache(maxU, fullAt) {
+  try { localStorage.setItem(cacheKey(), JSON.stringify({ v: 1, at: Date.now(), full_at: fullAt, maxU, rows: [...S.all.values()] })); } catch (e) {}   // لو المساحة مش كفاية: من غير حفظ
 }
 async function load(full) {
   show($("msg"), "info", "بيحمّل السجل…");
@@ -48,10 +50,12 @@ async function load(full) {
     } else {
       const cache = full ? null : loadCache();
       let maxU = 0;
-      if (cache) { S.all = new Map(cache.rows.map(r => [r.id, r])); maxU = cache.maxU || 0; }
+      // تحميل كامل: من الصفر (اللى اتمسح من السجل مايفضلش ظاهر من التحميل اللى قبله)
+      S.all = cache ? new Map(cache.rows.map(r => [r.id, r])) : new Map();
+      if (cache) maxU = cache.maxU || 0;
       const snap = await getDocs(maxU ? query(c, where("updated_at", ">", Timestamp.fromMillis(maxU))) : c);
       snap.forEach(d => { const r = slim(d); S.all.set(d.id, r); if (r.u > maxU) maxU = r.u; });
-      saveCache(maxU);
+      saveCache(maxU, cache ? cache.full_at : Date.now());
       $("sync").textContent = (cache ? `اتحدّث ${fmt(snap.size)} من آخر مرة` : `اتحمّل ${fmt(snap.size)}`) + " — " + dTxt(new Date(), { time: true });
     }
     $("msg").className = "msg";
@@ -131,7 +135,7 @@ function render() {
 $("q").addEventListener("input", () => { if ($("q").value.trim()) { TILE = null; $("f-st").value = ""; $("f-soc").value = ""; $("f-hl").value = ""; } render(); });
 ["f-co", "f-site", "f-ty"].forEach(id => $(id).addEventListener("input", render));
 ["f-st", "f-soc", "f-hl"].forEach(id => $(id).addEventListener("change", () => { TILE = null; render(); }));
-$("refresh").onclick = () => load(false);
+$("refresh").onclick = () => load(true);   // ب5: «تحديث» = السجل كله من جديد
 
 // ===== كارت العامل (بيقرا السجل كامل بتاريخه — قراية واحدة) =====
 const HK = { hire: "تعيين", leave: "خروج", change: "تغيير", insurance: "تأمين" };
