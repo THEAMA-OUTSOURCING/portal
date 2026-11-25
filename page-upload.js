@@ -5,7 +5,7 @@ import { detect, parseChipsy, parseEmdad, parseSharqia, emdadMonths, counts, COM
 const $ = id => document.getElementById(id);
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
 function hide(el) { el.className = "msg"; }
-const S = { wb: null, type: null, res: null, fileName: "", fixes: [], missing: [], banned: [], newbies: {}, bl: {} };
+const S = { wb: null, type: null, res: null, fileName: "", fixes: [], missing: [], banned: [], newbies: {}, bl: {}, grp: {}, shG: "" };
 
 // الدخول والخروج: من shared.js (نفس الكود في كل صفحات الإدارة — ت4)
 wireStaffLogin();
@@ -76,6 +76,7 @@ async function run() {
 // والنوع بتسميته هو («يومية شيبسي»). اللي مالوش كود في السجل بيفضل باسم الشيت (عامل جديد / مش متطابق).
 // الشرقية بكود البوابة (40..)، والباقي بكود T بعد fixNids. لازم قبل trimOverPlan (الزيادة عن المخطط بتشيل اليومية الأول).
 async function fromRecord() {
+  S.grp = {}; S.shG = "";
   const recs = {}, put = x => { if (x.code) recs[x.code] = x; if (x.portal_code) recs["P" + x.portal_code] = x; };
   try {
     if (S.type === "sharqia") (await getDocs(query(collection(db, "workers"), where("company", "==", "الشرقية")))).forEach(d => put({ code: d.id, ...d.data() }));
@@ -85,6 +86,10 @@ async function fromRecord() {
         (await getDocs(query(collection(db, "workers"), where("site", "in", sites.slice(i, i + 30))))).forEach(d => put({ code: d.id, ...d.data() }));
     }
   } catch (er) { return; }   // مش قادر يقرا السجل: الاسم والنوع زي الشيت
+  if (S.type === "sharqia") {
+    Object.values(recs).forEach(r => { if (r.portal_code) S.grp[String(r.portal_code)] = r.group === "الشرقية 1" ? "1" : "2"; });
+    S.shG = fileGroup(Object.values(S.res.days), S.grp);
+  }
   const other = async c => {   // عامل اتنقل موقع تاني (كوده من fixNids)
     if (!(c in recs)) { recs[c] = null; try { const x = await getDoc(doc(db, "workers", c)); if (x.exists()) recs[c] = { code: c, ...x.data() }; } catch (er) {} }
     return recs[c];
@@ -184,6 +189,35 @@ async function fixNids() {
     }
   }
 }
+// ===== الشرقية: ملفين على نفس الأيام =====
+// الشرقية 1 (16→15) والشرقية 2 (شهر ميلادي) موقع واحد على البوابة وكل مجموعة ليها ملف، فاليوم الواحد بييجي من ملفين.
+// الملف بيبدّل حضور مجموعته بس في اليوم، وحضور المجموعة التانية بيفضل زي ما هو. قبل كده اليوم كله كان بيتكتب من جديد،
+// فرفع ملف الشرقية 1 يوم 25/11/2026 مسح حضور الشرقية 2 من 16/10 لـ 15/11.
+// grp = { كود البوابة: "1" | "2" } من السجل. مجموعة الملف = مجموعة أغلب عماله اللي في السجل ("" لو ولا واحد في السجل).
+function fileGroup(days, grp) {
+  const n = { 1: new Set(), 2: new Set() };
+  for (const d of days) for (const [k, e] of Object.entries(d.entries)) { const g = grp[String(e.code || k)]; if (g) n[g].add(k); }
+  return !n[1].size && !n[2].size ? "" : n[1].size > n[2].size ? "1" : "2";
+}
+// old = سطور اليوم المتسجل (أو undefined)، fresh = سطور الملف، G = مجموعة الملف. بيرجع { entries, kept }
+// كل سطر بيتحفظ عليه g (مجموعته) عشان اللي مش في السجل يتعرف بعد كده جه مع أنهي ملف.
+function mergeSharqiaDay(old, fresh, grp, G) {
+  const out = {}; let kept = 0;
+  const gOf = (k, e) => grp[String(e.code || k)] || e.g || "";
+  if (old) {
+    // سطر قديم مالوش مجموعة (مش في السجل ومن قبل العلامة g): ياخد مجموعة أغلب اليوم القديم
+    const c = { 1: 0, 2: 0 }; for (const [k, e] of Object.entries(old)) { const g = gOf(k, e); if (g) c[g]++; }
+    const oldMajor = !c[1] && !c[2] ? "" : c[1] > c[2] ? "1" : "2";
+    for (const [k, e] of Object.entries(old)) {
+      if (k in fresh) continue;                             // موجود في الملف: سطر الملف هو اللي يتحفظ
+      const g = gOf(k, e) || oldMajor;
+      if (G && g === G) continue;                           // من مجموعة الملف ومش فيه: اتشال من الملف
+      out[k] = g && !e.g ? { ...e, g } : e; kept++;         // اللي فاضل بياخد علامته قبل ما اليوم يبقى فيه المجموعتين
+    }
+  }
+  for (const [k, e] of Object.entries(fresh)) { const g = grp[String(e.code || k)] || G; out[k] = g ? { ...e, g } : e; }
+  return { entries: out, kept };
+}
 function selected() {
   const a = $("p-from").value, b = $("p-to").value;
   return Object.entries(S.res.days).filter(([, d]) => d.date >= a && d.date <= b);
@@ -196,7 +230,7 @@ function renderPreview() {
     Object.keys(d.entries).forEach(k => x.workers.add(k)); x.p += c.present; x.a += c.absent; x.l += c.leave;
   }
   const rows = Object.entries(by);
-  $("p-title").textContent = `2. راجع قبل الحفظ — ${COMPANY_LABEL[S.type]} (${S.fileName})`;
+  $("p-title").textContent = `2. راجع قبل الحفظ — ${COMPANY_LABEL[S.type]}${S.shG ? " " + S.shG : ""} (${S.fileName})`;
   $("p-sites").innerHTML = rows.length ? rows.map(([s, x]) => `<tr><td>${esc(s)}</td><td class="num">${x.workers.size}</td><td class="num">${x.days}</td><td>${esc(dTxt(x.from))}</td><td>${esc(dTxt(x.to))}</td>
     <td class="num">${Math.round(x.p / x.days)}</td><td class="num">${Math.round(x.a / x.days)}</td><td class="num">${x.l}</td></tr>`).join("")
     : `<tr><td colspan="8" class="muted">مفيش أيام في الفترة دي.</td></tr>`;
@@ -273,22 +307,30 @@ async function siteDays(site, from, to) {
 $("save").onclick = async () => {
   const list = selected(); if (!list.length) return;
   const sites = [...new Set(list.map(([, d]) => d.site))];
-  if (!await ask(`حفظ ${cnt(list.length, "يوم")} حضور (${sites.join("، ")}) كمعتمد؟\nالأيام اللي اترفعت قبل كده هتتحدث بالملف ده.`, { ok: "احفظ" })) return;
+  const sh = S.type === "sharqia", G = sh ? S.shG : "";
+  const keepTxt = !sh ? "الأيام اللي اترفعت قبل كده هتتحدث بالملف ده."
+    : G ? `ده ملف الشرقية ${G}: حضور الشرقية ${G} في الأيام دي هيتحدث بالملف، وحضور الشرقية ${G === "1" ? "2" : "1"} المتسجل فيها هيفضل زي ما هو.`
+    : "مفيش عامل من الملف في السجل، فمجموعته مش معروفة: سطور الملف هتتحدث، وأي حضور تاني متسجل في نفس الأيام هيفضل زي ما هو.";
+  if (!await ask(`حفظ ${cnt(list.length, "يوم")} حضور (${sites.join("، ")}) كمعتمد؟\n${keepTxt}`, { ok: "احفظ" })) return;
   $("save").disabled = true; show($("s-msg"), "info", "بيحفظ...");
   try {
+    const old = {}; let keptDays = 0;   // الشرقية: الأيام المتسجلة قبل كده (للدمج)، وعدد الأيام اللي اتحافظ فيها على حضور المجموعة التانية
     // أمان: منكتبش فوق يوم متسجل من الكشوف المصورة
     for (const s of sites) {
       const ds = list.filter(([, d]) => d.site === s).map(([, d]) => d.date).sort();
       const found = await siteDays(s, ds[0], ds[ds.length - 1]);
       const photo = found.filter(d => d.data().source !== "excel" && list.some(([k]) => k === d.id));
       if (photo.length) throw new Error(`فيه ${cnt(photo.length, "يوم")} في ${s} ${photo.length === 1 ? "متسجل" : "متسجلين"} من الكشوف المصورة — مش هكتب فوقه.`);
+      if (sh) found.forEach(d => old[d.id] = d.data().entries || {});
     }
     const u = auth.currentUser;
     for (let i = 0; i < list.length; i += 20) {   // يوم الشرقية كبير، فالدفعات صغيرة
       const b = writeBatch(db);
       list.slice(i, i + 20).forEach(([k, d]) => {
-        const c = counts(d.entries);
-        b.set(doc(db, "att_days", k), { site: d.site, date: d.date, entries: d.entries,
+        let entries = d.entries;
+        if (sh) { const m = mergeSharqiaDay(old[k], d.entries, S.grp, G); entries = m.entries; if (m.kept) keptDays++; }
+        const c = counts(entries);
+        b.set(doc(db, "att_days", k), { site: d.site, date: d.date, entries,
           counts: { present: c.present, absent: c.absent, leave: c.leave, total: c.total },
           source: "excel", company: S.type, file: S.fileName, status: "approved",
           uploaded_by: u.uid, uploaded_email: actorEmail(u), uploaded_at: serverTimestamp(),
@@ -309,7 +351,7 @@ $("save").onclick = async () => {
         by: u.uid, by_email: actorEmail(u), created_at: serverTimestamp() });
       sent++;
     } } catch (er) { hrErr = er.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : er.message; }
-    show($("s-msg"), hrErr ? "warn" : "ok", `اتحفظ ${cnt(list.length, "يوم")} ✓ — تقدر تشوفهم في تقارير الحضور.` + (sent ? ` واتبعت ${cnt(sent, "عامل")} ${sent === 1 ? "جديد" : "جداد"} لـ HR.` : "")
+    show($("s-msg"), hrErr ? "warn" : "ok", `اتحفظ ${cnt(list.length, "يوم")} ✓ — تقدر تشوفهم في تقارير الحضور.` + (keptDays ? ` الحضور التاني المتسجل في ${cnt(keptDays, "يوم")} منهم فضل زي ما هو.` : "") + (sent ? ` واتبعت ${cnt(sent, "عامل")} ${sent === 1 ? "جديد" : "جداد"} لـ HR.` : "")
       + (hrErr ? ` بس طلبات العمال الجداد لـ HR ماتبعتتش: ${hrErr}.` : ""));
   } catch (e) {
     show($("s-msg"), "err", "ماتحفظش: " + (e.code === "permission-denied" ? "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة." : e.message));
