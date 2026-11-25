@@ -569,6 +569,13 @@ export function codeFor(map, site, job, sec) {
 .btn.danger{background:#fff;color:#a61b12;border:1px solid #e0a09a;}
 .btn.danger:hover{background:#fdecea;}
 .btn:disabled{opacity:.5;cursor:not-allowed;}
+/* و5: شكل واحد للتابات في كل الصفحات (الحالات والاحتياج والتقارير): خط أحمر تحت التاب المفتوح */
+.tabs{display:flex;flex-wrap:nowrap;gap:2px;margin-bottom:14px;border-bottom:1px solid #e0ded6;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
+.tabs::-webkit-scrollbar{display:none;}
+.tab{padding:9px 14px;cursor:pointer;background:none;border:none;border-bottom:3px solid transparent;border-radius:0;color:#6a6e75;font:inherit;font-weight:500;white-space:nowrap;flex:0 0 auto;}
+.tab:hover{color:#1d2024;}
+.tab[aria-selected=true]{color:#a61b12;border-bottom-color:#a61b12;font-weight:600;}
+.tab:focus-visible{outline:3px solid #9cc2ee;outline-offset:-3px;}
 .btn:focus-visible,.tbl:focus-visible{outline:3px solid #9cc2ee;outline-offset:2px;}
 @media (pointer:coarse){.btn{min-height:44px;}.btn.small{min-height:40px;}
   details.why>summary{padding:12px 2px;}
@@ -923,4 +930,4 @@ window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-if (FIRST_COPY) import('./notify.js?v=20261125e').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+if (FIRST_COPY) import('./notify.js?v=20261125f').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));

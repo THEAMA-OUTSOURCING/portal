@@ -1,8 +1,8 @@
 // page-plan.js — سكريبت صفحة plan.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { dTxt, db, auth, actorEmail, ATT_SITES, SUP_SITES, isBasic, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions, wireStaffLogin, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot, Timestamp, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, canOpen } from './shared.js?v=20261125e';
-import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261125e';
+import { dTxt, db, auth, actorEmail, ATT_SITES, SUP_SITES, isBasic, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions, wireStaffLogin, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot, Timestamp, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, canOpen } from './shared.js?v=20261125f';
+import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261125f';
 import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261124e';
-import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261125e';
+import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261125f';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====
