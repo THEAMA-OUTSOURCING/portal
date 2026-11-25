@@ -55,6 +55,7 @@ async function run() {
     future.forEach(k => delete S.res.days[k]);
     show($("f-msg"), "info", "بيقارن الأرقام القومية بالسجل...");
     await fixNids();
+    await fromRecord();
     S.trim = [];
     if (S.type === "chipsy") {
       // قسم مدخلين بيانات أبو صير من «ترتيب الكشف»، وبعدين الزيادة عن المخطط بتتشال من العدد
@@ -70,6 +71,31 @@ async function run() {
     show($("f-msg"), "ok", `${COMPANY_LABEL[S.type]} — ${cnt(S.res.workers, "عامل")}` + (S.res.ignored ? ` (اتساب ${cnt(S.res.ignored, "سطر")} مش تبعنا: شركات تانية أو فرع MN)` : "") + futTxt);
     renderPreview();
   } catch (e) { show($("f-msg"), "err", e.message); }
+}
+// الاسم والنوع من السجل (المصدر الوحيد) لأي عامل ليه كود — شيت العميل بيكتب الاسم ناقص أو بإملاء تاني
+// والنوع بتسميته هو («يومية شيبسي»). اللي مالوش كود في السجل بيفضل باسم الشيت (عامل جديد / مش متطابق).
+// الشرقية بكود البوابة (40..)، والباقي بكود T بعد fixNids. لازم قبل trimOverPlan (الزيادة عن المخطط بتشيل اليومية الأول).
+async function fromRecord() {
+  const recs = {}, put = x => { if (x.code) recs[x.code] = x; if (x.portal_code) recs["P" + x.portal_code] = x; };
+  try {
+    if (S.type === "sharqia") (await getDocs(query(collection(db, "workers"), where("company", "==", "الشرقية")))).forEach(d => put({ code: d.id, ...d.data() }));
+    else {
+      const sites = [...new Set(Object.values(S.res.days).map(d => d.site))];
+      for (let i = 0; i < sites.length; i += 30)
+        (await getDocs(query(collection(db, "workers"), where("site", "in", sites.slice(i, i + 30))))).forEach(d => put({ code: d.id, ...d.data() }));
+    }
+  } catch (er) { return; }   // مش قادر يقرا السجل: الاسم والنوع زي الشيت
+  const other = async c => {   // عامل اتنقل موقع تاني (كوده من fixNids)
+    if (!(c in recs)) { recs[c] = null; try { const x = await getDoc(doc(db, "workers", c)); if (x.exists()) recs[c] = { code: c, ...x.data() }; } catch (er) {} }
+    return recs[c];
+  };
+  for (const d of Object.values(S.res.days)) for (const [k, e] of Object.entries(d.entries)) {
+    const c = String(e.code || k);
+    const r = S.type === "sharqia" ? recs["P" + c] : (/^T\d+$/.test(c) ? recs[c] || await other(c) : null);
+    if (!r) continue;
+    if (r.name) e.name = r.name;
+    if (r.type && S.type !== "sharqia") e.type = r.type;   // الشرقية كلها أساسي، والنوع مش في شيتها
+  }
 }
 // المصدر الوحيد للرقم القومي والكود = السجل الموحد (workers)، مش شيت العميل.
 // 1) رقم قومي موجود في السجل → ياخد الكود من السجل.
