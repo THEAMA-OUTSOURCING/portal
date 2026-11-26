@@ -6,7 +6,7 @@
 // - كل مستلم ليه نسخة في notif_inbox (id = uid__id) — منها «اتقرا إمتى» و«قرأه كام واحد».
 // - الإشعارات ما بتتمسحش. الجرس بيعرض آخر 14 يوم، والأقدم بزرار «عرض الأقدم».
 // - توفير القراءات: أول ما الصفحة تفتح = عدّ بس (قراية واحدة)، والقايمة بتتحمل لما حد يدوس على الجرس.
-import { dTxt, tell, askText, esc, collection, doc, getDoc, getDocs, query, where, orderBy, limit, startAfter, writeBatch, serverTimestamp, getCountFromServer, Timestamp, onAuthStateChanged } from './shared.js?v=20261125f';
+import { dTxt, tell, askText, esc, collection, doc, getDoc, getDocs, query, where, orderBy, limit, startAfter, writeBatch, serverTimestamp, getCountFromServer, Timestamp, onAuthStateChanged } from './shared.js?v=20261126a';
 
 const DAYS_SHOWN = 14;
 const PAGE = 20;
@@ -194,7 +194,7 @@ function showTab() {
 }
 function errText(e) {
   if (e?.code === "permission-denied") return "مش مسموح للحساب ده — لو اتكررت كلّم الإدارة.";
-  if (e?.code === "failed-precondition") return "محتاج Index في Firestore — افتح الـ Console من اللينك اللي في رسالة الخطأ: " + (e.message || "");
+  if (e?.code === "failed-precondition") return "القايمة دي لسه مش جاهزة على السيستم — ابعت الرسالة دي للادمن: " + (e.message || "");
   return e?.message || String(e);
 }
 

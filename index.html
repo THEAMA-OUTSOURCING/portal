@@ -305,10 +305,11 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
       <p style="font-size:14px;font-weight:500;color:#222;margin-bottom:12px;"><i class="ti ti-upload" style="font-size:16px;vertical-align:-2px;margin-left:6px;color:#c0392b;"></i>رفع شيت الرواتب الجديد</p>
       <input type="file" id="admin-excel" aria-label="شيت المرتبات (إكسيل)" accept=".xlsx,.xls" style="margin-bottom:6px;" data-change="resetPayReview"/>
       <p style="font-size:12px;color:#6b6b6b;margin-bottom:12px;">كل شركة في تابة لوحدها (بيبسي، شيبسي، سويفل، الشرقية 1، الشرقية 2...) — المراجعة بتطلع إجمالي كل تابة لوحدها، وتعلّم على الشركات اللي هترفعها دلوقتي بس. الشركات اللي مش متعلّم عليها كشوفها ومدة ظهورها بيفضلوا زي ما هم.</p>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:13px;color:#555;">
-        <label for="pay-days">المرتب يفضل ظاهر للعمال</label>
-        <input type="number" id="pay-days" min="1" max="60" value="5" inputmode="numeric" style="width:70px;padding:6px 8px;border:1px solid #ddd;border-radius:8px;text-align:center;">
-        <span>يوم من وقت الرفع</span>
+      <!-- و15: سطر واحد على الموبايل كمان — الكلام بيلف جوه مكانه والخانة مابتنزلش لوحدها -->
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;margin-bottom:12px;font-size:13px;color:#555;">
+        <label for="pay-days" style="flex:0 1 auto;min-width:0;">المرتب يفضل ظاهر للعمال</label>
+        <input type="number" id="pay-days" min="1" max="60" value="5" inputmode="numeric" style="width:64px;flex:0 0 64px;padding:6px 8px;border:1px solid #ddd;border-radius:8px;text-align:center;">
+        <span style="flex:0 1 auto;min-width:0;">يوم من وقت الرفع</span>
       </div>
       <div id="pay-vis" class="info-box" style="display:none;margin-bottom:12px;"></div>
       <div class="success-box" id="upload-success"><i class="ti ti-circle-check" style="font-size:14px;vertical-align:-2px;margin-left:4px;"></i><span id="upload-success-msg"></span></div>
@@ -462,6 +463,6 @@ body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;background:#f2f3f5;col
 </div>
 
 <!-- Firebase SDKs -->
-<script type="module" src="page-index.js?v=20261125f"></script>
+<script type="module" src="page-index.js?v=20261126a"></script>
 </body>
 </html>

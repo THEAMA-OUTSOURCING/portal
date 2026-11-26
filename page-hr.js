@@ -1,6 +1,6 @@
 // page-hr.js — سكريبت صفحة hr.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { dTxt, cnt, db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask, typeOk, typeErr, jobsFor, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261125f';
-import { secsForJob, secOptions } from './sheet.js?v=20261125f';
+import { dTxt, cnt, db, auth, actorEmail, SUP_SITES, isBasic, nameParts, ask, typeOk, typeErr, jobsFor, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, onSnapshot, updateDoc, setDoc, serverTimestamp, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261126a';
+import { secsForJob, secOptions } from './sheet.js?v=20261126a';
 const $ = id => document.getElementById(id);
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
 const TY = { sick: "مرضي", leave: "إجازة", resign: "استقالة" };
@@ -63,7 +63,7 @@ function groupOf(e) {
   if (/شيبس|chipsy|cfi/i.test(t) || CHIPSY_SITES.some(s => t.includes(s))) return "chipsy";
   return "pepsi";
 }
-// رد العميل للمرضي بس (بيبسي والإمداد / شيبسي). الإجازة والاستقالة بيتعتمدوا من HR تيما على طول
+// رد العميل للمرضي بس (بيبسي والإمداد / شيبسي). الإجازة والاستقالة بيتم اعتمادهم من HR تيما على طول
 const needsClient = e => e.type === "sick" && groupOf(e) !== "sharqia";
 const placeOf = e => e.site || [e.company, e.loc].filter(Boolean).join(" — ");
 let ALL = [], ALL_LOADED = false, EDIT = null, CEDIT = null, XROWS = [], CROWS = [];
@@ -599,9 +599,9 @@ const CDEC = { approved: "وافق", modified: "وافق وعدّل المدة",
 // المرضي: HR تيما بيكتب السبب والمستشفى وهو بيوافق (لازمين لشيت العميل)، ويقدر يغيّر مرضى ↔ إصابة عمل
 const sickFields = e => e.type !== "sick" ? "" : `<div class="row" style="width:100%;gap:6px;">
   <select data-sk="${esc(e.id)}" aria-label="نوع الحالة" style="padding:4px 6px;font-size:12px;"><option value="sick" ${e.sick_kind !== "injury" ? "selected" : ""}>مرضى</option><option value="injury" ${e.sick_kind === "injury" ? "selected" : ""}>إصابة عمل</option></select>
-  <input data-cause="${esc(e.id)}" placeholder="سبب الحالة المرضية" value="${esc(e.cause || "")}" style="flex:2;min-width:150px;">
-  <input data-hosp="${esc(e.id)}" placeholder="المستشفى" value="${esc(e.hospital || "")}" style="flex:1;min-width:110px;"></div>`;
-const kindSel = e => e.type !== "leave" ? "" : `<select data-kind="${esc(e.id)}" style="padding:4px 6px;font-size:12px;"><option value="annual" ${e.kind !== "unpaid" ? "selected" : ""}>ج — إجازة (ليه رصيد)</option><option value="unpaid" ${e.kind === "unpaid" ? "selected" : ""}>خ — بدون أجر (ملوش رصيد)</option></select>`;
+  <input data-cause="${esc(e.id)}" aria-label="سبب الحالة المرضية" placeholder="سبب الحالة المرضية" value="${esc(e.cause || "")}" style="flex:2;min-width:150px;">
+  <input data-hosp="${esc(e.id)}" aria-label="المستشفى" placeholder="المستشفى" value="${esc(e.hospital || "")}" style="flex:1;min-width:110px;"></div>`;
+const kindSel = e => e.type !== "leave" ? "" : `<select data-kind="${esc(e.id)}" aria-label="نوع الإجازة" style="padding:4px 6px;font-size:12px;"><option value="annual" ${e.kind !== "unpaid" ? "selected" : ""}>ج — إجازة (ليه رصيد)</option><option value="unpaid" ${e.kind === "unpaid" ? "selected" : ""}>خ — بدون أجر (ملوش رصيد)</option></select>`;
 // و11: مين سجّل الحالة: طلب مشرف = «مشرف <الموقع>» (الإيميل في التلميح)، الأدمن «ادمن»، والمكتب بإيميله زي ما هو
 const byTxt = e => e.source === "supervisor" && /@/.test(String(e.by_email || "")) ? "مشرف " + (placeOf(e) || e.site || "") : (e.by_email || "");
 const byTitle = e => byTxt(e) !== (e.by_email || "") ? ` title="${esc(e.by_email)}"` : "";
@@ -644,19 +644,19 @@ function render() {
         <div class="row"><label class="f">من (أو تاريخ الاستقالة)<input type="date" data-ef value="${esc(e.type === "resign" ? e.entry_date : (e.from || (isInj(e) && prevInjury(e) ? dayAfter(prevInjury(e).to || prevInjury(e).from) : "")))}"></label>
         <label class="f">لحد<input type="date" data-eto value="${esc(e.to || "")}"></label></div>
         <div data-esick${e.type === "sick" ? "" : ' class="hidden"'}><span class="muted" style="font-size:12px;">لو مرضي:</span>${sickFields({ ...e, type: "sick" })}</div>
-        <input placeholder="سبب التعديل" data-note="${esc(e.id)}">
+        <input aria-label="سبب التعديل" placeholder="سبب التعديل" data-note="${esc(e.id)}">
         <div class="row"><button class="btn ok small" data-esave="${esc(e.id)}">احفظ و${toClient ? "ابعت للعميل" : "اعتمد"}</button><button class="btn sec small" data-ecancel="1">إلغاء</button></div></div>` : ""}
       ${CEDIT === e.id ? `<div class="ft edit" style="flex-direction:column;align-items:stretch;background:#f4f8fd">
         <b style="font-size:13px;">العميل وافق بمدة تانية</b>
         <div class="row"><label class="f">من<input type="date" data-cf value="${esc(e.from)}"></label><label class="f">لحد<input type="date" data-cto value="${esc(e.to)}"></label></div>
-        <input placeholder="ملاحظة العميل (اختياري)" data-cnote="${esc(e.id)}">
+        <input aria-label="ملاحظة العميل (اختياري)" placeholder="ملاحظة العميل (اختياري)" data-cnote="${esc(e.id)}">
         <div class="row"><button class="btn ok small" data-csave="${esc(e.id)}">سجّل</button><button class="btn sec small" data-ccancel="1">إلغاء</button></div></div>` : ""}
       ${VIEW || EDIT === e.id || CEDIT === e.id ? "" : `<div class="ft">${e.status === "pending" || e.changed
-        ? `${kindSel(e)}${sickFields(e)}<input placeholder="ملاحظة (إجبارية لو هترفض)" data-note="${esc(e.id)}" style="flex:1;min-width:120px;"><button class="btn ok small" data-ap="${esc(e.id)}">${toClient && e.type !== "resign" ? "موافقة ← للعميل" : "اعتماد"}</button><button class="btn sec small" data-ed="${esc(e.id)}">تعديل</button><button class="btn danger small" data-rj="${esc(e.id)}">رفض</button>`
+        ? `${kindSel(e)}${sickFields(e)}<input aria-label="ملاحظة (إجبارية لو هترفض)" placeholder="ملاحظة (إجبارية لو هترفض)" data-note="${esc(e.id)}" style="flex:1;min-width:120px;"><button class="btn ok small" data-ap="${esc(e.id)}">${toClient && e.type !== "resign" ? "موافقة ← للعميل" : "اعتماد"}</button><button class="btn sec small" data-ed="${esc(e.id)}">تعديل</button><button class="btn danger small" data-rj="${esc(e.id)}">رفض</button>`
         : e.status === "client_wait" && e.type === "sick"
-        ? `<input placeholder="ملاحظة العميل (اختياري)" data-note="${esc(e.id)}" style="flex:1;min-width:110px;"><label class="f" style="flex-direction:row;align-items:center;gap:4px;">الأيام المعتمدة<input type="number" min="0" max="${esc(e.days)}" value="${esc(e.days)}" data-sa="${esc(e.id)}" style="width:64px;padding:4px 6px;"></label><button class="btn ok small" data-sok="${esc(e.id)}">سجّل رد العميل</button><button class="btn danger small" data-back="${esc(e.id)}">رجّعها لتيما</button>`
+        ? `<input aria-label="ملاحظة العميل (اختياري)" placeholder="ملاحظة العميل (اختياري)" data-note="${esc(e.id)}" style="flex:1;min-width:110px;"><label class="f" style="flex-direction:row;align-items:center;gap:4px;">الأيام المعتمدة<input type="number" min="0" max="${esc(e.days)}" value="${esc(e.days)}" data-sa="${esc(e.id)}" style="width:64px;padding:4px 6px;"></label><button class="btn ok small" data-sok="${esc(e.id)}">سجّل رد العميل</button><button class="btn danger small" data-back="${esc(e.id)}">رجّعها لتيما</button>`
         : e.status === "client_wait"
-        ? `<input placeholder="ملاحظة العميل (إجبارية لو رفض)" data-note="${esc(e.id)}" style="flex:1;min-width:120px;"><button class="btn ok small" data-cok="${esc(e.id)}">العميل وافق</button><button class="btn sec small" data-ced="${esc(e.id)}">وافق بمدة تانية</button><button class="btn danger small" data-crj="${esc(e.id)}">العميل رفض</button><button class="btn danger small" data-back="${esc(e.id)}">رجّعها لتيما</button>`
+        ? `<input aria-label="ملاحظة العميل (إجبارية لو رفض)" placeholder="ملاحظة العميل (إجبارية لو رفض)" data-note="${esc(e.id)}" style="flex:1;min-width:120px;"><button class="btn ok small" data-cok="${esc(e.id)}">العميل وافق</button><button class="btn sec small" data-ced="${esc(e.id)}">وافق بمدة تانية</button><button class="btn danger small" data-crj="${esc(e.id)}">العميل رفض</button><button class="btn danger small" data-back="${esc(e.id)}">رجّعها لتيما</button>`
         : `<button class="btn danger small" data-back="${esc(e.id)}">رجّعها مستنية</button>`}</div>`}
     </div>`; }).join("") : `<div class="card muted">مفيش حالات.</div>`;
   hydrateImgs();
@@ -674,7 +674,7 @@ async function save(id, upd, okMsg) {
   try { await updateDoc(doc(db, "hr_events", id), upd); EDIT = null; CEDIT = null; if (LOADED_ST !== "pending" && LOADED_ST !== "client_wait") await loadDecided(); else render(); show($("msg"), "ok", okMsg || "اتحفظ."); }
   catch (er) { show($("msg"), "err", "ماتحفظش: " + errTxt(er)); }
 }
-// موافقة HR تيما: الشرقية (والاستقالات) بتتعتمد على طول، والباقي بيروح «مستني رد العميل»
+// موافقة HR تيما: الشرقية (والاستقالات) بيتم اعتمادها على طول، والباقي بيروح «مستني رد العميل»
 // ===== إصابة العمل الممتدة =====
 // الإصابة بتفضل مستمرة لحد ما العامل يرجع الشغل، والتجديد = امتداد لنفس الإصابة (من غير محضر جديد).
 // الامتداد: extends = رقم الإصابة اللي قبله (طلب المشرف)، أو — لو مش متحدد (الشرقية/الإكسيل) — آخر إصابة لنفس العامل قبلها.
@@ -766,7 +766,7 @@ $("list").onclick = async e => {
   }
   if (ds.back) {
     const st = ev.status === "client_wait" ? "مستنية رد العميل" : ev.status === "approved" ? "معتمدة" : ev.status === "rejected" ? "مرفوضة" : "متسجلة";
-    if (!(await ask(`${ev.name} — ${tyTxt(ev)} ${ev.from ? `من ${dTxt(ev.from)} لحد ${dTxt(ev.to)}` : ""}\nالحالة دي ${st} دلوقتي.\n\nترجّعها «مستنية HR تيما»؟ ${ev.status === "approved" || ev.client ? "الاعتماد ورد العميل هيتشالوا، ولازم تتعتمد من الأول." : ev.status === "client_wait" ? "موافقة HR تيما هتتشال، ولازم توافق عليها تاني." : ev.status === "rejected" ? "الرفض هيتشال." : "القرار اللي عليها هيتشال."}`, { ok: "رجّعها", danger: true }))) return;
+    if (!(await ask(`${ev.name} — ${tyTxt(ev)} ${ev.from ? `من ${dTxt(ev.from)} لحد ${dTxt(ev.to)}` : ""}\nالحالة دي ${st} دلوقتي.\n\nترجّعها «مستنية HR تيما»؟ ${ev.status === "approved" || ev.client ? "الاعتماد ورد العميل هيتشالوا، ولازم يتم اعتمادها من الأول." : ev.status === "client_wait" ? "موافقة HR تيما هتتشال، ولازم توافق عليها تاني." : ev.status === "rejected" ? "الرفض هيتشال." : "القرار اللي عليها هيتشال."}`, { ok: "رجّعها", danger: true }))) return;
     return save(id, { status: "pending", decided_by: null, decided_email: null, decided_at: null, hr_ok_by: null, hr_ok_email: null, hr_ok_at: null, client: null, approved_days: null, client_limit: null }, "رجعت «مستني HR تيما».");
   }
   if (ds.cok) return save(id, clientUpd(ev, "approved", ev.from, ev.to, note), "اتسجل إن العميل وافق.");
@@ -945,18 +945,18 @@ function wqCard(e) {
       ${wqOwn(e) ? `<span class="muted" style="font-size:12px;flex-basis:100%;">الطلب ده انت اللى باعته — مستنى اعتماد الـ HR. تقدر تعدّله أو ترفضه.</span>`
         : `<button class="btn ok small" data-wqok="${esc(e.id)}">اعتماد</button>`}
       <button class="btn sec small" data-wqsave="${esc(e.id)}">حفظ التعديل</button>
-      <select data-wqr style="padding:4px 6px;font-size:12px;border:1px solid #ddd;border-radius:8px;">
+      <select data-wqr aria-label="سبب الرد للمشرف" style="padding:4px 6px;font-size:12px;border:1px solid #ddd;border-radius:8px;">
         <option value="">— السبب (إجباري للرفض أو الإرجاع) —</option>
         ${e.kind === "hire" ? `<optgroup label="رجّع للمشرف يستكمل">${Object.entries(WQ_RET).map(([k, t]) => `<option value="ret:${k}">${esc(t)}</option>`).join("")}</optgroup>` : ""}
         <optgroup label="رفض نهائي">${WQ_REJ.map(t => `<option value="rej:${esc(t)}">${esc(t)}</option>`).join("")}</optgroup>
       </select>
-      <input data-wqwhy placeholder="ملاحظة للمشرف (إجباري لو «أخرى»)" style="flex:1;min-width:140px;padding:4px 6px;font-size:12px;">
+      <input data-wqwhy aria-label="ملاحظة للمشرف (إجباري لو «أخرى»)" placeholder="ملاحظة للمشرف (إجباري لو «أخرى»)" style="flex:1;min-width:140px;padding:4px 6px;font-size:12px;">
       ${e.kind === "hire" ? `<button class="btn sec small" data-wqret="${esc(e.id)}">رجّع للمشرف يستكمل</button>` : ""}
       <button class="btn small" data-wqno="${esc(e.id)}">رفض</button></div>` : retEdit ? `<div class="ft" style="flex-wrap:wrap;">
       <span class="muted" style="font-size:12px;">مستني المشرف يستكمل. لو مش هيستكمل:</span>
-      <select data-wqr style="padding:4px 6px;font-size:12px;border:1px solid #ddd;border-radius:8px;"><option value="">— سبب الرفض —</option>
+      <select data-wqr aria-label="سبب الرفض" style="padding:4px 6px;font-size:12px;border:1px solid #ddd;border-radius:8px;"><option value="">— سبب الرفض —</option>
         ${WQ_REJ.map(t => `<option value="rej:${esc(t)}">${esc(t)}</option>`).join("")}</select>
-      <input data-wqwhy placeholder="ملاحظة للمشرف" style="flex:1;min-width:140px;padding:4px 6px;font-size:12px;">
+      <input data-wqwhy aria-label="ملاحظة للمشرف" placeholder="ملاحظة للمشرف" style="flex:1;min-width:140px;padding:4px 6px;font-size:12px;">
       <button class="btn small" data-wqno="${esc(e.id)}">رفض نهائي</button></div>` : ""}
   </div>`;
 }

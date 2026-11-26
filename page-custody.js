@@ -1,5 +1,5 @@
 // page-custody.js — سكريبت صفحة custody.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { db, auth, actorEmail, SUP_SITES, ask, fetchPlanBase, planBySite, alignPlan, wireStaffLogin, esc, collection, doc, getDoc, getDocs, setDoc, addDoc, writeBatch, query, where, onSnapshot, runTransaction, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261125f';
+import { db, auth, actorEmail, SUP_SITES, ask, fetchPlanBase, planBySite, alignPlan, wireStaffLogin, esc, collection, doc, getDoc, getDocs, setDoc, addDoc, writeBatch, query, where, onSnapshot, runTransaction, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261126a';
 import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261124e';
 
 const $ = id => document.getElementById(id);
@@ -547,7 +547,7 @@ function openStore() {
   S.site = STORE; $("where-out").innerHTML = ""; hide($("so-msg"));
   S.unsubs.push(onSnapshot(collection(db, "custody_store"), snap => {
     S.store = []; snap.forEach(d => S.store.push(d.data())); renderStore();
-  }, e => show($("so-msg"), "err", "مقدرتش أقرا المخزن العام: " + (e.code === "permission-denied" ? "مفيش صلاحية — حدّث الـ Rules" : e.message))));
+  }, e => show($("so-msg"), "err", "مقدرتش أقرا المخزن العام: " + (e.code === "permission-denied" ? "مش مسموح لحسابك يشوف المخزن العام — كلّم الادمن" : e.message))));
   renderStore();
 }
 function renderStore() {

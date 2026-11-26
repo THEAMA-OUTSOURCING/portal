@@ -1,12 +1,14 @@
 // page-attendance.js — سكريبت صفحة attendance.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { dTxt, cnt, db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, hasRestSubs, typeOk, typeErr, typeSelect, jobOk, jobOptions, isBasic, nearWorkers, nameParts, ask, tell, compressPage, replacePage, replacedBy, wireStaffLogin, esc, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, Timestamp, serverTimestamp, updateDoc, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261125f';
-import { openPrintView, openOrderEditor, printOrder, secsForJob, secOptions } from './sheet.js?v=20261125f';
+import { dTxt, cnt, db, auth, actorEmail, ATT_SITES, SUP_SITES, fetchPlanBase, planBySite, alignPlan, jkey, TIME_SITES, guessTimes, calcHours, MAX_SHIFT_MIN, isHelperJob, specialOf, MISSION_SHIFT, enDigits, hasRestSubs, typeOk, typeErr, typeSelect, jobOk, jobOptions, isBasic, nearWorkers, nameParts, ask, tell, compressPage, replacePage, replacedBy, wireStaffLogin, esc, collection, addDoc, doc, getDoc, getDocs, setDoc, deleteDoc, query, where, onSnapshot, Timestamp, serverTimestamp, updateDoc, writeBatch, onAuthStateChanged, canOpen } from './shared.js?v=20261126a';
+import { openPrintView, openOrderEditor, printOrder, secsForJob, secOptions } from './sheet.js?v=20261126a';
 import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261124e';
 
 
 const $ = id => document.getElementById(id);
 const fmt = n => Number(n || 0).toLocaleString("en-US");   // أرقام إنجليزي في كل البوابة
 function show(el, type, text) { el.className = "msg show " + type; el.textContent = text; }
+// ب13: مين راجع اليوم — «الإقليمي» مش الإيميل (زي «مشرف + الموقع» في التقرير)، والادمن باسمه. show بتكتب نص عادي، فمفيش esc هنا
+const revBy = e => { e = String(e || ""); return e && !e.includes("@") ? e : "الإقليمي"; };
 function hide(el) { el.className = "msg"; el.textContent = ""; }
 const pad = n => String(n).padStart(2, "0");
 const ymd = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
@@ -162,7 +164,7 @@ async function openDay() {
       const t = dTxt(S.day.confirmed_at?.toDate ? S.day.confirmed_at : null, { time: true });
       const rt = dTxt(S.day.reviewed_at?.toDate ? S.day.reviewed_at : null, { time: true });
       if (S.day.status === "approved") show($("day-state"), "ok", S.admin ? "اليوم ده تم اعتماده من المحاسب. تقدر تعدّل فيه كأدمن، والاعتماد هيفضل زي ما هو." : "اليوم ده تم اعتماده من المحاسب، ومينفعش يتعدل.");
-      else if (S.day.status === "reviewed") show($("day-state"), "ok", `الإقليمي راجع اليوم ده (${esc(S.day.reviewed_email || "")}${rt ? " — " + rt : ""})${S.day.review_late ? " (متأخر)" : ""}. ` + (S.admin ? "تقدر تعدّل فيه كأدمن، ومراجعة الإقليمي هتفضل زي ما هي." : S.regional ? "تقدر تعدّل وتراجع تاني لحد ما المحاسب يعتمده." : "مستني اعتماد المحاسب، ولو فيه تعديل كلّم الإقليمي."));
+      else if (S.day.status === "reviewed") show($("day-state"), "ok", `${revBy(S.day.reviewed_email)} راجع اليوم ده${rt ? " (" + rt + ")" : ""}${S.day.review_late ? " (متأخر)" : ""}. ` + (S.admin ? "تقدر تعدّل فيه كأدمن، ومراجعة الإقليمي هتفضل زي ما هي." : S.regional ? "تقدر تعدّل وتراجع تاني لحد ما المحاسب يعتمده." : "مستني اعتماد المحاسب، ولو فيه تعديل كلّم الإقليمي."));
       else show($("day-state"), "ok", `المشرف أكد اليوم ده${t ? " — " + t : ""}${S.day.late ? " (متأخر)" : ""}. ` + (S.regional ? "راجعه وأكد عشان يروح للمحاسب." : "مستني مراجعة الإقليمي، وتقدر تعدّل لحد ما يراجعه."));
     }
     $("refresh-box").classList.toggle("hidden", !(S.admin && S.timed && S.day));
@@ -1135,7 +1137,7 @@ function repBlock(w, r, key = w.code) {
       : `<div class="muted">مكتوب في الملاحظات: "${esc(r.note)}" — مش لاقيه في قايمة البدلاء ولا الكشف.</div>`;
   }
   return `<div class="rep" data-rep="${esc(key)}">${sug}
-    <input type="text" placeholder="لو فيه بديل، اكتب أول اسمه..." data-search="${esc(key)}">
+    <input type="text" aria-label="لو فيه بديل، اكتب أول اسمه..." placeholder="لو فيه بديل، اكتب أول اسمه..." data-search="${esc(key)}">
     <div class="hits" id="hits-${esc(key)}"></div>
     <button class="btn sec small" data-newrep="${esc(key)}" style="margin-top:4px;">بديل جديد مش في القايمة (بالبطاقة)</button></div>`;
 }
@@ -1826,8 +1828,8 @@ function renderRet() {
     const r = e.return_reason || "other", id = esc(e.id);
     const act = r === "fiche" ? `<button class="btn small" data-rtfiche="${id}">رفع الفيش</button>`
       : r === "card" || r === "nid" ? `<button class="btn small" data-rtcard="${id}">صوّر البطاقة تاني</button>`
-      : r === "phone" ? `<input data-rtphone="${id}" type="tel" dir="ltr" inputmode="numeric" placeholder="التليفون الصح" style="width:130px;padding:4px 6px;"><button class="btn small" data-rtsend="${id}">ابعت للـ HR</button>`
-      : `<input data-rtnote="${id}" placeholder="اكتب ردك على الملاحظة" style="flex:1;min-width:150px;padding:4px 6px;"><button class="btn small" data-rtsend="${id}">ابعت للـ HR</button>`;
+      : r === "phone" ? `<input data-rtphone="${id}" type="tel" dir="ltr" inputmode="numeric" aria-label="التليفون الصح" placeholder="التليفون الصح" style="width:130px;padding:4px 6px;"><button class="btn small" data-rtsend="${id}">ابعت للـ HR</button>`
+      : `<input data-rtnote="${id}" aria-label="اكتب ردك على الملاحظة" placeholder="اكتب ردك على الملاحظة" style="flex:1;min-width:150px;padding:4px 6px;"><button class="btn small" data-rtsend="${id}">ابعت للـ HR</button>`;
     return `<div class="w" style="flex-wrap:wrap;"><div class="nm"><b>${esc(e.name)}</b><small>${esc(e.job || "")} · ${esc(e.type || "")} · ${esc(e.nid || "")}</small>
       <div style="margin-top:4px;"><span class="pill p-err">الناقص: ${esc(e.decision_note || RT_WHAT[r] || "")}</span></div></div>
       <div class="row" style="gap:4px;align-items:center;">${act}</div></div>`;

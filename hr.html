@@ -156,7 +156,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
         <label class="f hidden" id="f-ty-wrap">النوع<select id="f-ty"><option value="">الكل</option><option value="sick">مرضي</option><option value="leave">إجازة</option><option value="resign">استقالة</option></select></label>
         <label class="f">بحث<input id="f-q" placeholder="الاسم أو الكود أو الرقم القومي أو الموقع"></label>
       </div>
-      <details class="why"><summary>الشرح</summary><p class="muted" style="margin-top:8px;">الحالات جاية من: طلبات المشرفين في صفحة الحضور، ورفع الإكسيل هنا، وتطبيق الشرقية على Drive (بيتحدث كل ساعة). الإجازات والاستقالات والشرقية بتتعتمد من HR تيما على طول؛ مرضي بيبسي والإمداد وشيبسي بس اللي بيستنى رد العميل بعد موافقة تيما، ولحد ما العميل يرد بيظهر في تقرير الحضور «في انتظار الاعتماد».</p></details>
+      <details class="why"><summary>الشرح</summary><p class="muted" style="margin-top:8px;">الحالات جاية من: طلبات المشرفين في صفحة الحضور، ورفع الإكسيل هنا، وتطبيق الشرقية على Drive (بيتحدث كل ساعة). الإجازات والاستقالات والشرقية بيتم اعتمادها من HR تيما على طول؛ مرضي بيبسي والإمداد وشيبسي بس اللي بيستنى رد العميل بعد موافقة تيما، ولحد ما العميل يرد بيظهر في تقرير الحضور «في انتظار الاعتماد».</p></details>
       <div class="muted" id="sync" style="font-size:12px;"></div>
       <div class="msg" id="msg" style="white-space:pre-line;"></div>
     </div>
@@ -181,7 +181,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
     <section data-panel="client" class="hidden">
     <details class="card fold no-view" id="client-card" open>
       <summary><h2>مرحلة العميل — المرضي (بيبسي والإمداد / شيبسي)</h2></summary>
-      <details class="why"><summary>الشرح</summary><p class="muted" style="margin-bottom:8px;">المرضي اللي HR تيما وافق عليه لعمال بيبسي والإمداد وشيبسي بيستنى هنا رد العميل. وتقدر كمان تسجّل قرار العميل يدوي على كل حالة تحت. الإجازات والاستقالات بتتعتمد من HR تيما على طول.</p><p class="muted" style="margin-bottom:6px;">1) صدّر شيت المرضي وابعته للعميل. 2) لما العميل يرد، نزّل «شيت الرد» وعدّل فيه «الأيام المعتمدة» للحالات اللي العميل غيّرها بس (والـ Limit لو باعته)، واكتب الإجمالي اللي في إيميله وارفعه.
+      <details class="why"><summary>الشرح</summary><p class="muted" style="margin-bottom:8px;">المرضي اللي HR تيما وافق عليه لعمال بيبسي والإمداد وشيبسي بيستنى هنا رد العميل. وتقدر كمان تسجّل قرار العميل يدوي على كل حالة تحت. الإجازات والاستقالات بيتم اعتمادها من HR تيما على طول.</p><p class="muted" style="margin-bottom:6px;">1) صدّر شيت المرضي وابعته للعميل. 2) لما العميل يرد، نزّل «شيت الرد» وعدّل فيه «الأيام المعتمدة» للحالات اللي العميل غيّرها بس (والـ Limit لو باعته)، واكتب الإجمالي اللي في إيميله وارفعه.
         لو العامل ليه أكتر من فترة، اكتب الإجمالي في أول سطر وفضّي الباقي — بيتوزّع من الأقدم. الأيام المعتمدة = م، والباقي = خ.</p></details>
       <div class="row" style="margin-bottom:6px;align-items:flex-end;">
         <label class="f">الفترة من<input type="date" id="sk-from"></label>
@@ -231,6 +231,6 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#a61b12;backgr
 </div>
 <div id="zoom" class="hidden"><img id="zoom-img" alt=""></div>
 
-<script type="module" src="page-hr.js?v=20261125f"></script>
+<script type="module" src="page-hr.js?v=20261126a"></script>
 </body>
 </html>

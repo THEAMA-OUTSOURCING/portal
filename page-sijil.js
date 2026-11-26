@@ -1,5 +1,5 @@
 // page-sijil.js — سكريبت صفحة sijil.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { dTxt, db, auth, enDigits, actorEmail, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, Timestamp, writeBatch, serverTimestamp, onAuthStateChanged, canOpen, SUP_SITES } from './shared.js?v=20261125f';
+import { dTxt, db, auth, enDigits, actorEmail, wireStaffLogin, esc, collection, doc, getDoc, getDocs, query, where, Timestamp, writeBatch, serverTimestamp, onAuthStateChanged, canOpen, SUP_SITES } from './shared.js?v=20261126a';
 const $ = id => document.getElementById(id);
 function show(el, t, x) { el.className = "msg show " + t; el.textContent = x; }
 const fmt = n => Number(n).toLocaleString("en-US");   // أرقام إنجليزي في كل البوابة
@@ -119,12 +119,19 @@ function shown() {
     && (!soc || (soc === "مؤمن" ? socOk(r) : soc === "no" ? !socOk(r) && !socNA(r) : socNA(r) && !socOk(r)))
     && (!hl || (hl === "مؤمن" ? hlOk(r) : hl === "no" ? !hlOk(r) && !hlNA(r) : hlNA(r) && !hlOk(r)))) };
 }
-function render() {
+// و13: الجدول بيعرض 50 الأول وزرار «اعرض أكتر» بيزوّد 50 (كان 300 مرة واحدة = 16 شاشة على الموبايل). أى فلتر أو بحث بيرجّعه 50
+const PAGE = 50;
+let SHOW = PAGE;
+function render(keep) {
+  if (!keep) SHOW = PAGE;
   const { base, rows } = shown();
   renderTiles(base);
   rows.sort((a, b) => String(a.company).localeCompare(String(b.company), "ar") || String(a.site).localeCompare(String(b.site), "ar") || String(a.name).localeCompare(String(b.name), "ar"));
-  $("count").textContent = `${fmt(rows.length)} عامل` + (TILE != null ? ` — ${TILES[TILE].t}` : "") + (rows.length > 300 ? " (بيظهر أول 300 — التصدير فيه الكل)" : "");
-  $("list").innerHTML = rows.slice(0, 300).map(r => {
+  const n = Math.min(SHOW, rows.length);
+  $("count").textContent = `${fmt(rows.length)} عامل` + (TILE != null ? ` — ${TILES[TILE].t}` : "") + (rows.length > n ? ` (ظاهر ${fmt(n)} — التصدير فيه الكل)` : "");
+  $("more").classList.toggle("hidden", rows.length <= n);
+  $("more").textContent = `اعرض أكتر (${fmt(Math.min(PAGE, rows.length - n))})`;
+  $("list").innerHTML = rows.slice(0, n).map(r => {
     const so = socTxt(r), he = hlTxt(r);
     return `<tr data-id="${esc(r.id)}"><td><b>${esc(r.code)}</b>${r.portal_code ? `<div class="muted">${esc(r.portal_code)}</div>` : ""}</td><td>${esc(r.name)}${r.blacklist ? ' <span class="st-no">بلاك ليست</span>' : ""}</td>
       <td dir="ltr" style="text-align:right">${esc(r.nid)}</td><td>${esc(r.company)}${r.group ? `<div class="muted">${esc(r.group)}</div>` : ""}</td><td>${esc(r.site)}</td><td>${esc(r.job)}</td><td>${esc(r.type)}</td>
@@ -133,8 +140,9 @@ function render() {
 }
 // البحث بيدوّر في الكل (بيلغي التقرير المختار والحالة)، والشركة / الموقع / النوع بيضيّقوا التقرير
 $("q").addEventListener("input", () => { if ($("q").value.trim()) { TILE = null; $("f-st").value = ""; $("f-soc").value = ""; $("f-hl").value = ""; } render(); });
-["f-co", "f-site", "f-ty"].forEach(id => $(id).addEventListener("input", render));
+["f-co", "f-site", "f-ty"].forEach(id => $(id).addEventListener("input", () => render()));
 ["f-st", "f-soc", "f-hl"].forEach(id => $(id).addEventListener("change", () => { TILE = null; render(); }));
+$("more").onclick = () => { SHOW += PAGE; render(true); };
 $("refresh").onclick = () => load(true);   // ب5: «تحديث» = السجل كله من جديد
 
 // ===== كارت العامل (بيقرا السجل كامل بتاريخه — قراية واحدة) =====
@@ -308,7 +316,7 @@ $("ins-save").onclick = async () => {
     }
     show($("ins-msg"), "ok", `اتبعت ${fmt(n)} حركة — السجل هيتحدّث خلال ثواني، ودوس «تحديث» تحت عشان تشوفها.`);
     INS.rows = []; $("ins-prev").classList.add("hidden");
-  } catch (err) { show($("ins-msg"), "err", `اتحفظ ${fmt(n)} ووقف: ` + (err.code === "permission-denied" ? "مش مسموح (الـ Rules — يمكن فيه عامل مش من فروعك)." : err.message)); }
+  } catch (err) { show($("ins-msg"), "err", `اتحفظ ${fmt(n)} ووقف: ` + (err.code === "permission-denied" ? "مش مسموح (يمكن فيه عامل مش من فروعك)." : err.message)); }
   $("ins-save").disabled = false;
 };
 

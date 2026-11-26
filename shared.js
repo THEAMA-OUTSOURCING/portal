@@ -5,7 +5,7 @@
 // الترقية = تغيير الرقم 13.4.0 في السطور دي (ونفس الرقم في كل السطور).
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-app.js';
 import { getFirestore, collection, doc, getDoc, getDocs, query, where, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js';
-import { getAuth, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js';
+import { initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, signInWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-app-check.js';
 export { Timestamp, addDoc, collection, deleteDoc, doc, getCountFromServer, getDoc, getDocs, limit, onSnapshot, orderBy, query, runTransaction, serverTimestamp, setDoc, startAfter, updateDoc, where, writeBatch } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js';
 export { EmailAuthProvider, onAuthStateChanged, reauthenticateWithCredential, signInWithEmailAndPassword, signOut, updatePassword } from 'https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js';
@@ -39,7 +39,10 @@ if (!globalThis.__theamaFB) globalThis.__theamaFB = (() => {
     provider: new ReCaptchaEnterpriseProvider(APP_CHECK_KEY),
     isTokenAutoRefreshEnabled: true
   });
-  return { v: FB_VER, app, appCheck, db: getFirestore(app), auth: getAuth(app) };
+  // ب15: initializeAuth بدل getAuth — نفس مكان حفظ الدخول (indexedDB ثم localStorage)، بس من غير جزء الدخول بـ Google (popup / redirect)
+  // اللى كان بيحاول يحمّل سكريبت من apis.google.com على الموبايل والـ CSP بترفضه (خطأ في الكونسول مع كل صفحة). البوابة بالإيميل والباسورد بس
+  const auth = initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence] });
+  return { v: FB_VER, app, appCheck, db: getFirestore(app), auth };
 })();
 const FB = globalThis.__theamaFB;
 export const app = FB.app;
@@ -584,7 +587,12 @@ export function codeFor(map, site, job, sec) {
   button[data-ext]{min-height:44px!important;}
   #fp-card>summary{padding:12px 0;}
   #pay-days{min-height:44px;}
-  details.fold>summary:has(>h2){min-height:44px;}}
+  details.fold>summary:has(>h2){min-height:44px;}
+  /* و14: باقى اللى كان تحت 44: شريط الصفحات، أزرار الفلترة (الاحتياج والحضور)، الجرس، «حاضر» / «غايب»، و«سجل الدفعات» في العُهد */
+  .pnav a{min-height:44px;}
+  button.chip,.fbar button,.seg button{min-height:44px!important;}   /* الزراير بس — «chip» في العُهد علامة حالة مش زرار */
+  #nb-btn.nb-inline{width:44px!important;height:44px!important;}
+  details>summary.muted{padding:12px 2px;}}
 /* و6: التابات وشريط الصفحات لما يتسحبوا بالعرض، الطرف اللي وراه باقى بيبهت */
 .sfade-s{-webkit-mask-image:linear-gradient(to left,transparent 0,#000 32px);mask-image:linear-gradient(to left,transparent 0,#000 32px);}
 .sfade-e{-webkit-mask-image:linear-gradient(to right,transparent 0,#000 32px);mask-image:linear-gradient(to right,transparent 0,#000 32px);}
@@ -924,10 +932,20 @@ function purgeSijilCache() {
   try { Object.keys(localStorage).filter(k => k.startsWith("sijil_v1")).forEach(k => localStorage.removeItem(k)); } catch (e) {}
 }
 onAuthStateChanged(auth, user => { if (!user) purgeSijilCache(); });
+// أ20: النسخة اللى عدّى عليها 24 ساعة (نفس مدة page-sijil.js) بتتمسح من أى صفحة تتفتح، مش لما صفحة السجل تتفتح تانى بس.
+// الوقت بيتقرا من أول النص بس ({"v":1,"at":…,"full_at":…}) من غير ما الملف كله يتفك. نسخة مش مفهومة بتتمسح
+(function purgeOldSijil() {
+  try {
+    Object.keys(localStorage).filter(k => k.startsWith("sijil_v1")).forEach(k => {
+      const m = /"full_at":(\d+)/.exec((localStorage.getItem(k) || "").slice(0, 120));
+      if (!m || Date.now() - Number(m[1]) >= 864e5) localStorage.removeItem(k);
+    });
+  } catch (e) {}
+})();
 
 // علامة إن كود الصفحة اتحمّل كامل (sentry.js بيشيّك عليها: لو مش موجودة بعد تحميل الصفحة يبقى الكود ماتحملش ويظهر شريط «تحديث»)
 window.__portalReady = true;
 
 // جرس الإشعارات (notify.js): بيظهر لوحده في كل الصفحات لحسابات الإدارة والمشرفين، ومش بيظهر للعمال.
 // بيتحمّل لوحده بـ import() — لو فيه مشكلة فيه، الجرس بس اللي يختفي والبوابة تفضل شغالة
-if (FIRST_COPY) import('./notify.js?v=20261125f').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));
+if (FIRST_COPY) import('./notify.js?v=20261126a').then(m => m.initBell(auth, db, SUP_SITES)).catch(e => console.warn("bell:", e));

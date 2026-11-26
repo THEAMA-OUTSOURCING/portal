@@ -1,6 +1,6 @@
 // page-report.js — سكريبت صفحة report.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { dTxt, cnt, overPlan, db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite, alignPlan, ask, compressPage, replacePage, replacedBy, wireStaffLogin, esc, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261125f';
-import { printOrder } from './sheet.js?v=20261125f';
+import { dTxt, cnt, overPlan, db, auth, actorEmail, ATT_SITES, XL_SITES, JC_DOC, codeMap, codeFor, TIME_SITES, calcHours, hrsTxt, isHelperJob, toMin, hhmm, guessTimes, MAX_SHIFT_MIN, fixReversed, fetchPlanBase, planBySite, alignPlan, ask, compressPage, replacePage, replacedBy, wireStaffLogin, esc, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, serverTimestamp, onAuthStateChanged, canOpen } from './shared.js?v=20261126a';
+import { printOrder } from './sheet.js?v=20261126a';
 
 // مواقع الساعات: الإضافي النهاري والليلي (بالدقايق) على خانة اليوم — والوقت اللي محتاج مراجعة بيتعلّم ومايتحسبش
 const TB_TIP = "الوقت محتاج مراجعة — اليوم ده مش محسوب في الإضافي";
@@ -29,6 +29,7 @@ const S = { role: null, sites: [], office: false, report: null };
 wireStaffLogin();
 
 onAuthStateChanged(auth, async user => {
+  for (const k in evCache) delete evCache[k];   // حالات الحساب اللي قبله ماتتعرضش للحساب اللي بعده (لو الخروج حصل من تاب تانية)
   ["login", "denied", "app"].forEach(i => $(i).classList.add("hidden"));
   if (!user) return $("login").classList.remove("hidden");
   let c = {}; try { c = (await user.getIdTokenResult()).claims || {}; } catch (e) {}
@@ -100,8 +101,8 @@ $("fp-go").onclick = async () => {
     if (!days.length) return show($("fp-msg"), "warn", "مفيش أيام معتمدة في الفترة دي." + (notApp.length ? ` (فيه ${cnt(notApp.length, "يوم")} لسه ${notApp.length === 1 ? "مش معتمد" : "مش معتمدين"})` : ""));
     let jc = []; try { const d = await getDoc(doc(db, ...JC_DOC)); jc = d.exists() ? d.data().rows || [] : []; } catch (e) {}
     const cmap = codeMap(jc), secs = {};
-    for (const s of sites) { try { const o = await getDoc(doc(db, "sheet_order", s)); secs[s] = o.exists() ? o.data().sections || {} : {}; } catch (e) { secs[s] = {}; } }
-    const months = [...new Set([from.slice(0, 7), to.slice(0, 7)])], hol = await holidaysFor(months);
+    await Promise.all(sites.map(async s => { try { const o = await getDoc(doc(db, "sheet_order", s)); secs[s] = o.exists() ? o.data().sections || {} : {}; } catch (e) { secs[s] = {}; } }));
+    const hol = await holidaysFor(monthsBetween(from, to));
     const dates = []; for (let d = new Date(from + "T00:00:00"); ymd(d) <= to; d.setDate(d.getDate() + 1)) dates.push(ymd(d));
     const off = d => new Date(d + "T00:00:00").getDay() === 5 || !!hol[d];
     const rows = {};
@@ -143,7 +144,14 @@ $("fp-go").onclick = async () => {
 // ===== العطلات =====
 async function holidaysFor(months) {
   const out = {};
-  for (const m of months) { try { const s = await getDoc(doc(db, "holidays", m)); Object.assign(out, s.exists() ? s.data().days || {} : {}); } catch (e) {} }
+  const got = await Promise.all(months.map(m => getDoc(doc(db, "holidays", m)).then(s => s.exists() ? s.data().days || {} : {}, () => ({}))));
+  got.forEach(d => Object.assign(out, d));
+  return out;
+}
+// كل الشهور من أول الفترة لآخرها (مش أول وآخر شهر بس)
+function monthsBetween(from, to) {
+  const out = []; let [y, m] = from.slice(0, 7).split("-").map(Number); const end = to.slice(0, 7);
+  for (let i = 0; i < 60; i++) { const k = `${y}-${String(m).padStart(2, "0")}`; out.push(k); if (k >= end) break; if (++m > 12) { m = 1; y++; } }
   return out;
 }
 async function loadHolidays() {
@@ -223,25 +231,41 @@ async function splitSharqia(list, sel, siteOf = r => r.site, setSite = (r, v) =>
 }
 $("r-site").addEventListener("change", () => { const m = SH_G[$("r-site").value]; if (m) $("r-mode").value = m; $("r-mode").dispatchEvent(new Event("change")); });
 // حالات HR بحالة معيّنة — HR/المحاسب اللي ليه فروع بيقرا حالات فروعه بس (الـ Rules بتطلب كده)
+// والمشرف: الطلبات اللي اتبعتت من صفحة الحضور لمواقعه بس (ده اللي الـ Rules بتسمحله يقراه)
 const evQuery = st => S.scoped
   ? query(collection(db, "hr_events"), where("status", "==", st), where("site", "in", S.scoped))
-  : query(collection(db, "hr_events"), where("status", "==", st));
+  : S.office ? query(collection(db, "hr_events"), where("status", "==", st))
+  : query(collection(db, "hr_events"), where("source", "==", "supervisor"), where("status", "==", st), where("site", "in", S.sites.slice(0, 30)));
+// الحالات بتتقرا مرة كل 3 دقايق بالكتير مش مع كل «اعرض» (فتح الصفحة من جديد بيقراها على طول)
+const EV_TTL = 3 * 60 * 1000, evCache = {};
+async function evDocs(st) {
+  const c = evCache[st];
+  if (c && Date.now() - c.t < EV_TTL) return c.p;
+  const p = getDocs(evQuery(st)).then(sn => sn.docs.map(d => d.data()));
+  evCache[st] = { t: Date.now(), p };
+  p.catch(() => { delete evCache[st]; });
+  return p;
+}
 async function applySharqiaEvents(list, from, to) {
   const rows = list; if (!rows.length) return;
   let codes = {}, evs = [];
-  try { const m = await getDoc(doc(db, "sharqia_map", "codes")); codes = m.exists() ? m.data().codes || {} : {}; } catch (e) {}
+  if (rows.some(r => r.site === SHARQIA)) { try { const m = await getDoc(doc(db, "sharqia_map", "codes")); codes = m.exists() ? m.data().codes || {} : {}; } catch (e) {} }
   try {
     // المستني العميل الأول، والمعتمد بعده عشان يكسب لو الاتنين على نفس اليوم
-    const [w, a] = await Promise.all(["client_wait", "approved"].map(st => getDocs(evQuery(st))));
-    w.forEach(d => evs.push(d.data())); a.forEach(d => evs.push(d.data()));
-  } catch (e) {}
+    const [w, a] = await Promise.all(["client_wait", "approved"].map(evDocs));
+    evs = w.concat(a);
+  } catch (e) { console.warn("حالات الـ HR ماتقرتش — التقرير طالع من غيرها:", e?.code || e?.message); }
   const byCode = {}, byNid = {};
-  rows.forEach(r => { if (r.site === SHARQIA && !r.nid && codes[r.code]?.nid) r.nid = codes[r.code].nid; byCode[r.site + "|" + r.code] = r; if (r.nid) byNid[r.nid] = r; });
+  rows.forEach(r => { if (r.site === SHARQIA && !r.nid && codes[r.code]?.nid) r.nid = codes[r.code].nid; byCode[r.site + "|" + r.code] = r; if (r.nid) (byNid[r.nid] = byNid[r.nid] || []).push(r); });
+  // ت13: الحالة اللي موقعها من مواقع البوابة بتتحط على سطر العامل في الموقع ده بس (ولو العامل مالوش سطر هناك ماتتحطش).
+  // ولو مالهاش موقع (الشرقية والإكسيل القديم) أو موقعها اسم مش من القايمة: على آخر سطر ليه زي الأول
+  const known = new Set([...ATT_SITES, ...XL_SITES]);
+  const rowFor = e => { const l = e.nid && byNid[e.nid]; if (!l) return null; return e.site && known.has(e.site) ? l.find(r => r.site === e.site) || null : l[l.length - 1]; };
   // الرموز الموحدة: ج إجازة، خ إجازة بدون أجر، م مرضي (العارضة القديمة بتتعرض ج)
   const KIND = { annual: ["ج", "إجازة"], casual: ["ج", "إجازة"], unpaid: ["خ", "إجازة بدون أجر"] };
   const isFri = d => new Date(d + "T00:00").getDay() === 5;
   for (const e of evs) {
-    const r = (e.nid && byNid[e.nid]) || (e.source === "sharqia_drive" ? byCode[SHARQIA + "|" + e.code] : null); if (!r) continue;
+    const r = rowFor(e) || (e.source === "sharqia_drive" ? byCode[SHARQIA + "|" + e.code] : null); if (!r) continue;
     if (e.type === "resign") {
       if (!e.entry_date || e.entry_date > to) continue;
       r.resigned = e.entry_date;
@@ -282,12 +306,9 @@ async function leaveReport(from, to, sel, jobF, kind) {
     try { const m = await getDoc(doc(db, "sharqia_map", "codes")); codes = m.exists() ? m.data().codes || {} : {}; } catch (e) {}
     for (const d of await fetchDays(from, to, site))
       Object.entries(d.entries || {}).forEach(([code, e]) => put(d.site, code, e.nid || (d.site === SHARQIA ? codes[code]?.nid : ""), e.name, e.job));
-    for (const s of (site === "*" ? S.sites : [site])) {
-      try { const r = await getDoc(doc(db, "rosters", s)); (r.exists() ? r.data().workers : []).forEach(w => put(s, w.code, w.nid, w.name, w.job)); } catch (e) {}
-    }
-    const evs = [];
-    const sn = await getDocs(evQuery("approved"));
-    sn.forEach(d => evs.push(d.data()));
+    const rs = await Promise.all((site === "*" ? S.sites : [site]).map(s => getDoc(doc(db, "rosters", s)).then(r => [s, r.exists() ? r.data().workers || [] : []], () => [s, []])));
+    rs.forEach(([s, ws]) => ws.forEach(w => put(s, w.code, w.nid, w.name, w.job)));
+    const evs = await evDocs("approved");
     const isFri = d => new Date(d + "T00:00").getDay() === 5;
     const list = [];
     for (const e of evs) {
@@ -315,8 +336,8 @@ async function leaveReport(from, to, sel, jobF, kind) {
     if (!rows.length) { $("r-out").classList.add("hidden"); return show($("r-msg"), "warn", `مفيش ${LV_TITLE[kind]} معتمد في الفترة دي.`); }
     rows.sort((a, b) => a.site.localeCompare(b.site) || a.name.localeCompare(b.name) || a.from.localeCompare(b.from));
     const multi = site === "*";
-    let h = `<thead><tr><th>م</th>${multi ? "<th>الموقع</th>" : ""}<th>الاسم</th><th>الرقم القومي / الكود</th><th>الوظيفة</th><th>من</th><th>لحد</th><th>أيام في الفترة</th><th>أيام الحالة</th><th>السبب / ملاحظة</th></tr></thead><tbody>`;
-    rows.forEach((r, i) => h += `<tr data-i="${i}"><td>${i + 1}</td>${multi ? `<td>${esc(r.site)}</td>` : ""}<td class="nm">${esc(r.name)}</td><td>${esc(r.nid || r.code)}</td><td>${esc(r.job)}</td><td>${esc(dTxt(r.from))}</td><td>${esc(dTxt(r.to))}</td><td><b>${esc(r.inP)}</b></td><td>${esc(r.days)}</td><td class="nm">${esc([r.reason, r.note].filter(Boolean).join(" — "))}${r.flag ? ` <b style="color:#a32d2d">(${esc(r.flag)})</b>` : ""}</td></tr>`);
+    let h = `<thead><tr><th>م</th>${multi ? "<th>الموقع</th>" : ""}<th class="sk">الاسم</th><th>الرقم القومي / الكود</th><th>الوظيفة</th><th>من</th><th>لحد</th><th>أيام في الفترة</th><th>أيام الحالة</th><th>السبب / ملاحظة</th></tr></thead><tbody>`;
+    rows.forEach((r, i) => h += `<tr data-i="${i}"><td>${i + 1}</td>${multi ? `<td>${esc(r.site)}</td>` : ""}<td class="nm sk">${esc(r.name)}</td><td>${esc(r.nid || r.code)}</td><td>${esc(r.job)}</td><td>${esc(dTxt(r.from))}</td><td>${esc(dTxt(r.to))}</td><td><b>${esc(r.inP)}</b></td><td>${esc(r.days)}</td><td class="nm">${esc([r.reason, r.note].filter(Boolean).join(" — "))}${r.flag ? ` <b style="color:#a32d2d">(${esc(r.flag)})</b>` : ""}</td></tr>`);
     const tot = rows.reduce((a, r) => a + r.inP, 0), ppl = new Set(rows.map(r => r.nid || r.code || r.name)).size;
     h += `<tr class="foot"><td colspan="${multi ? 7 : 6}" style="text-align:right">الإجمالي</td><td><b>${tot}</b></td><td></td><td></td></tr></tbody>`;
     $("r-table").innerHTML = h;
@@ -393,7 +414,7 @@ $("r-go").onclick = async () => {
       });
     }
     let list = Object.values(rows);
-    if (S.office) await applySharqiaEvents(list, from, to);
+    await applySharqiaEvents(list, from, to);   // المشرف كمان (ت11): طلبات مواقعه المعتمدة بتبان زي المكتب
     const sp = await splitSharqia(list, sel); if (sp.err) return show($("r-msg"), "err", sp.err); list = sp.list;
     if (!list.length) { $("r-out").classList.add("hidden"); return show($("r-msg"), "warn", "مفيش حضور متأكد في الفترة دي."); }
     const jobs = [...new Set(list.map(r => r.job))].sort();
@@ -411,11 +432,11 @@ $("r-go").onclick = async () => {
     S.report = { kind: "att", from, to, dates, list, off, hol, site: sel, late, hasLoc, timed };
     // جدول
     const multi = site === "*";
-    let h = `<thead><tr><th>م</th>${multi ? "<th>الموقع</th>" : ""}<th>الاسم</th><th>${list.some(r => !r.nid) ? "الرقم القومي / الكود" : "الرقم القومي"}</th><th>الوظيفة</th>${hasLoc ? "<th>المكان</th>" : ""}` +
+    let h = `<thead><tr><th>م</th>${multi ? "<th>الموقع</th>" : ""}<th class="sk">الاسم</th><th>${list.some(r => !r.nid) ? "الرقم القومي / الكود" : "الرقم القومي"}</th><th>الوظيفة</th>${hasLoc ? "<th>المكان</th>" : ""}` +
       dates.map(d => `<th class="${off(d) ? "off" : ""}" title="${esc(hol[d] || "")}">${+d.slice(8)}<br>${"حنثرخجس"[new Date(d + "T00:00").getDay()]}</th>`).join("") +
       `<th>الإجمالي</th><th>إضافي</th>${timed ? "<th>إضافي نهاري</th><th>إضافي ليلي</th>" : ""}</tr></thead><tbody>`;
     list.forEach((r, i) => {
-      h += `<tr data-i="${i}"><td>${i + 1}</td>${multi ? `<td>${esc(r.site)}</td>` : ""}<td class="nm">${esc(r.name)}${r.rep ? " <span class='muted'>(بديل)</span>" : ""}</td><td>${esc(r.nid || r.code)}</td><td>${esc(r.job)}</td>${hasLoc ? `<td>${esc(r.loc)}</td>` : ""}` +
+      h += `<tr data-i="${i}"><td>${i + 1}</td>${multi ? `<td>${esc(r.site)}</td>` : ""}<td class="nm sk">${esc(r.name)}${r.rep ? " <span class='muted'>(بديل)</span>" : ""}</td><td>${esc(r.nid || r.code)}</td><td>${esc(r.job)}</td>${hasLoc ? `<td>${esc(r.loc)}</td>` : ""}` +
         dates.map(d => { const c = r.cells[d]; return `<td class="${off(d) ? "off" : ""} ${c?.a ? "a" : ""} ${c?.l ? (isLeave(c) ? "lvg" : "lv") : ""} ${c?.conf ? "conf" : ""} ${c?.w ? "wt" : ""} ${c && !c.app ? "unapp" : ""} ${c?.tbad ? "tb" : ""}"${c?.ev || c?.conf || c?.tbad ? ` title="${esc(c.ev || c.conf || TB_TIP)}"` : ""}>${c ? esc(c.v) : ""}</td>`; }).join("") +
         `<td><b>${r.total}</b></td><td>${r.extra || ""}</td>${timed ? (TIME_SITES.includes(r.site) || r.otd ? `<td>${r.otd ? hrsTxt(r.otd) : ""}</td><td>${r.otn ? hrsTxt(r.otn) : ""}</td>` : "<td></td><td></td>") : ""}</tr>`;
     });
@@ -1076,10 +1097,10 @@ $("a-esave").onclick = async () => {
 };
 $("a-all").onclick = async () => {
   // كل يوم بيتقرى من جديد ويتفحص قبل اعتماده (ب1): اللى الحاضرين فيه أكتر من المطلوب، أو اتعدّل بعد العرض،
-  // أو العدد المطلوب بتاعه ماتقراش — مابيتعتمدش وبيتقال ليه. الباقى يتعتمد، ويوم بيفشل مابيوقّفش اللى بعده
+  // أو العدد المطلوب بتاعه ماتقراش — مابيتمش اعتماده وبيتقال ليه. الباقى بيتم اعتماده، ويوم بيفشل مابيوقّفش اللى بعده
   const all = A.filter(canAp);
   if (!all.length) return show($("a-msg"), "err", "مفيش يوم جاهز للاعتماد.");
-  if (!await ask(`اعتماد ${cnt(all.length, "يوم")}؟\nكل يوم هيتفحص الأول: اللى الحاضرين فيه أكتر من المطلوب أو اتعدّل بعد ما القايمة اتعرضت مش هيتعتمد.`, { ok: "اعتمد" })) return;
+  if (!await ask(`اعتماد ${cnt(all.length, "يوم")}؟\nكل يوم هيتفحص الأول: اللى الحاضرين فيه أكتر من المطلوب أو اتعدّل بعد ما القايمة اتعرضت مش هيتم اعتماده.`, { ok: "اعتمد" })) return;
   $("a-all").disabled = true;
   const done = [], skip = [];
   for (const d of all) {
@@ -1089,7 +1110,7 @@ $("a-all").onclick = async () => {
     try { await setStatus(d, true); done.push(d); }
     catch (er) { skip.push(`${d.site} ${dTxt(d.date)}: مااتحفظش (${er.code === "permission-denied" ? "مش مسموح — يمكن اتعدّل" : er.message})`); }
   }
-  const tail = skip.length ? `\n${cnt(skip.length, "يوم")} ماتعتمدش:\n` + skip.slice(0, 15).join("\n") + (skip.length > 15 ? "\n…" : "") : "";
+  const tail = skip.length ? `\n${cnt(skip.length, "يوم")} مااتمش اعتمادهم:\n` + skip.slice(0, 15).join("\n") + (skip.length > 15 ? "\n…" : "") : "";
   await $("a-go").onclick();
-  show($("a-msg"), skip.length ? (done.length ? "warn" : "err") : "ok", (done.length ? `تم اعتماد ${cnt(done.length, "يوم")}.` : "ماتعتمدش أى يوم.") + tail);
+  show($("a-msg"), skip.length ? (done.length ? "warn" : "err") : "ok", (done.length ? `تم اعتماد ${cnt(done.length, "يوم")}.` : "مااتمش اعتماد أى يوم.") + tail);
 };

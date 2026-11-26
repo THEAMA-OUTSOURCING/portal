@@ -1,5 +1,5 @@
 // page-index.js — سكريبت صفحة index.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { dTxt, serverNow, serverClock, db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from './shared.js?v=20261125f';
+import { dTxt, serverNow, serverClock, db, auth, actorEmail, ask, tell, askText, SUP_SITES, freshRead, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, onSnapshot, serverTimestamp, writeBatch, Timestamp, signInWithEmailAndPassword, onAuthStateChanged, signOut, updatePassword } from './shared.js?v=20261126a';
 
 
 let loggedUser = null;
@@ -426,8 +426,9 @@ async function showPayVis(){
   box.innerHTML = '<b style="display:block;margin-bottom:4px;">مدة ظهور المرتب للعمال</b>' + tabs.sort((x,y)=>x[0].localeCompare(y[0])).map(([k,v])=>{
     const t = v.visible_until.toDate();
     const txt = (v.name || k || 'كل الشركات')+': '+(payHidden(v) ? 'مستخبي من '+visFmt(t) : 'ظاهر لحد '+visFmt(t));
-    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:3px 0;border-top:1px solid #e6edf3;"><span>'+esc(txt)+'</span>'
-      +'<button class="btn-secondary" style="width:auto;min-height:34px;margin:0;padding:4px 12px;" data-ext="'+esc(k)+'">تمديد</button></div>';
+    // و15: «تمديد» فاضل جنب الوقت (من غير ما ينزل سطر لوحده)، والكلام هو اللى بيلف
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:nowrap;padding:3px 0;border-top:1px solid #e6edf3;"><span style="flex:1 1 auto;min-width:0;">'+esc(txt)+'</span>'
+      +'<button class="btn-secondary" style="width:auto;flex:0 0 auto;min-height:34px;margin:0;padding:4px 12px;white-space:nowrap;" data-ext="'+esc(k)+'">تمديد</button></div>';
   }).join('');
   box.onclick = e => { const b = e.target.closest('[data-ext]'); if(b) extendPayVis(b.dataset.ext); };
   box.style.display='block';

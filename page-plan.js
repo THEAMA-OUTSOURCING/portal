@@ -1,8 +1,8 @@
 // page-plan.js — سكريبت صفحة plan.html (اتنقل من جوه الصفحة لملف لوحده عشان الـ CSP تمنع أي سكريبت مكتوب جوه الـ HTML)
-import { dTxt, db, auth, actorEmail, ATT_SITES, SUP_SITES, isBasic, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions, wireStaffLogin, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot, Timestamp, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, canOpen } from './shared.js?v=20261125f';
-import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261125f';
+import { dTxt, db, auth, actorEmail, ATT_SITES, SUP_SITES, isBasic, JC_DOC, fetchPlanBase, planBySite, enDigits, nameParts, ask, askText, tell, ensureFresh, freshRead, typeOk, typeErr, typeSelect, jobOk, jobOptions, wireStaffLogin, esc, collection, getDocs, addDoc, doc, query, where, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, serverTimestamp, onSnapshot, Timestamp, onAuthStateChanged, EmailAuthProvider, reauthenticateWithCredential, canOpen } from './shared.js?v=20261126a';
+import { bellStaff, bellLabel, sendPersonal } from './notify.js?v=20261126a';
 import { CHIPSY_SITE_PLAN } from './xl-attendance.js?v=20261124e';
-import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261125f';
+import { keyOf, splitJob, secsForJob, secOptions } from './sheet.js?v=20261126a';
 
 
 // ===== الإعدادات المبدئية (من مطابقة أكتوبر 2026) =====
@@ -765,7 +765,7 @@ async function runAccountTask(type, extra) {
       if (r.secret) { $("ac-secret-val").textContent = r.secret; $("ac-secret").classList.remove("hidden"); }
     } else if (r.status === "timeout") show(msg, "warn", "الطلب اتسجّل بس السيرفر مردّش لسه — هيتنفذ أول ما يشتغل، وارجع للصفحة دي تشوف النتيجة.");
     else show(msg, "err", r.message || "حصل خطأ، حاول تاني");
-  } catch (err) { show(msg, "err", err.code === "permission-denied" ? "مش مسموح — اتأكد إن الـ Rules الجديدة اتنشرت." : "خطأ: " + err.message); }
+  } catch (err) { show(msg, "err", err.code === "permission-denied" ? "مش مسموح لحسابك — كلّم الادمن." : "خطأ: " + err.message); }
   document.querySelectorAll('[data-panel="accounts"] button').forEach(b => b.disabled = false);
 }
 // القوايم المقفولة: العدد جنب العنوان (صفوف فيها بيانات بس، مش «مفيش»)
@@ -854,7 +854,7 @@ function forceEv(kind, w, extra) {
     by: u.uid, by_email: actorEmail(u), created_at: serverTimestamp() };
 }
 // evs = [[ref, data, شيل؟]] — بيتكتبوا مع بعض، وبعدين الاعتماد لو اللى بعت HR (طلب الـ HR بيعتمده هو) — بيرجّع عدد اللي اتعتمد.
-// طلب الأدمن بيستنى الـ HR: مابيتعتمدش هنا، والـ Rules بترفض إن الأدمن يعتمد طلب هو اللى باعته.
+// طلب الأدمن بيستنى الـ HR: مابيتمش اعتماده هنا، والـ Rules بترفض إن الأدمن يعتمد طلب هو اللى باعته.
 // الشيل من الكشف المطبوع (لو فيه) بيتكتب في نفس الدفعة مع طلبه — الـ Rules بتتأكد إن الطلب معاه
 async function sendForce(evs) {
   const u = auth.currentUser;
@@ -1073,7 +1073,7 @@ async function mcPreview() {
     else {
       seen.add(w.code);
       try { const d = await getDoc(doc(db, "medical_cards", w.code)); if (d.exists()) { r.st = "old"; r.oldCert = d.data().certificate || ""; } }
-      catch (e) { r.st = "err"; r.err = e.code === "permission-denied" ? "مش مسموح (الـ Rules)" : e.message; }
+      catch (e) { r.st = "err"; r.err = e.code === "permission-denied" ? "مش مسموح لحسابك" : e.message; }
     }
     return r;
   }));
@@ -1109,7 +1109,7 @@ async function mcUpload() {
         fileName: r.code + ".pdf", name: r.name, nationalId: r.nid, policy: MC_POLICY, sizeKB: Math.round(buf.length / 1024),
         sourceFile: r.f.name, uploaded_by: u.uid, updatedAt: serverTimestamp() });
       done.push({ code: r.code, name: r.name });
-    } catch (e) { fail.push(`${r.f.name}: ${e.code === "permission-denied" ? "مش مسموح (الـ Rules)" : e.message}`); if (e.code === "permission-denied") break; }
+    } catch (e) { fail.push(`${r.f.name}: ${e.code === "permission-denied" ? "مش مسموح لحسابك" : e.message}`); if (e.code === "permission-denied") break; }
   }
   // سجل الرفعة — السيرفر بيبعت منه إشعارات المشرفين
   if (done.length) {
